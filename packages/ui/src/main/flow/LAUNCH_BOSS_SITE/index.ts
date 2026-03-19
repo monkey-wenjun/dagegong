@@ -370,7 +370,43 @@ export async function launchBossSite() {
   const browser = await puppeteer.launch({
     headless: false,
     pipe: true,
-    enableExtensions: [editThisCookieExtensionPath]
+    ignoreDefaultArgs: ['--enable-automation'],
+    enableExtensions: [editThisCookieExtensionPath],
+    defaultViewport: null,
+    args: [
+      '--disable-infobars',
+      '--window-size=1440,900',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process,AutomationControlled',
+      '--test-type=ui',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-site-isolation-trials',
+      '--disable-web-security',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--disable-gpu',
+      '--hide-scrollbars',
+      '--disable-background-networking',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-component-update',
+      '--disable-default-apps',
+      '--disable-features=TranslateUI',
+      '--disable-hang-monitor',
+      '--disable-ipc-flooding-protection',
+      '--disable-popup-blocking',
+      '--disable-prompt-on-repost',
+      '--disable-renderer-backgrounding',
+      '--force-color-profile=srgb',
+      '--metrics-recording-only',
+      '--safebrowsing-disable-auto-update',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      '--no-sandbox',
+      '--disable-setuid-sandbox'
+    ]
   })
   let [page] = await browser.pages()
   for (let i = 0; i < bossCookies.length; i++) {

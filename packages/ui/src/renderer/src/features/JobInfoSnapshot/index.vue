@@ -1,8 +1,8 @@
 <template>
-  <el-form class="form" label-position="top" size="small">
-    <el-form-item label="公司">{{ jobInfo.companyName }}</el-form-item>
-    <el-form-item label="职位名称">{{ jobInfo.jobName }}</el-form-item>
-    <el-form-item label="职位分类">{{ jobInfo.positionName }}</el-form-item>
+  <el-form v-if="jobInfo" class="form" label-position="top" size="small">
+    <el-form-item label="公司">{{ jobInfo.companyName || '-' }}</el-form-item>
+    <el-form-item label="职位名称">{{ jobInfo.jobName || '-' }}</el-form-item>
+    <el-form-item label="职位分类">{{ jobInfo.positionName || '-' }}</el-form-item>
     <el-form-item v-if="scene === 'startChatRecord'" label="开聊时间">
       {{
         jobInfo.date
@@ -17,19 +17,22 @@
           : '无记录'
       }}
     </el-form-item>
-    <el-form-item label="工作经验">{{ jobInfo.experienceName }}</el-form-item>
+    <el-form-item label="工作经验">{{ jobInfo.experienceName || '-' }}</el-form-item>
     <el-form-item label="薪资">{{
-      `${jobInfo.salaryLow}-${jobInfo.salaryHigh}k` +
-      (jobInfo.salaryMonth ? `* ${jobInfo.salaryMonth}薪` : '')
+      jobInfo.salaryLow != null && jobInfo.salaryHigh != null
+        ? `${jobInfo.salaryLow}-${jobInfo.salaryHigh}k` +
+          (jobInfo.salaryMonth ? `* ${jobInfo.salaryMonth}薪` : '')
+        : '-'
     }}</el-form-item>
     <el-form-item label="职位描述">
-      <pre class="of-auto">{{ jobInfo.description }}</pre>
+      <pre class="of-auto">{{ jobInfo.description || '-' }}</pre>
     </el-form-item>
     <el-form-item label="BOSS"
-      >{{ jobInfo.bossName
+      >{{ jobInfo.bossName || '-'
       }}<template v-if="jobInfo.bossTitle"> - {{ jobInfo.bossTitle }}</template></el-form-item
     >
   </el-form>
+  <div v-else class="p20px text-center color-#999">无数据</div>
 </template>
 
 <script setup lang="ts">

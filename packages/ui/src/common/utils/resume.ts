@@ -1,9 +1,14 @@
 export interface ResumeContent {
-  name: string
-  workYearDesc: string
-  expectJob: string
-  userDescription: string
-  geekWorkExpList: Array<{
+  // Markdown 格式的完整简历内容（主要字段）
+  markdownContent?: string
+  
+  // 以下字段已弃用，保留用于向后兼容
+  name?: string
+  workYearDesc?: string
+  expectJob?: string
+  userDescription?: string
+  expectSalary?: [string, string]
+  geekWorkExpList?: Array<{
     company: string
     positionName: string
     startYearMon: string | null
@@ -11,7 +16,7 @@ export interface ResumeContent {
     performance: string
     workDescription: string
   }>
-  geekProjExpList: Array<{
+  geekProjExpList?: Array<{
     name: string
     startYearMon: string
     endYearMon: string
@@ -19,10 +24,15 @@ export interface ResumeContent {
     projectDescription: string
     performance: string
   }>
-  expectSalary: [string, string]
 }
 
 export function formatResumeJsonToMarkdown(resume) {
+  // 如果已有 markdownContent，直接使用
+  if (resume.content.markdownContent?.trim()) {
+    return resume.content.markdownContent
+  }
+
+  // 兼容旧格式：从表单字段生成 Markdown
   const basicInfoText = [
     ['# 姓名', resume.content.name],
     ['# 工作年限', resume.content.workYearDesc],
@@ -35,7 +45,7 @@ export function formatResumeJsonToMarkdown(resume) {
     .map((it) => it.join('\n'))
     .join('\n\n')
 
-  let formattedWorkExpText = resume.content.geekWorkExpList
+  let formattedWorkExpText = (resume.content.geekWorkExpList || [])
     .filter((it) => Boolean(it.company?.trim()))
     .map((it) => {
       const info = [
@@ -53,7 +63,7 @@ export function formatResumeJsonToMarkdown(resume) {
     formattedWorkExpText = '# 工作经历\n' + formattedWorkExpText
   }
 
-  let formattedProjWorkExpText = resume.content.geekProjExpList
+  let formattedProjWorkExpText = (resume.content.geekProjExpList || [])
     .filter((it) => Boolean(it.name?.trim()))
     .map((it) => {
       const info = [
@@ -79,13 +89,21 @@ export function formatResumeJsonToMarkdown(resume) {
 }
 
 export function checkIsResumeContentValid(resumeItem: { content: ResumeContent }) {
-  return (
-    !!resumeItem?.content &&
-    resumeItem.content.geekProjExpList?.[0]?.name?.trim() &&
-    resumeItem.content.geekWorkExpList?.[0]?.company?.trim()
+  // 新格式：只要有 markdownContent 或旧的数组格式任一即可
+  const hasMarkdown = !!resumeItem?.content?.markdownContent?.trim()
+  const hasOldFormat = !!(
+    resumeItem?.content?.geekProjExpList?.[0]?.name?.trim() &&
+    resumeItem?.content?.geekWorkExpList?.[0]?.company?.trim()
   )
+  return hasMarkdown || hasOldFormat
 }
 
 export function resumeContentEnoughDetect(resumeItem: { content: ResumeContent }) {
-  return resumeItem?.content && formatResumeJsonToMarkdown(resumeItem)?.length > 800
+  if (!resumeItem?.content) return false
+  // 新格式：检查 markdownContent 长度
+  if (resumeItem.content.markdownContent?.trim()) {
+    return resumeItem.content.markdownContent.length > 200
+  }
+  // 旧格式：检查生成的 Markdown 长度
+  return formatResumeJsonToMarkdown(resumeItem)?.length > 800
 }

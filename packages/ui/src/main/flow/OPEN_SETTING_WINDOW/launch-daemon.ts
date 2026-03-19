@@ -41,11 +41,11 @@ export async function launchDaemon() {
     )
 
     daemonProcess.stdout.on('data', (data) => {
-      console.log(`守护进程输出: ${data}`)
+      console.log(`守护进程输出: ${data.toString('utf8')}`)
     })
 
     daemonProcess.stderr.on('data', (data) => {
-      console.error(`守护进程错误: ${data}`)
+      console.error(`守护进程错误: ${data.toString('utf8')}`)
     })
 
     return new Promise((resolve, reject) => {

@@ -324,7 +324,7 @@ const formRulesForElForm = computed(() => {
 
 const handleCancel = () => {
   gtagRenderer('cancel_clicked')
-  electron.ipcRenderer.send('close-llm-config')
+  window.history.back()
   gtagRenderer('cancel_done')
 }
 
@@ -350,27 +350,33 @@ const handleSubmit = async () => {
       return
     }
   }
-  electron.ipcRenderer.invoke('save-llm-config', JSON.parse(JSON.stringify(formContent.value)))
+  await electron.ipcRenderer.invoke('save-llm-config-direct', JSON.parse(JSON.stringify(formContent.value)))
   gtagRenderer('submit_done')
+  ElMessage.success('保存成功')
+  window.history.back()
 }
 
 onMounted(async () => {
-  const savedFileContent = (await electron.ipcRenderer.invoke('fetch-config-file-content'))
-    ?.config?.['llm.json']
-  if (!savedFileContent?.length) {
-    return
+  try {
+    const savedFileContent = (await electron.ipcRenderer.invoke('fetch-config-file-content'))
+      ?.config?.['llm.json']
+    if (!savedFileContent?.length) {
+      return
+    }
+    const keyOfItem = Object.keys(getNewConfigItem())
+    formContent.value = savedFileContent.map((it) => {
+      const conf: any = {}
+      for (const k of keyOfItem) {
+        conf[k] = it[k]
+      }
+      if (!it.id) {
+        conf.id = uuid()
+      }
+      return conf
+    })
+  } catch (err) {
+    console.error('Failed to load LLM config:', err)
   }
-  const keyOfItem = Object.keys(getNewConfigItem())
-  formContent.value = savedFileContent.map((it) => {
-    const conf: any = {}
-    for (const k of keyOfItem) {
-      conf[k] = it[k]
-    }
-    if (!it.id) {
-      conf.id = uuid()
-    }
-    return conf
-  })
 })
 
 const llmPresetList: {
@@ -536,7 +542,7 @@ const openExternalLink = (url) => {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   .main-wrapper {
     flex: 1;
     overflow: auto;

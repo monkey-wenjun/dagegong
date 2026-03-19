@@ -3,6 +3,7 @@ import gtag from './gtag'
 import buildInfo from '../../common/build-info.json'
 import os from 'node:os'
 import fs from 'node:fs'
+import path from 'node:path'
 import {
   ensureStorageFileExist,
   writeStorageFile,
@@ -10,6 +11,8 @@ import {
   readConfigFile,
   readStorageFile
 } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { runningLogManager } from '../features/running-log'
+import { getBrowserConfig, saveBrowserConfig } from '../features/browser-config'
 
 export default function initPublicIpc() {
   ipcMain.on(
@@ -126,5 +129,52 @@ export default function initPublicIpc() {
     })
 
     return result
+  })
+
+  // PDF 简历解析
+  ipcMain.handle('parse-pdf-resume', async (ev, { filePath }: { filePath: string }) => {
+    try {
+      // 动态导入 pdf-parse
+      const pdfParse = await import('pdf-parse').then(m => m.default || m)
+      
+      // 读取 PDF 文件
+      const dataBuffer = fs.readFileSync(filePath)
+      const pdfData = await pdfParse(dataBuffer)
+      
+      return {
+        success: true,
+        text: pdfData.text,
+        info: {
+          pages: pdfData.numpages,
+          fileName: path.basename(filePath)
+        }
+      }
+    } catch (error) {
+      console.error('PDF parse error:', error)
+      return {
+        success: false,
+        error: error.message || 'PDF 解析失败'
+      }
+    }
+  })
+  
+  // 运行日志相关 IPC
+  ipcMain.handle('get-running-logs', () => {
+    return runningLogManager.getLogs()
+  })
+  
+  ipcMain.handle('clear-running-logs', () => {
+    runningLogManager.clearLogs()
+    return { success: true }
+  })
+  
+  // 浏览器配置相关 IPC
+  ipcMain.handle('get-browser-config', async () => {
+    return await getBrowserConfig()
+  })
+  
+  ipcMain.handle('save-browser-config', async (_, config) => {
+    await saveBrowserConfig(config)
+    return { success: true }
   })
 }

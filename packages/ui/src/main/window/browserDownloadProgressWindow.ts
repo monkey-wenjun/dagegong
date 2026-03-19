@@ -32,6 +32,7 @@ export function createBrowserDownloadProgressWindow(
     resizable: false,
     show: false,
     autoHideMenuBar: true,
+    icon: path.join(__dirname, '../../build/icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       sandbox: false

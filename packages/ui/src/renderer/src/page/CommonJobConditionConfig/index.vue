@@ -1,5 +1,5 @@
 <template>
-  <div class="common-job-condition-config" flex flex-col h-full>
+  <div class="common-job-condition-config" flex flex-col h-full min-h-full>
     <div flex-1 of-auto>
       <el-form
         ref="formRef"
@@ -12,7 +12,7 @@
         ml-auto
         mr-auto
       >
-        <div mb20px>公共职位筛选条件</div>
+        <div mb20px>求职全局设置选项</div>
         <el-form-item prop="expectCompanies" mb0>
           <div
             font-size-14px
@@ -58,7 +58,7 @@
             "
           />
         </el-form-item>
-        <div class="h-1px bg-#f0f0f0" mt16px mb8px />
+        <div class="h-1px" style="background-color: #f0f0f0" mt16px mb8px />
         <div
           ref="blockCompanyNameRegExpSectionEl"
           font-size-14px
@@ -117,7 +117,7 @@
             />
           </el-form-item>
         </div>
-        <div class="h-1px bg-#f0f0f0" mt16px mb16px />
+        <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
         <div mt16px>
           <div font-size-14px mb8px>工作地</div>
           <div
@@ -139,15 +139,25 @@
                 <city-chooser v-model="formContent.expectCityList">
                   <template #default="{ modelValue, showDialog, clearValue }">
                     <div v-if="modelValue?.length">
-                      <div>当前已选择城市：</div>
-                      <div flex flex-wrap gap-10px>
-                        <el-tag v-for="it in modelValue" :key="it">
-                          {{ it }}
+                      <div>当前已选择工作地：</div>
+                      <div flex flex-wrap gap-10px mt-6px>
+                        <el-tag 
+                          v-for="it in modelValue" 
+                          :key="it"
+                          :type="it.includes('-') ? 'primary' : 'info'"
+                        >
+                          <template v-if="it.includes('-')">
+                            <span font-bold>{{ it.split('-')[0] }}</span>
+                            <span style="color: #666">-{{ it.split('-').slice(1).join('-') }}</span>
+                          </template>
+                          <template v-else>
+                            {{ it }}
+                          </template>
                         </el-tag>
                       </div>
                     </div>
                     <div v-else>
-                      <div>当前未选择任何期望城市，将不会按照城市进行筛选</div>
+                      <div>当前未选择任何期望工作地，将不会按照城市进行筛选</div>
                     </div>
                     <div
                       line-height-1
@@ -181,7 +191,7 @@
             </el-form-item>
           </div>
         </div>
-        <div class="h-1px bg-#f0f0f0" mt16px mb16px />
+        <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
         <div mt16px>
           <div font-size-14px mb8px>
             薪资（仅支持按月计算薪资的职位；非按月计算薪资职位（例如兼职职位、实习职位）将直接跳过）
@@ -325,7 +335,7 @@
                                 formContent.expectSalaryLow
                                   ? ((formContent.expectSalaryLow / m) * 10).toFixed(2)
                                   : '无下限'
-                              }}<small v-if="formContent.expectSalaryLow" class="color-#999 ml-2px"
+                              }}<small v-if="formContent.expectSalaryLow" class="ml-2px" style="color: #999"
                                 >k</small
                               >
                             </td>
@@ -334,14 +344,14 @@
                                 formContent.expectSalaryHigh
                                   ? ((formContent.expectSalaryHigh / m) * 10).toFixed(2)
                                   : '无上限'
-                              }}<small v-if="formContent.expectSalaryHigh" class="color-#999 ml-2px"
+                              }}<small v-if="formContent.expectSalaryHigh" class="ml-2px" style="color: #999"
                                 >k</small
                               >
                             </td>
                             <td>{{ m }}薪</td>
                           </tr>
                         </table>
-                        <div v-if="index !== 1" class="bg-#f0f0f0 w-2px flex-self-stretch"></div>
+                        <div v-if="index !== 1" class="w-2px flex-self-stretch" style="background-color: #f0f0f0"></div>
                       </template>
                     </div>
                   </div>
@@ -350,7 +360,7 @@
             </div>
           </div>
         </div>
-        <div class="h-1px bg-#f0f0f0" mt16px mb16px />
+        <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
         <div>
           <div
             flex
@@ -576,7 +586,7 @@
         </div>
       </el-form>
     </div>
-    <div class="bg-#f8f8f8 pb10px pt10px">
+    <div class="pb10px pt10px" style="background-color: #f8f8f8">
       <div
         :style="{
           display: 'flex',
@@ -618,6 +628,7 @@ import {
   normalizeCommaSplittedStr
 } from '../MainLayout/GeekAutoStartChatWithBoss/common'
 import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import expectJobFilterTemplateList from '../MainLayout/GeekAutoStartChatWithBoss/expectJobFilterTemplateList'
 const { ipcRenderer } = window.electron
 const gtagRenderer = (name, params?: object) => {
@@ -691,8 +702,7 @@ const handleExpectSalaryCalculateWayChanged = getHandlerForExpectSalaryCalculate
 })
 
 function handleCancel() {
-  //
-  window.close()
+  window.history.back()
 }
 
 const formRef = ref()
@@ -709,11 +719,12 @@ async function handleSave() {
       })
     )
   )
-  ipcRenderer.send('common-job-condition-config-done')
+  ElMessage.success('保存成功')
+  window.history.back()
 }
 
 ipcRenderer.invoke('fetch-config-file-content').then((res) => {
-  const commonJobConditionConfig = res.config?.['common-job-condition-config.json'] ?? {}
+  const commonJobConditionConfig = res?.config?.['common-job-condition-config.json'] ?? {}
   Object.keys(formContent.value).forEach((key) => {
     if (key in commonJobConditionConfig) {
       if (key === 'expectCompanies') {
@@ -723,6 +734,8 @@ ipcRenderer.invoke('fetch-config-file-content').then((res) => {
       }
     }
   })
+}).catch((err) => {
+  console.error('Failed to load config:', err)
 })
 </script>
 

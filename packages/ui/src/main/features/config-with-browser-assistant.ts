@@ -4,17 +4,17 @@ import {
   browserAssistantWindow
 } from '../window/browserAssistantWindow'
 
-export async function configWithBrowserAssistant({ windowOption, autoFind } = {}) {
+export async function configWithBrowserAssistant({ windowOption = {}, autoFind = false } = {}) {
   return new Promise((resolve, reject) => {
     createBrowserAssistantWindow({ ...windowOption }, { autoFind })
 
     let processDone = false
     function handler() {
       processDone = true
-      browserAssistantWindow.close()
+      browserAssistantWindow?.close()
     }
     ipcMain.once('browser-config-saved', handler)
-    browserAssistantWindow.once('closed', () => {
+    browserAssistantWindow?.once('closed', () => {
       ipcMain.off('browser-config-saved', handler)
       if (processDone) {
         resolve(true)

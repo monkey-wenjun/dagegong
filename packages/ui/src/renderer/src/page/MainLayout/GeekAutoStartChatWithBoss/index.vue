@@ -300,21 +300,21 @@
               <div w-full>
                 <div flex flex-items-center>
                   <el-checkbox v-model="formContent.fieldsForUseCommonConfig.expectCompanies"
-                    >使用在“公共职位筛选条件”中设置的值</el-checkbox
+                    >使用在“求职全局设置选项”中设置的值</el-checkbox
                   >
                   <el-button
                     v-if="formContent.fieldsForUseCommonConfig.expectCompanies"
                     size="small"
                     ml-10px
                     @click="handleClickConfigCommonJobCondition({ entry: 'expect-company-field' })"
-                    >编辑公共职位筛选条件</el-button
+                    >编辑求职全局设置选项</el-button
                   >
                   <el-button
                     v-else
                     size="small"
                     ml-10px
                     @click="fillCommonConfigField('expectCompanies')"
-                    >填入公共职位筛选条件的值</el-button
+                    >填入求职全局设置选项的值</el-button
                   >
                 </div>
                 <el-input
@@ -342,7 +342,7 @@
                 />
               </div>
             </el-form-item>
-            <div class="h-1px bg-#f0f0f0" mt16px mb8px />
+            <div class="h-1px" style="background-color: #f0f0f0" mt16px mb8px />
             <div
               ref="blockCompanyNameRegExpSectionEl"
               font-size-14px
@@ -405,7 +405,7 @@
                 <div flex flex-items-center>
                   <el-checkbox
                     v-model="formContent.fieldsForUseCommonConfig.blockCompanyNameRegExpStr"
-                    >使用在“公共职位筛选条件”中设置的值</el-checkbox
+                    >使用在“求职全局设置选项”中设置的值</el-checkbox
                   >
                   <el-button
                     v-if="formContent.fieldsForUseCommonConfig.blockCompanyNameRegExpStr"
@@ -416,14 +416,14 @@
                         entry: 'block-company-name-reg-exp-field'
                       })
                     "
-                    >编辑公共职位筛选条件</el-button
+                    >编辑求职全局设置选项</el-button
                   >
                   <el-button
                     v-else
                     size="small"
                     ml-10px
                     @click="fillCommonConfigField('blockCompanyNameRegExpStr')"
-                    >填入公共职位筛选条件的值</el-button
+                    >填入求职全局设置选项的值</el-button
                   >
                 </div>
                 <el-form-item
@@ -503,7 +503,7 @@
                 </el-form-item>
               </div>
             </div>
-            <div class="h-1px bg-#f0f0f0" mt16px mb16px />
+            <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
             <div mt16px>
               <div font-size-14px mb8px>工作地</div>
               <div
@@ -528,7 +528,7 @@
                   >
                     <div flex flex-items-center>
                       <el-checkbox v-model="formContent.fieldsForUseCommonConfig.city"
-                        >使用在“公共职位筛选条件”中设置的值</el-checkbox
+                        >使用在“求职全局设置选项”中设置的值</el-checkbox
                       >
                       <el-button
                         v-if="formContent.fieldsForUseCommonConfig.city"
@@ -539,10 +539,10 @@
                             entry: 'city-field'
                           })
                         "
-                        >编辑公共职位筛选条件</el-button
+                        >编辑求职全局设置选项</el-button
                       >
                       <el-button v-else size="small" ml-10px @click="fillCommonConfigField('city')"
-                        >填入公共职位筛选条件的值</el-button
+                        >填入求职全局设置选项的值</el-button
                       >
                     </div>
                     <city-chooser
@@ -551,15 +551,25 @@
                     >
                       <template #default="{ modelValue, showDialog, clearValue }">
                         <div v-if="modelValue?.length">
-                          <div>当前已选择城市：</div>
-                          <div flex flex-wrap gap-10px>
-                            <el-tag v-for="it in modelValue" :key="it">
-                              {{ it }}
+                          <div>当前已选择工作地：</div>
+                          <div flex flex-wrap gap-10px mt-6px>
+                            <el-tag 
+                              v-for="it in modelValue" 
+                              :key="it"
+                              :type="it.includes('-') ? 'primary' : 'info'"
+                            >
+                              <template v-if="it.includes('-')">
+                                <span font-bold>{{ it.split('-')[0] }}</span>
+                                <span style="color: #666">-{{ it.split('-').slice(1).join('-') }}</span>
+                              </template>
+                              <template v-else>
+                                {{ it }}
+                              </template>
                             </el-tag>
                           </div>
                         </div>
                         <div v-else>
-                          <div>当前未选择任何期望城市，将不会按照城市进行筛选</div>
+                          <div>当前未选择任何期望工作地，将不会按照城市进行筛选</div>
                         </div>
                         <div
                           line-height-1
@@ -597,15 +607,25 @@
                     >
                       <template #default="{ modelValue }">
                         <div v-if="modelValue?.length">
-                          <div>当前已选择城市：</div>
-                          <div flex flex-wrap gap-10px>
-                            <el-tag v-for="it in modelValue" :key="it">
-                              {{ it }}
+                          <div>当前已选择工作地（公共配置）：</div>
+                          <div flex flex-wrap gap-10px mt-6px>
+                            <el-tag 
+                              v-for="it in modelValue" 
+                              :key="it"
+                              :type="it.includes('-') ? 'primary' : 'info'"
+                            >
+                              <template v-if="it.includes('-')">
+                                <span font-bold>{{ it.split('-')[0] }}</span>
+                                <span style="color: #666">-{{ it.split('-').slice(1).join('-') }}</span>
+                              </template>
+                              <template v-else>
+                                {{ it }}
+                              </template>
                             </el-tag>
                           </div>
                         </div>
                         <div v-else>
-                          <div>当前未选择任何期望城市，将不会按照城市进行筛选</div>
+                          <div>当前公共配置未选择任何期望工作地</div>
                         </div>
                       </template>
                     </city-chooser>
@@ -678,7 +698,7 @@
                 </div>
               </div>
             </div>
-            <div class="h-1px bg-#f0f0f0" mt16px mb16px />
+            <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
             <div mt16px>
               <div font-size-14px mb8px>
                 薪资（仅支持按月计算薪资的职位；非按月计算薪资职位（例如兼职职位、实习职位）将直接跳过）
@@ -693,7 +713,7 @@
                 <div>
                   <div flex flex-items-center>
                     <el-checkbox v-model="formContent.fieldsForUseCommonConfig.salary"
-                      >使用在“公共职位筛选条件”中设置的值</el-checkbox
+                      >使用在“求职全局设置选项”中设置的值</el-checkbox
                     >
                     <el-button
                       v-if="formContent.fieldsForUseCommonConfig.salary"
@@ -704,10 +724,10 @@
                           entry: 'salary-field'
                         })
                       "
-                      >编辑公共职位筛选条件</el-button
+                      >编辑求职全局设置选项</el-button
                     >
                     <el-button v-else size="small" ml-10px @click="fillCommonConfigField('salary')"
-                      >填入公共职位筛选条件的值</el-button
+                      >填入求职全局设置选项的值</el-button
                     >
                   </div>
                   <template v-if="!formContent.fieldsForUseCommonConfig.salary">
@@ -845,7 +865,7 @@
                                         : '无下限'
                                     }}<small
                                       v-if="formContent.expectSalaryLow"
-                                      class="color-#999 ml-2px"
+                                      class="ml-2px" style="color: #999"
                                       >k</small
                                     >
                                   </td>
@@ -856,7 +876,7 @@
                                         : '无上限'
                                     }}<small
                                       v-if="formContent.expectSalaryHigh"
-                                      class="color-#999 ml-2px"
+                                      class="ml-2px" style="color: #999"
                                       >k</small
                                     >
                                   </td>
@@ -865,7 +885,7 @@
                               </table>
                               <div
                                 v-if="index !== 1"
-                                class="bg-#f0f0f0 w-2px flex-self-stretch"
+                                class="w-2px flex-self-stretch" style="background-color: #f0f0f0"
                               ></div>
                             </template>
                           </div>
@@ -1005,7 +1025,7 @@
                                         : '无下限'
                                     }}<small
                                       v-if="commonJobConditionConfig.expectSalaryLow"
-                                      class="color-#999 ml-2px"
+                                      class="ml-2px" style="color: #999"
                                       >k</small
                                     >
                                   </td>
@@ -1019,7 +1039,7 @@
                                         : '无上限'
                                     }}<small
                                       v-if="commonJobConditionConfig.expectSalaryHigh"
-                                      class="color-#999 ml-2px"
+                                      class="ml-2px" style="color: #999"
                                       >k</small
                                     >
                                   </td>
@@ -1028,7 +1048,7 @@
                               </table>
                               <div
                                 v-if="index !== 1"
-                                class="bg-#f0f0f0 w-2px flex-self-stretch"
+                                class="w-2px flex-self-stretch" style="background-color: #f0f0f0"
                               ></div>
                             </template>
                           </div>
@@ -1100,7 +1120,7 @@
                 </div>
               </div>
             </div>
-            <div class="h-1px bg-#f0f0f0" mt16px mb16px />
+            <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
             <div mt16px>
               <div font-size-14px mb8px>工作经验（暂不支持按日计算薪资的实习类职位）</div>
               <div
@@ -1266,7 +1286,7 @@
                 <div flex-1>
                   <div flex flex-items-center>
                     <el-checkbox v-model="formContent.fieldsForUseCommonConfig.jobDetail"
-                      >使用在“公共职位筛选条件”中设置的值</el-checkbox
+                      >使用在“求职全局设置选项”中设置的值</el-checkbox
                     >
                     <el-button
                       v-if="formContent.fieldsForUseCommonConfig.jobDetail"
@@ -1277,14 +1297,14 @@
                           entry: 'job-detail-field'
                         })
                       "
-                      >编辑公共职位筛选条件</el-button
+                      >编辑求职全局设置选项</el-button
                     >
                     <el-button
                       v-else
                       size="small"
                       ml-10px
                       @click="fillCommonConfigField('jobDetail')"
-                      >填入公共职位筛选条件的值</el-button
+                      >填入求职全局设置选项的值</el-button
                     >
                   </div>
                   <el-form-item
@@ -1605,7 +1625,7 @@
                 />
               </div>
             </div>
-            <div class="h-1px bg-#f0f0f0" mt16px mb16px />
+            <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
             <div mt16px>
               <div mb0 lh-2em font-size-14px>活跃度</div>
               <el-form-item>
@@ -1657,7 +1677,7 @@
           </el-card>
         </el-form>
       </div>
-      <div class="bg-#f8f8f8 pb10px pt10px">
+      <div class="pb10px pt10px" style="background-color: #f8f8f8">
         <div
           :style="{
             display: 'flex',
@@ -1714,7 +1734,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch, nextTick, onUnmounted } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, nextTick, onUnmounted, onMounted } from 'vue'
 import { ElForm, ElMessage } from 'element-plus'
 import { QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
@@ -1741,6 +1761,7 @@ import conditions from '@geekgeekrun/geek-auto-start-chat-with-boss/internal-con
 import JobSourceDragOrderer from '../../../features/JobSourceDragOrderer/index.vue'
 import expectJobFilterTemplateList from './expectJobFilterTemplateList'
 import RunningOverlay from '@renderer/features/RunningOverlay/index.vue'
+import { useTaskManagerStore, useRunningStepsStore } from '@renderer/store'
 import { RUNNING_STATUS_ENUM } from '../../../../../common/enums/auto-start-chat'
 import {
   getJobDetailRegExpMatchLogicConfig,
@@ -2084,6 +2105,35 @@ const formRules = {
 const formRef = ref<InstanceType<typeof ElForm>>()
 const runRecordId = ref(null)
 const runningOverlayRef = ref(null)
+
+// 任务管理 store
+const taskManagerStore = useTaskManagerStore()
+const runningStepsStore = useRunningStepsStore()
+
+// 检查任务是否正在运行
+const checkAndShowRunningStatus = async () => {
+  await taskManagerStore.getRunningTasks()
+  const runningTask = taskManagerStore.runningTasks.find(
+    (it: any) => it.workerId === 'geekAutoStartWithBossMain'
+  )
+  if (runningTask) {
+    // 如果有正在运行的任务，显示运行状态弹窗
+    runRecordId.value = runningTask.runRecordId
+    runningOverlayRef.value?.show()
+  } else {
+    // 如果没有运行中的任务，尝试从 store 恢复 runRecordId（用于状态保持）
+    const savedRunRecordId = runningStepsStore.getRunRecordId('geekAutoStartWithBossMain')
+    if (savedRunRecordId) {
+      runRecordId.value = savedRunRecordId
+    }
+  }
+}
+
+// 组件挂载时检查任务状态
+onMounted(() => {
+  checkAndShowRunningStatus()
+})
+
 const handleSubmit = async () => {
   gtagRenderer('save_config_and_launch_clicked', {
     has_dingtalk_robot_token: !!formContent.value?.dingtalkRobotAccessToken,
@@ -2363,6 +2413,18 @@ const handleStopButtonClick = async () => {
   }
 }
 
+// 监听任务退出，清除 store 中的状态
+const handleWorkerExited = (_, payload) => {
+  const { workerId } = payload
+  if (workerId === 'geekAutoStartWithBossMain') {
+    runningStepsStore.clearWorkerState('geekAutoStartWithBossMain')
+  }
+}
+electron.ipcRenderer.on('worker-exited', handleWorkerExited)
+onUnmounted(() => {
+  electron.ipcRenderer.removeListener('worker-exited', handleWorkerExited)
+})
+
 const handleBlockCompanyNameRegExpTemplateClicked =
   getHandlerForBlockCompanyNameRegExpTemplateClicked({
     gtagRenderer,
@@ -2438,22 +2500,24 @@ const fillCommonConfigField = (field) => {
 <style scoped lang="scss">
 .geek-auto-start-run-with-boss__wrap {
   position: relative;
+  width: 100%;
   .main__wrap {
     position: relative;
     z-index: 0;
     max-height: 100vh;
+    width: 100%;
     .form-wrap {
       overflow: auto;
       padding-top: 20px;
       padding-left: 20px;
       padding-right: 20px;
       padding-bottom: 20px;
+      width: 100%;
       .config-section + .config-section {
         margin-top: 10px;
       }
       :deep(.el-form) {
-        max-width: 1000px;
-        margin: 0 auto;
+        width: 100%;
       }
       .last-form-item {
         :deep(.el-form-item__content) {

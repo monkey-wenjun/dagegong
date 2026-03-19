@@ -16,6 +16,7 @@ export function createLlmConfigWindow(
     show: false,
     autoHideMenuBar: true,
     frame: true,
+    icon: path.join(__dirname, '../../build/icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       sandbox: false

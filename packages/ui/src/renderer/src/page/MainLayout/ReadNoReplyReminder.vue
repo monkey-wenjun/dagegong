@@ -115,7 +115,7 @@
                         还原默认“开场白话术”提示词模板
                       </el-button>
                     </div>
-                    <div class="font-size-12px color-#666">
+                    <div class="font-size-12px" style="color: #666">
                       对生成效果不够满意？可在此查看、编辑“开场白话术”提示词模板。
                     </div>
                   </div>
@@ -181,7 +181,7 @@
                           还原默认“跟进话术”提示词模板
                         </el-button>
                       </div>
-                      <div class="font-size-12px color-#666">
+                      <div class="font-size-12px" style="color: #666">
                         对生成效果不够满意？可在此查看、编辑“跟进话术”提示词模板。请在模板中需要插入简历的位置插入
                         __REPLACE_REAL_RESUME_HERE__
                       </div>
@@ -208,7 +208,7 @@
                   <el-button size="small" type="primary" @click="handleClickEditResume">
                     编辑简历
                   </el-button>
-                  <div class="font-size-12px color-#666">
+                  <div class="font-size-12px" style="color: #666">
                     简历内容将提交给大语言模型，以用于生成已读不回提醒消息；提交内容及生成消息中不会包含期望薪资
                   </div>
                 </div>
@@ -351,7 +351,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { dayjs, ElForm, ElMessage, ElMessageBox, ElSelect, ElOption } from 'element-plus'
 import { useRouter } from 'vue-router'
 import {
@@ -365,6 +365,7 @@ import { gtagRenderer as baseGtagRenderer } from '@renderer/utils/gtag'
 import mittBus from '../../utils/mitt'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import RunningOverlay from '@renderer/features/RunningOverlay/index.vue'
+import { useTaskManagerStore, useRunningStepsStore } from '@renderer/store'
 import { DEFAULT_CONSTANT_OPEN_CONTENT_SEGS } from '../../../../common/constant'
 const gtagRenderer = (name, params?: object) => {
   return baseGtagRenderer(name, {
@@ -607,6 +608,35 @@ async function checkIsCanRun() {
 }
 const runRecordId = ref(null)
 const runningOverlayRef = ref(null)
+
+// 任务管理 store
+const taskManagerStore = useTaskManagerStore()
+const runningStepsStore = useRunningStepsStore()
+
+// 检查任务是否正在运行
+const checkAndShowRunningStatus = async () => {
+  await taskManagerStore.getRunningTasks()
+  const runningTask = taskManagerStore.runningTasks.find(
+    (it: any) => it.workerId === 'readNoReplyAutoReminderMain'
+  )
+  if (runningTask) {
+    // 如果有正在运行的任务，显示运行状态弹窗
+    runRecordId.value = runningTask.runRecordId
+    runningOverlayRef.value?.show()
+  } else {
+    // 如果没有运行中的任务，尝试从 store 恢复 runRecordId（用于状态保持）
+    const savedRunRecordId = runningStepsStore.getRunRecordId('readNoReplyAutoReminderMain')
+    if (savedRunRecordId) {
+      runRecordId.value = savedRunRecordId
+    }
+  }
+}
+
+// 组件挂载时检查任务状态
+onMounted(() => {
+  checkAndShowRunningStatus()
+})
+
 const handleSubmit = async () => {
   gtagRenderer('run_read_no_reply_reminder_clicked', {
     throttle_interval_minutes: formContent.value.autoReminder.throttleIntervalMinutes,
@@ -803,9 +833,8 @@ const defaultConstantOpenContent = computed(() => {
     padding-left: 20px;
     padding-right: 20px;
     .el-form {
-      margin: 0 auto;
-      max-width: 1000px;
       padding-top: 8px;
+      width: 100%;
     }
     .last-form-item {
       .el-form-item__content {

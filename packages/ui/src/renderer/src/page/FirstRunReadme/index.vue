@@ -2,7 +2,7 @@
   <div ref="componentRootEl" class="first-run-readme">
     <div class="first-run-readme__inner-outer">
       <div class="first-run-readme__inner">
-        <div class="readme-title">欢迎使用GeekGeekRun！祝您求职顺利~</div>
+        <div class="readme-title">欢迎使用找个工打打！祝您求职顺利~</div>
         <div class="readme-desc">
           如下是使用必读，请您逐条阅读；如果已经了解且接受，请在每一条前面打勾
         </div>

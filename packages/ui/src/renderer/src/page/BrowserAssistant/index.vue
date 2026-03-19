@@ -2,7 +2,7 @@
   <div class="h-screen of-hidden flex flex-col flex-items-center flex-justify-between">
     <div flex-1 of-hidden w-full>
       <el-form ref="formRef" :model="formData" :rules="rules" flex flex-col of-hidden h-full>
-        <div class="bg-#f6f6f6" flex-0>
+        <div style="background-color: #f6f6f6" flex-0>
           <el-form-item
             class="w-90%"
             label="浏览器可执行文件路径"
@@ -27,6 +27,31 @@
               >
             </div>
           </el-form-item>
+        </div>
+        <!-- 浏览器运行配置 -->
+        <div style="background-color: #f0f0f0" flex-0 pt20px pb20px>
+          <div class="w-90%" ml-auto mr-auto>
+            <div font-weight-bold mb10px>浏览器运行配置</div>
+            <div flex flex-items-center gap-10px>
+              <el-checkbox v-model="browserRuntimeConfig.headless" size="default">
+                以无头模式（Headless Mode）启动浏览器
+              </el-checkbox>
+              <el-tooltip
+                content="无头模式下浏览器不会显示界面，在后台运行。适合不想看到浏览器窗口的用户。"
+                placement="right"
+              >
+                <el-icon><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </div>
+            <div class="mt-8px text-#666 text-12px">
+              <span v-if="browserRuntimeConfig.headless" color-orange>
+                已启用无头模式。浏览器将在后台运行，不会显示界面。
+              </span>
+              <span v-else>
+                未启用无头模式。浏览器窗口将正常显示。
+              </span>
+            </div>
+          </div>
         </div>
         <div flex-1 of-auto font-size-14px line-height-1.5em>
           <div mt10px ml-auto mr-auto class="w-90%">
@@ -175,7 +200,7 @@
         </div>
       </el-form>
     </div>
-    <div class="bg-#f8f8f8 pb10px pt10px w-full flex-0">
+    <div class="pb10px pt10px w-full flex-0" style="background-color: #f8f8f8">
       <div
         :style="{
           display: 'flex',
@@ -208,6 +233,7 @@ import { ElMessage } from 'element-plus'
 import { gtagRenderer as baseGtagRenderer } from '@renderer/utils/gtag'
 import { EXPECT_CHROMIUM_BUILD_ID } from '../../../../common/constant'
 import { sleep } from '@geekgeekrun/utils/sleep.mjs'
+import { QuestionFilled } from '@element-plus/icons-vue'
 const { ipcRenderer } = electron
 useRouter()
 // const checkDependenciesResult = ref({})
@@ -232,6 +258,23 @@ const handleOpenChromeDownloadPage = debounce(
 const formData = ref({
   browserPath: ''
 })
+
+// 浏览器运行配置
+const browserRuntimeConfig = ref({
+  headless: false
+})
+
+// 加载运行配置
+const loadRuntimeConfig = async () => {
+  try {
+    const config = await ipcRenderer.invoke('get-browser-config')
+    if (config) {
+      browserRuntimeConfig.value.headless = config.headless || false
+    }
+  } catch (err) {
+    console.error('加载浏览器运行配置失败:', err)
+  }
+}
 
 const rules = {
   browserPath: {
@@ -318,6 +361,9 @@ async function chooseExecutableFile() {
 ipcRenderer.invoke('get-last-used-and-available-browser').then((res) => {
   formData.value.browserPath = res?.executablePath ?? ''
 })
+
+// 加载运行配置
+loadRuntimeConfig()
 function handleCancel() {
   gtagRenderer('cancel_clicked')
   window.close()
@@ -333,6 +379,10 @@ async function handleSave() {
     await ipcRenderer.invoke('save-last-used-and-available-browser-info', {
       executablePath: formData.value.browserPath,
       browser: ''
+    })
+    // 保存运行配置
+    await ipcRenderer.invoke('save-browser-config', {
+      headless: browserRuntimeConfig.value.headless
     })
     await ipcRenderer.send('browser-config-saved')
     gtagRenderer('save_done', {

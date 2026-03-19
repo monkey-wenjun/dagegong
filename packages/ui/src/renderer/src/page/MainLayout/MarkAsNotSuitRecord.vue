@@ -18,7 +18,7 @@
             prop="date"
             label="标记时间"
             :formatter="
-              (_row, _col, val) => transformUtcDateToLocalDate(val).format('YYYY-MM-DD HH:mm:ss')
+              (_row, _col, val) => val ? transformUtcDateToLocalDate(val).format('YYYY-MM-DD HH:mm:ss') : '-'
             "
           />
           <ElTableColumn prop="bossName" label="BOSS" width="64" />
@@ -61,8 +61,10 @@
             label="薪资"
             :formatter="
               (row, _col, _val) =>
-                `${row.salaryLow}-${row.salaryHigh}k` +
-                (row.salaryMonth ? `* ${row.salaryMonth}薪` : '')
+                row.salaryLow != null && row.salaryHigh != null
+                  ? `${row.salaryLow}-${row.salaryHigh}k` +
+                    (row.salaryMonth ? `* ${row.salaryMonth}薪` : '')
+                  : '-'
             "
           />
           <ElTableColumn label="职位信息" fixed="right" :width="120">
@@ -181,8 +183,11 @@ async function getMarkAsNotSuitRecord() {
     console.log(err)
     tableData.value = []
   } finally {
-    tableRef.value?.setScrollTop(0)
     isTableLoading.value = false
+    // Delay to ensure table is updated before scrolling
+    setTimeout(() => {
+      tableRef.value?.setScrollTop(0)
+    }, 0)
   }
 }
 
@@ -192,13 +197,17 @@ const tableMaxHeight = ref<number | undefined>(undefined)
 const tableContainerEl = ref<HTMLElement>()
 const setTableMaxHeight = () =>
   (tableMaxHeight.value = tableContainerEl.value?.clientHeight ?? undefined)
+let ro: ResizeObserver | null = null
 onMounted(() => {
   setTableMaxHeight()
-  const ro = new ResizeObserver(() => setTableMaxHeight())
-  ro.observe(tableContainerEl.value!)
-  onBeforeUnmount(() => {
-    ro.disconnect()
-  })
+  ro = new ResizeObserver(() => setTableMaxHeight())
+  if (tableContainerEl.value) {
+    ro.observe(tableContainerEl.value)
+  }
+})
+onBeforeUnmount(() => {
+  ro?.disconnect()
+  ro = null
 })
 
 async function handleViewJobOnlineButtonClick(encryptJobId: string) {
@@ -305,12 +314,12 @@ function formatMarkReason(row: VMarkAsNotSuitLog) {
 
 <style scoped lang="scss">
 .page-wrap {
-  margin: 0 auto;
-  max-width: 1000px;
   max-height: 100vh;
   overflow: hidden;
   padding-left: 20px;
+  padding-right: 20px;
   padding-top: 20px;
+  width: 100%;
   :deep(.el-drawer) {
     .el-drawer__header {
       padding: 16px 20px;

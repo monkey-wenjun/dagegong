@@ -276,12 +276,12 @@ async function handleViewJobHistoryButtonClick(record: VChatStartupLog) {
 
 <style scoped lang="scss">
 .page-wrap {
-  margin: 0 auto;
-  max-width: 1000px;
   max-height: 100vh;
   overflow: hidden;
   padding-left: 20px;
+  padding-right: 20px;
   padding-top: 20px;
+  width: 100%;
   :deep(.el-drawer) {
     .el-drawer__header {
       padding: 16px 20px;

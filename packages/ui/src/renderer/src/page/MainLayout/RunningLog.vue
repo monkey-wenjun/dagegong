@@ -1,0 +1,276 @@
+<template>
+  <div class="running-log-page" flex flex-col h-full>
+    <div class="log-header" flex flex-items-center flex-justify-between p12px border-b>
+      <h3>运行日志</h3>
+      <div flex gap8>
+        <el-button size="small" @click="clearLogs">清空日志</el-button>
+        <el-button size="small" type="primary" @click="exportLogs">导出日志</el-button>
+      </div>
+    </div>
+    <div ref="logContainer" class="log-container" flex-1 of-auto p8px>
+      <div
+        v-for="(log, index) in filteredLogs"
+        :key="index"
+        class="log-item"
+        :class="log.type"
+      >
+        <span class="log-time">[{{ formatTime(log.timestamp) }}]</span>
+        <span class="log-type-tag">[{{ getTypeLabel(log.type) }}]</span>
+        <span class="log-message">{{ getLogMessage(log) }}</span>
+        <div v-if="log.details" class="log-details">
+          <pre>{{ formatDetails(log.details) }}</pre>
+        </div>
+      </div>
+      <div v-if="filteredLogs.length === 0" class="empty-tip">暂无日志</div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import dayjs from 'dayjs'
+
+interface LogItem {
+  timestamp: number
+  type: 'click' | 'network' | 'navigation' | 'error' | 'info'
+  message?: string
+  method?: string
+  url?: string
+  status?: number
+  details?: any
+}
+
+const logs = ref<LogItem[]>([])
+const filterKeyword = ref('')
+const logContainer = ref<HTMLElement>()
+
+// 过滤后的日志（仅按关键词过滤）
+const filteredLogs = computed(() => {
+  if (!filterKeyword.value) return logs.value
+  
+  const keyword = filterKeyword.value.toLowerCase()
+  return logs.value.filter((log) => {
+    const searchText = `${log.message || ''} ${log.url || ''} ${log.method || ''}`.toLowerCase()
+    return searchText.includes(keyword)
+  })
+})
+
+// 格式化时间
+const formatTime = (timestamp: number) => {
+  return dayjs(timestamp).format('HH:mm:ss.SSS')
+}
+
+// 获取类型标签
+const getTypeLabel = (type: string) => {
+  const labelMap: Record<string, string> = {
+    click: '点击',
+    network: '请求',
+    navigation: '导航',
+    error: '错误',
+    info: '信息'
+  }
+  return labelMap[type] || type.toUpperCase()
+}
+
+// 获取日志消息
+const getLogMessage = (log: LogItem) => {
+  if (log.type === 'network') {
+    const statusStr = log.status ? ` [${log.status}]` : ''
+    return `${log.method} ${log.url}${statusStr}`
+  }
+  return log.message || ''
+}
+
+// 格式化详情
+const formatDetails = (details: any) => {
+  if (typeof details === 'string') return details
+  try {
+    return JSON.stringify(details, null, 2)
+  } catch {
+    return String(details)
+  }
+}
+
+// 清空日志
+const clearLogs = () => {
+  logs.value = []
+}
+
+// 导出日志
+const exportLogs = () => {
+  const content = logs.value
+    .map(
+      (log) =>
+        `[${formatTime(log.timestamp)}] [${getTypeLabel(log.type)}] ${getLogMessage(log)}`
+    )
+    .join('\n')
+  const blob = new Blob([content], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `运行日志_${dayjs().format('YYYYMMDD_HHmmss')}.txt`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// 自动滚动到底部
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (logContainer.value) {
+      logContainer.value.scrollTop = logContainer.value.scrollHeight
+    }
+  })
+}
+
+// 添加日志
+const addLog = (log: LogItem) => {
+  logs.value.push(log)
+  // 限制日志数量，最多保留 1000 条
+  if (logs.value.length > 1000) {
+    logs.value = logs.value.slice(-1000)
+  }
+  scrollToBottom()
+}
+
+// 监听主进程发送的日志
+let logListener: (() => void) | null = null
+
+onMounted(() => {
+  // 监听运行日志
+  logListener = electron.ipcRenderer.on('browser-running-log', (_, log: LogItem) => {
+    addLog(log)
+  })
+
+  // 获取历史日志
+  electron.ipcRenderer.invoke('get-running-logs').then((historyLogs: LogItem[]) => {
+    if (historyLogs && historyLogs.length > 0) {
+      logs.value = historyLogs
+      scrollToBottom()
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (logListener) {
+    logListener()
+  }
+})
+</script>
+
+<style scoped lang="scss">
+.running-log-page {
+  background-color: #0d0d0d;
+  color: #d4d4d4;
+  height: 100%;
+  width: 100%;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  margin-left: -20px;
+  padding-left: 20px;
+}
+
+.log-header {
+  background-color: #0d0d0d;
+  border-bottom: 1px solid #333;
+
+  h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: #e0e0e0;
+  }
+}
+
+.log-container {
+  background-color: #0d0d0d;
+  display: flex;
+  flex-direction: column;
+
+  .empty-tip {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: #6e7681;
+    font-size: 14px;
+  }
+}
+
+.log-item {
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 2px 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .log-time {
+    color: #6e7681;
+    margin-right: 8px;
+  }
+
+  .log-type-tag {
+    margin-right: 8px;
+    font-weight: bold;
+  }
+
+  .log-message {
+    color: #d4d4d4;
+  }
+
+  .log-details {
+    margin-left: 120px;
+    margin-top: 2px;
+    padding: 4px 8px;
+    background-color: #1a1a1a;
+    border-left: 2px solid #444;
+
+    pre {
+      margin: 0;
+      font-size: 12px;
+      color: #a0a0a0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  }
+
+  // 不同类型日志的颜色
+  &.click {
+    .log-type-tag {
+      color: #79c0ff;
+    }
+  }
+
+  &.network {
+    .log-type-tag {
+      color: #7ee787;
+    }
+  }
+
+  &.navigation {
+    .log-type-tag {
+      color: #ffa657;
+    }
+  }
+
+  &.error {
+    .log-type-tag {
+      color: #ff7b72;
+    }
+    .log-message {
+      color: #ff7b72;
+    }
+  }
+
+  &.info {
+    .log-type-tag {
+      color: #d2a8ff;
+    }
+  }
+}
+
+
+</style>

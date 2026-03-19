@@ -2,6 +2,7 @@ import { BrowserWindow, shell } from 'electron'
 import path from 'path'
 import { openDevTools } from '../commands'
 import { daemonEE } from '../flow/OPEN_SETTING_WINDOW/connect-to-daemon'
+import { runningLogManager } from '../features/running-log'
 export let mainWindow: BrowserWindow | null = null
 
 export function createMainWindow(): BrowserWindow {
@@ -13,11 +14,7 @@ export function createMainWindow(): BrowserWindow {
     show: false,
     autoHideMenuBar: true,
     frame: true,
-    ...(process.platform === 'linux'
-      ? {
-          /* icon */
-        }
-      : {}),
+    icon: path.join(__dirname, '../../build/icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -26,6 +23,8 @@ export function createMainWindow(): BrowserWindow {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    // 设置运行日志管理器的主窗口
+    runningLogManager.setMainWindow(mainWindow)
   })
   mainWindow.on('ready-to-show', async () => {
     process.env.NODE_ENV === 'development' &&
@@ -53,6 +52,11 @@ export function createMainWindow(): BrowserWindow {
   daemonEE.on('message', (message) => {
     if (message.type === 'worker-to-gui-message') {
       mainWindow?.webContents?.send('worker-to-gui-message', message)
+      // 转发 worker 进程的日志到渲染进程
+      if (message.data?.type === 'browser-running-log' && message.data?.log) {
+        // 保存到主进程的日志管理器并转发给渲染进程
+        runningLogManager.addLogFromWorker(message.data.log)
+      }
     }
   })
   daemonEE.on('error', (err) => {

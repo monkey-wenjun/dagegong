@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "run-core-of-geek-auto-start-chat-with-boss",
+  "main": "./index.mjs",
   "module": "./index.mjs",
   "type": "module",
   "scripts": {

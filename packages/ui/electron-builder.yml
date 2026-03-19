@@ -1,5 +1,5 @@
-appId: com.geekgeekrun.ui
-productName: GeekGeekRun
+appId: com.zhaogegongdada.ui
+productName: 找个工打打
 directories:
   buildResources: build
 icon: resources/icon.png
@@ -36,7 +36,7 @@ dmg:
   artifactName: ${name}_${version}_${arch}.${ext}
 linux:
   artifactName: ${name}_${version}_${arch}.${ext}
-  maintainer: GeekGeekRun
+  maintainer: 找个工打打
   category: Utility
 npmRebuild: false
 publish:

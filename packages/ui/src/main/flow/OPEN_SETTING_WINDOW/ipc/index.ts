@@ -29,7 +29,8 @@ import { createLlmConfigWindow, llmConfigWindow } from '../../../window/llmConfi
 import { createResumeEditorWindow, resumeEditorWindow } from '../../../window/resumeEditorWindow'
 import {
   getValidTemplate,
-  requestNewMessageContent
+  requestNewMessageContent,
+  parseResumeFromPdf
 } from '../../READ_NO_REPLY_AUTO_REMINDER_MAIN/boss-operation'
 import {
   defaultPromptMap,
@@ -436,6 +437,11 @@ export default function initIpc() {
   })
   ipcMain.on('close-llm-config', () => llmConfigWindow?.close())
 
+  // 直接保存 LLM 配置（用于路由方式，不关闭窗口）
+  ipcMain.handle('save-llm-config-direct', async (_, configToSave) => {
+    await writeConfigFile('llm.json', configToSave)
+  })
+
   ipcMain.handle('resume-edit', async () => {
     createResumeEditorWindow({
       parent: mainWindow!,
@@ -602,6 +608,23 @@ export default function initIpc() {
     mainWindow?.webContents.send('common-job-condition-config-updated', {
       config: await readConfigFile('common-job-condition-config.json')
     })
+  })
+
+  // PDF 简历解析（使用 LLM）
+  ipcMain.handle('parse-pdf-resume-with-llm', async (ev, { pdfText }: { pdfText: string }) => {
+    try {
+      const parsedResume = await parseResumeFromPdf(pdfText)
+      return {
+        success: true,
+        data: parsedResume
+      }
+    } catch (error) {
+      console.error('Parse PDF resume with LLM error:', error)
+      return {
+        success: false,
+        error: error.message || '简历解析失败'
+      }
+    }
   })
 
   ipcMain.handle('exit-app-immediately', () => {

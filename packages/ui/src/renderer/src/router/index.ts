@@ -63,7 +63,7 @@ const routes: Array<RouteRecordRaw> = [
     path: '/commonJobConditionConfig',
     component: () => import('@renderer/page/CommonJobConditionConfig/index.vue'),
     meta: {
-      title: '公共职位筛选条件'
+      title: '求职全局设置选项'
     }
   },
   {
@@ -96,7 +96,7 @@ const routes: Array<RouteRecordRaw> = [
         path: 'StartChatRecord',
         component: () => import('@renderer/page/MainLayout/StartChatRecord.vue'),
         meta: {
-          title: '开聊记录'
+          title: '沟通记录'
         }
       },
       {
@@ -125,6 +125,27 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('@renderer/page/MainLayout/CompanyLibrary.vue'),
         meta: {
           title: '公司库'
+        }
+      },
+      {
+        path: 'RunningLog',
+        component: () => import('@renderer/page/MainLayout/RunningLog.vue'),
+        meta: {
+          title: '运行日志'
+        }
+      },
+      {
+        path: 'llm-config',
+        component: () => import('@renderer/page/LlmConfig/index.vue'),
+        meta: {
+          title: 'AI 模型配置'
+        }
+      },
+      {
+        path: 'common-job-condition',
+        component: () => import('@renderer/page/CommonJobConditionConfig/index.vue'),
+        meta: {
+          title: '求职全局设置'
         }
       }
     ]
@@ -161,10 +182,7 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     path: '/',
-    component: BootstrapSplash,
-    meta: {
-      title: '你的职场大机密'
-    }
+    component: BootstrapSplash
   }
 ]
 
@@ -175,9 +193,9 @@ const router = createRouter({
 
 router.afterEach((to, from) => {
   if (to.meta?.title) {
-    document.title = `${to.meta.title} - GeekGeekRun 牛人快跑`
+    document.title = `${to.meta.title} - 找个工打打`
   } else {
-    document.title = `GeekGeekRun 牛人快跑`
+    document.title = `找个工打打 - 智能求职助手`
   }
   gtagRenderer('router_path_changed', {
     from_path: from.fullPath,

@@ -20,6 +20,8 @@ import { CookieInvalidHandlePlugin } from '../../features/cookie-invalid-handle-
 import initPublicIpc from '../../utils/initPublicIpc'
 import { getLastUsedAndAvailableBrowser } from '../DOWNLOAD_DEPENDENCIES/utils/browser-history'
 import { configWithBrowserAssistant } from '../../features/config-with-browser-assistant'
+import { runningLogManager } from '../../features/running-log'
+import { getBrowserConfig } from '../../features/browser-config'
 const { default: SqlitePlugin } = SqlitePluginModule
 
 process.on('SIGTERM', () => {
@@ -90,6 +92,13 @@ const runAutoChat = async () => {
     }
   })
   process.env.PUPPETEER_EXECUTABLE_PATH = puppeteerExecutable.executablePath
+  
+  // 读取浏览器配置
+  const browserConfig = await getBrowserConfig()
+  if (browserConfig.headless) {
+    process.env.GEEKGEEKRUN_BROWSER_HEADLESS = '1'
+  }
+  
   const { initPuppeteer, mainLoop, closeBrowserWindow, autoStartChatEventBus } = await import(
     '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
   )
@@ -115,8 +124,93 @@ const runAutoChat = async () => {
     errorEncounter: new SyncHook(['errorInfo']),
     encounterEmptyRecommendJobList: new AsyncSeriesHook(['args']),
     sageTimeEnter: new AsyncSeriesHook(['args']),
-    sageTimeExit: new AsyncSeriesHook(['args'])
+    sageTimeExit: new AsyncSeriesHook(['args']),
+    logError: (message: string) => runningLogManager.logError(message),
+    logInfo: (message: string) => runningLogManager.logInfo(message)
   }
+  
+  // 添加运行日志记录
+  hooks.puppeteerLaunched.tap('RunningLog', (browser) => {
+    runningLogManager.logInfo('浏览器已启动', { headless: browserConfig.headless })
+  })
+  
+  hooks.pageGotten.tap('RunningLog', (page) => {
+    runningLogManager.logInfo('页面已获取')
+    
+    // 监听页面点击事件
+    page.on('click', (event) => {
+      runningLogManager.logClick(event?.selector || 'unknown')
+    })
+    
+    // 监听页面导航
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) {
+        runningLogManager.logNavigation('页面导航', frame.url())
+      }
+    })
+    
+    // 监听网络请求
+    page.on('request', (request) => {
+      if (request.url().includes('zhipin.com')) {
+        runningLogManager.logNetwork(
+          request.method(),
+          request.url().split('?')[0],
+          undefined,
+          { resourceType: request.resourceType() }
+        )
+      }
+    })
+    
+    // 监听网络响应
+    page.on('response', (response) => {
+      const request = response.request()
+      if (request.url().includes('zhipin.com') && 
+          (request.url().includes('/api/') || request.url().includes('/wapi/'))) {
+        runningLogManager.logNetwork(
+          request.method(),
+          request.url().split('?')[0],
+          response.status(),
+          { resourceType: request.resourceType() }
+        )
+      }
+    })
+    
+    // 监听控制台错误
+    page.on('pageerror', (error) => {
+      runningLogManager.logError('页面错误', error.message)
+    })
+    
+    // 监听请求失败
+    page.on('requestfailed', (request) => {
+      runningLogManager.logError('请求失败', {
+        url: request.url(),
+        method: request.method(),
+        failure: request.failure()?.errorText
+      })
+    })
+  })
+  
+  hooks.pageLoaded.tap('RunningLog', () => {
+    runningLogManager.logInfo('页面加载完成')
+  })
+  
+  hooks.newChatWillStartup.tap('RunningLog', (positionInfo) => {
+    runningLogManager.logInfo('开始打招呼', {
+      jobName: positionInfo?.jobInfo?.jobName,
+      company: positionInfo?.brandName
+    })
+  })
+  
+  hooks.newChatStartup.tap('RunningLog', (positionInfo) => {
+    runningLogManager.logInfo('打招呼成功', {
+      jobName: positionInfo?.jobInfo?.jobName
+    })
+  })
+  
+  hooks.errorEncounter.tap('RunningLog', (errorInfo) => {
+    runningLogManager.logError('遇到错误', errorInfo)
+  })
+  
   initPlugins(hooks)
 
   gtag('run_auto_chat_with_boss_main_ready')
@@ -173,6 +267,8 @@ export const waitForProcessHandShakeAndRunAutoChat = async () => {
   })
   initPublicIpc()
   await connectToDaemon()
+  // 设置日志转发到 daemon
+  runningLogManager.setSendToDaemon(sendToDaemon)
   await sendToDaemon(
     {
       type: 'ping'

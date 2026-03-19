@@ -6,523 +6,624 @@
   <title>打个工 - 打工人求职神器</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --primary: #00b4aa;
-      --primary-dark: #008c84;
-      --secondary: #ff6b6b;
-      --dark: #1a1a2e;
-      --light: #f8f9fa;
-      --gradient: linear-gradient(135deg, #00b4aa 0%, #008c84 100%);
-      --gradient-2: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --primary: #0d9488;
+      --primary-light: #14b8a6;
+      --primary-lighter: #f0fdfa;
+      --text: #1f2937;
+      --text-secondary: #6b7280;
+      --text-muted: #9ca3af;
+      --bg: #ffffff;
+      --bg-soft: #f8fafc;
+      --bg-warm: #fefdf9;
+      --border: #e5e7eb;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
     }
-    
+
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
-    
-    body {
-      font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      overflow-x: hidden;
+
+    html {
+      scroll-behavior: smooth;
     }
-    
-    /* Hero Section */
-    .hero {
-      min-height: 100vh;
-      background: var(--dark);
+
+    body {
+      font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      line-height: 1.7;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Navigation */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nav-brand {
       display: flex;
       align-items: center;
-      justify-content: center;
-      position: relative;
-      overflow: hidden;
-    }
-    
-    .hero::before {
-      content: '';
-      position: absolute;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(circle at 20% 50%, rgba(0, 180, 170, 0.15) 0%, transparent 50%),
-                  radial-gradient(circle at 80% 80%, rgba(118, 75, 162, 0.15) 0%, transparent 50%);
-      animation: pulse 15s ease-in-out infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { transform: translate(-5%, -5%) rotate(0deg); }
-      50% { transform: translate(0%, 0%) rotate(180deg); }
-    }
-    
-    .hero-content {
-      text-align: center;
-      z-index: 1;
-      padding: 2rem;
-      max-width: 900px;
-    }
-    
-    .hero-badge {
-      display: inline-block;
-      background: rgba(0, 180, 170, 0.2);
-      color: var(--primary);
-      padding: 0.5rem 1.5rem;
-      border-radius: 50px;
-      font-size: 0.9rem;
-      font-weight: 500;
-      margin-bottom: 2rem;
-      border: 1px solid rgba(0, 180, 170, 0.3);
-    }
-    
-    .hero h1 {
-      font-size: clamp(2.5rem, 6vw, 4.5rem);
-      font-weight: 900;
-      color: #fff;
-      margin-bottom: 1rem;
-      line-height: 1.2;
-    }
-    
-    .hero h1 span {
-      background: var(--gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    
-    .hero-subtitle {
-      font-size: 1.5rem;
-      color: #ff6b6b;
-      font-weight: 700;
-      margin-bottom: 1.5rem;
-    }
-    
-    .hero-desc {
-      font-size: 1.2rem;
-      color: rgba(255, 255, 255, 0.7);
-      margin-bottom: 2.5rem;
-      max-width: 600px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    
-    .hero-buttons {
-      display: flex;
-      gap: 1rem;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-    
-    .btn {
-      padding: 1rem 2.5rem;
-      border-radius: 50px;
-      font-size: 1.1rem;
+      gap: 0.75rem;
       font-weight: 600;
+      font-size: 1.125rem;
+      color: var(--text);
       text-decoration: none;
-      transition: all 0.3s ease;
+    }
+
+    .nav-brand img {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--primary);
+    }
+
+    .nav-cta {
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
+      padding: 0.5rem 1.25rem;
+      background: var(--primary);
+      color: white !important;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
     }
-    
+
+    .nav-cta:hover {
+      background: var(--primary-light);
+      transform: translateY(-1px);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 10rem 2rem 6rem;
+      background: linear-gradient(180deg, var(--primary-lighter) 0%, var(--bg-warm) 100%);
+    }
+
+    .hero .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: rgba(13, 148, 136, 0.1);
+      color: var(--primary);
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: 3rem;
+      font-weight: 600;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero h1 span {
+      color: var(--primary);
+    }
+
+    .hero-subtitle {
+      font-size: 1.25rem;
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+      font-weight: 400;
+    }
+
+    .hero-desc {
+      color: var(--text-muted);
+      margin-bottom: 2rem;
+      max-width: 480px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.75rem;
+      border-radius: 9999px;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: none;
+      cursor: pointer;
+    }
+
     .btn-primary {
-      background: var(--gradient);
+      background: var(--primary);
       color: white;
-      box-shadow: 0 10px 30px rgba(0, 180, 170, 0.3);
+      box-shadow: 0 4px 14px 0 rgba(13, 148, 136, 0.25);
     }
-    
+
     .btn-primary:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 15px 40px rgba(0, 180, 170, 0.4);
+      background: var(--primary-light);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px 0 rgba(13, 148, 136, 0.3);
     }
-    
+
     .btn-secondary {
-      background: transparent;
-      color: white;
-      border: 2px solid rgba(255, 255, 255, 0.3);
+      background: white;
+      color: var(--text);
+      border: 1px solid var(--border);
     }
-    
+
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.5);
+      background: var(--bg-soft);
+      border-color: var(--text-muted);
     }
-    
-    /* Features Section */
-    .features {
-      padding: 6rem 2rem;
-      background: #fff;
+
+    .hero-image {
+      position: relative;
     }
-    
+
+    .hero-image img {
+      width: 100%;
+      max-width: 400px;
+      border-radius: 20px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+    }
+
+    .hero-image::before {
+      content: '';
+      position: absolute;
+      top: -20px;
+      right: -20px;
+      width: 100%;
+      height: 100%;
+      background: var(--primary-lighter);
+      border-radius: 20px;
+      z-index: -1;
+    }
+
+    /* Section */
+    section {
+      padding: 5rem 2rem;
+    }
+
     .container {
       max-width: 1200px;
       margin: 0 auto;
     }
-    
-    .section-title {
+
+    .section-header {
       text-align: center;
-      margin-bottom: 4rem;
+      max-width: 600px;
+      margin: 0 auto 4rem;
     }
-    
-    .section-title h2 {
-      font-size: 2.5rem;
-      font-weight: 700;
-      color: var(--dark);
+
+    .section-header h2 {
+      font-size: 2rem;
+      font-weight: 600;
       margin-bottom: 1rem;
+      letter-spacing: -0.01em;
     }
-    
-    .section-title p {
-      color: #666;
-      font-size: 1.1rem;
+
+    .section-header p {
+      color: var(--text-secondary);
+      font-size: 1.0625rem;
     }
-    
+
+    /* Screenshot */
+    .screenshot {
+      background: var(--bg-soft);
+      padding: 4rem 2rem;
+    }
+
+    .screenshot img {
+      width: 100%;
+      max-width: 1000px;
+      margin: 0 auto;
+      display: block;
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border);
+    }
+
+    /* Features */
+    .features {
+      background: var(--bg);
+    }
+
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 2rem;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
     }
-    
+
     .feature-card {
-      background: #fff;
-      border-radius: 20px;
-      padding: 2.5rem;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
-      transition: all 0.3s ease;
-      border: 1px solid rgba(0, 0, 0, 0.05);
-    }
-    
-    .feature-card:hover {
-      transform: translateY(-10px);
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
-    }
-    
-    .feature-icon {
-      width: 60px;
-      height: 60px;
+      padding: 2rem;
       border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.8rem;
-      margin-bottom: 1.5rem;
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      transition: all 0.2s;
     }
-    
-    .feature-card:nth-child(1) .feature-icon { background: rgba(0, 180, 170, 0.1); }
-    .feature-card:nth-child(2) .feature-icon { background: rgba(255, 107, 107, 0.1); }
-    .feature-card:nth-child(3) .feature-icon { background: rgba(102, 126, 234, 0.1); }
-    .feature-card:nth-child(4) .feature-icon { background: rgba(118, 75, 162, 0.1); }
-    .feature-card:nth-child(5) .feature-icon { background: rgba(0, 180, 170, 0.1); }
-    .feature-card:nth-child(6) .feature-icon { background: rgba(255, 107, 107, 0.1); }
-    
-    .feature-card h3 {
-      font-size: 1.3rem;
-      font-weight: 700;
-      margin-bottom: 1rem;
-      color: var(--dark);
+
+    .feature-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+      border-color: transparent;
     }
-    
-    .feature-card p {
-      color: #666;
-      line-height: 1.8;
-    }
-    
-    /* How it works */
-    .how-it-works {
-      padding: 6rem 2rem;
-      background: linear-gradient(180deg, #f8f9fa 0%, #fff 100%);
-    }
-    
-    .steps {
-      display: flex;
-      justify-content: center;
-      gap: 2rem;
-      flex-wrap: wrap;
-      margin-top: 3rem;
-    }
-    
-    .step {
-      text-align: center;
-      max-width: 250px;
-    }
-    
-    .step-number {
-      width: 60px;
-      height: 60px;
-      background: var(--gradient);
-      color: white;
-      border-radius: 50%;
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 1.5rem;
-      font-weight: 700;
-      margin: 0 auto 1.5rem;
-      position: relative;
+      margin-bottom: 1.25rem;
+      background: white;
+      border: 1px solid var(--border);
     }
-    
-    .step-number::after {
-      content: '';
-      position: absolute;
-      width: 100px;
-      height: 2px;
-      background: linear-gradient(90deg, var(--primary), transparent);
-      left: 100%;
-      top: 50%;
-    }
-    
-    .step:last-child .step-number::after {
-      display: none;
-    }
-    
-    .step h4 {
-      font-size: 1.1rem;
+
+    .feature-card h3 {
+      font-size: 1.0625rem;
       font-weight: 600;
       margin-bottom: 0.5rem;
-      color: var(--dark);
     }
-    
-    .step p {
-      color: #888;
-      font-size: 0.95rem;
+
+    .feature-card p {
+      color: var(--text-secondary);
+      font-size: 0.9375rem;
+      line-height: 1.7;
     }
-    
-    /* Download Section */
-    .download {
-      padding: 6rem 2rem;
-      background: var(--dark);
-      position: relative;
-      overflow: hidden;
+
+    /* Steps */
+    .steps-section {
+      background: var(--bg-warm);
     }
-    
-    .download::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: radial-gradient(circle at 50% 50%, rgba(0, 180, 170, 0.1) 0%, transparent 70%);
-    }
-    
-    .download .section-title h2,
-    .download .section-title p {
-      color: #fff;
-    }
-    
-    .download-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1.5rem;
-      max-width: 800px;
-      margin: 3rem auto 0;
-    }
-    
-    .download-card {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
-      padding: 2rem;
-      text-align: center;
-      transition: all 0.3s ease;
-    }
-    
-    .download-card:hover {
-      background: rgba(255, 255, 255, 0.1);
-      transform: translateY(-5px);
-    }
-    
-    .download-card .os-icon {
-      font-size: 3rem;
-      margin-bottom: 1rem;
-    }
-    
-    .download-card h4 {
-      color: #fff;
-      font-size: 1.2rem;
-      margin-bottom: 0.5rem;
-    }
-    
-    .download-card p {
-      color: rgba(255, 255, 255, 0.6);
-      font-size: 0.9rem;
-      margin-bottom: 1.5rem;
-    }
-    
-    .download-card .btn-download {
-      display: inline-block;
-      padding: 0.75rem 1.5rem;
-      background: var(--gradient);
-      color: white;
-      text-decoration: none;
-      border-radius: 50px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      transition: all 0.3s ease;
-    }
-    
-    .download-card .btn-download:hover {
-      transform: scale(1.05);
-      box-shadow: 0 10px 30px rgba(0, 180, 170, 0.3);
-    }
-    
-    /* Tech Stack */
-    .tech-stack {
-      padding: 4rem 2rem;
-      background: #fff;
-    }
-    
-    .tech-grid {
+
+    .steps {
       display: flex;
       justify-content: center;
+      gap: 3rem;
       flex-wrap: wrap;
-      gap: 2rem;
-      margin-top: 2rem;
     }
-    
-    .tech-item {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.75rem 1.5rem;
-      background: #f8f9fa;
-      border-radius: 50px;
-      font-weight: 500;
-      color: #555;
-    }
-    
-    /* Footer */
-    footer {
-      background: var(--dark);
-      color: #fff;
-      padding: 3rem 2rem;
+
+    .step {
       text-align: center;
+      max-width: 280px;
     }
-    
-    footer p {
-      color: rgba(255, 255, 255, 0.6);
-      margin-bottom: 1rem;
-    }
-    
-    footer a {
-      color: var(--primary);
-      text-decoration: none;
-    }
-    
-    footer a:hover {
-      text-decoration: underline;
-    }
-    
-    .social-links {
-      display: flex;
-      justify-content: center;
-      gap: 1.5rem;
-      margin-top: 1.5rem;
-    }
-    
-    .social-links a {
-      width: 40px;
-      height: 40px;
-      background: rgba(255, 255, 255, 0.1);
+
+    .step-number {
+      width: 56px;
+      height: 56px;
+      background: var(--primary);
+      color: white;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.3s ease;
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0 auto 1.25rem;
     }
-    
-    .social-links a:hover {
+
+    .step h4 {
+      font-size: 1.0625rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .step p {
+      color: var(--text-secondary);
+      font-size: 0.9375rem;
+    }
+
+    /* Download */
+    .download {
+      background: var(--bg-soft);
+    }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .download-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .download-card:hover {
+      box-shadow: var(--shadow-lg);
+      transform: translateY(-2px);
+    }
+
+    .download-card .os-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .download-card h4 {
+      font-size: 1.0625rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .download-card p {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .download-card a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.625rem 1.25rem;
+      background: var(--bg-soft);
+      color: var(--text);
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .download-card a:hover {
       background: var(--primary);
-      transform: translateY(-3px);
+      color: white;
     }
-    
-    /* Floating animation */
-    @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-20px); }
+
+    /* Tech */
+    .tech {
+      background: var(--bg);
+      padding: 3rem 2rem;
     }
-    
-    .float {
-      animation: float 6s ease-in-out infinite;
+
+    .tech-grid {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 1rem;
     }
-    
+
+    .tech-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 1.25rem;
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      font-size: 0.9375rem;
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    footer {
+      background: var(--bg-soft);
+      border-top: 1px solid var(--border);
+      padding: 3rem 2rem;
+      text-align: center;
+    }
+
+    footer p {
+      color: var(--text-secondary);
+      font-size: 0.9375rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      margin: 1.5rem 0;
+    }
+
+    .footer-links a {
+      color: var(--text-secondary);
+      font-size: 0.9375rem;
+    }
+
+    .footer-links a:hover {
+      color: var(--primary);
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
-      .hero h1 {
-        font-size: 2.5rem;
-      }
-      
-      .hero-subtitle {
-        font-size: 1.2rem;
-      }
-      
-      .step-number::after {
+      .nav-links {
         display: none;
       }
-      
+
+      .hero {
+        padding: 8rem 1.5rem 4rem;
+      }
+
+      .hero .container {
+        grid-template-columns: 1fr;
+        text-align: center;
+        gap: 2rem;
+      }
+
+      .hero h1 {
+        font-size: 2.25rem;
+      }
+
+      .hero-desc {
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .hero-image {
+        order: -1;
+      }
+
+      .hero-image img {
+        max-width: 280px;
+        margin: 0 auto;
+      }
+
+      section {
+        padding: 4rem 1.5rem;
+      }
+
+      .section-header {
+        margin-bottom: 2.5rem;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
       .steps {
         flex-direction: column;
         align-items: center;
+        gap: 2rem;
+      }
+
+      .download-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
 </head>
 <body>
-  <!-- Hero Section -->
+  <!-- Navigation -->
+  <nav>
+    <div class="container">
+      <a href="#" class="nav-brand">
+        <img src="images/logo.png" alt="打个工">
+        打个工
+      </a>
+      <div class="nav-links">
+        <a href="#features">功能</a>
+        <a href="#download">下载</a>
+        <a href="https://github.com/monkey-wenjun/dagegong" target="_blank">GitHub</a>
+        <a href="#download" class="nav-cta">立即下载</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
   <section class="hero">
-    <div class="hero-content">
-      <div class="hero-badge">🔥 打工人求职神器</div>
-      <h1><span>打个工</span></h1>
-      <p class="hero-subtitle">BOSS 炸弹</p>
-      <p class="hero-desc">自动开聊 BOSS，智能匹配职位，已读不回自动复聊 —— 助力每位打工人高效求职！</p>
-      <p style="color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-bottom: 1rem;">
-        基于 <a href="https://github.com/geekgeekrun/geekgeekrun" target="_blank" style="color: var(--primary);">geekgeekrun</a> 二次开发
-      </p>
-      <img src="images/logo.png" alt="打个工 Logo" style="width: 80px; height: 80px; margin-bottom: 1rem; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-      <div class="hero-buttons">
-        <a href="#download" class="btn btn-primary">
-          <span>⬇️</span> 立即下载
-        </a>
-        <a href="https://github.com/monkey-wenjun/dagegong" target="_blank" class="btn btn-secondary">
-          <span>⭐</span> GitHub
-        </a>
+    <div class="container">
+      <div class="hero-content">
+        <span class="hero-badge">打工人求职神器</span>
+        <h1><span>打个工</span> — BOSS 炸弹</h1>
+        <p class="hero-subtitle">自动开聊 BOSS，智能匹配职位</p>
+        <p class="hero-desc">已读不回自动复聊，助力每位打工人高效求职。基于 geekgeekrun 二次开发。</p>
+        <div class="hero-buttons">
+          <a href="#download" class="btn btn-primary">
+            <span>↓</span> 立即下载
+          </a>
+          <a href="https://github.com/monkey-wenjun/dagegong" target="_blank" class="btn btn-secondary">
+            <span>★</span> GitHub
+          </a>
+        </div>
+      </div>
+      <div class="hero-image">
+        <img src="images/logo.png" alt="打个工 Logo">
       </div>
     </div>
   </section>
 
-  <!-- Screenshot Section -->
-  <section style="padding: 3rem 2rem; background: linear-gradient(180deg, #fff 0%, #f8f9fa 100%);">
+  <!-- Screenshot -->
+  <section class="screenshot">
     <div class="container">
-      <div class="section-title">
-        <h2>📸 应用截图</h2>
-      </div>
-      <div style="text-align: center;">
-        <img src="images/screenshot.png" alt="应用截图" style="max-width: 100%; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.15);">
-      </div>
+      <img src="images/screenshot.png" alt="应用截图">
     </div>
   </section>
 
-  <!-- Features Section -->
-  <section class="features">
+  <!-- Features -->
+  <section class="features" id="features">
     <div class="container">
-      <div class="section-title">
-        <h2>✨ 强大功能</h2>
+      <div class="section-header">
+        <h2>核心功能</h2>
         <p>专为打工人打造的全方位求职助手</p>
       </div>
       <div class="features-grid">
         <div class="feature-card">
           <div class="feature-icon">🎯</div>
           <h3>自动开聊</h3>
-          <p>按照求职偏好自动匹配职位，智能筛选公司名称、职位类型、职位描述，自动点击开聊按钮，省去繁琐的手动操作。</p>
+          <p>按求职偏好自动匹配职位，智能筛选公司、职位类型，自动点击开聊按钮，省去繁琐操作。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">💬</div>
           <h3>已读不回复聊</h3>
-          <p>BOSS 已读不回？自动检测并发送提醒消息。支持 AI 生成个性化跟进内容，把握每次机会。</p>
+          <p>BOSS 已读不回？自动检测并发送提醒消息。支持 AI 生成个性化跟进内容。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">📊</div>
           <h3>数据管理</h3>
-          <p>职位库、公司库、BOSS 库一应俱全，完整记录求职历程，方便管理和筛选目标机会。</p>
+          <p>职位库、公司库、BOSS 库一应俱全，完整记录求职历程，方便管理目标机会。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">🤖</div>
@@ -537,17 +638,17 @@
         <div class="feature-card">
           <div class="feature-icon">🔄</div>
           <h3>智能恢复</h3>
-          <p>开聊次数用完自动暂停，第二天智能恢复；无职位时自动切换筛选条件，持续获取新机会。</p>
+          <p>开聊次数用完自动暂停，次日智能恢复；无职位时自动切换筛选条件。</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- How it Works -->
-  <section class="how-it-works">
+  <!-- Steps -->
+  <section class="steps-section">
     <div class="container">
-      <div class="section-title">
-        <h2>🚀 快速开始</h2>
+      <div class="section-header">
+        <h2>快速开始</h2>
         <p>三步开启高效求职之旅</p>
       </div>
       <div class="steps">
@@ -570,11 +671,11 @@
     </div>
   </section>
 
-  <!-- Download Section -->
+  <!-- Download -->
   <section class="download" id="download">
     <div class="container">
-      <div class="section-title">
-        <h2>⬇️ 下载安装</h2>
+      <div class="section-header">
+        <h2>下载安装</h2>
         <p>支持 Windows、macOS、Linux 三大平台</p>
       </div>
       <div class="download-grid">
@@ -582,29 +683,29 @@
           <div class="os-icon">🪟</div>
           <h4>Windows</h4>
           <p>Windows 10/11 x64</p>
-          <a href="https://github.com/monkey-wenjun/dagegong/releases" class="btn-download">下载安装包</a>
+          <a href="https://github.com/monkey-wenjun/dagegong/releases">下载安装包</a>
         </div>
         <div class="download-card">
           <div class="os-icon">🍎</div>
           <h4>macOS</h4>
           <p>macOS 10.15+</p>
-          <a href="https://github.com/monkey-wenjun/dagegong/releases" class="btn-download">下载 DMG</a>
+          <a href="https://github.com/monkey-wenjun/dagegong/releases">下载 DMG</a>
         </div>
         <div class="download-card">
           <div class="os-icon">🐧</div>
           <h4>Linux</h4>
-          <p>Ubuntu/Debian/Fedora</p>
-          <a href="https://github.com/monkey-wenjun/dagegong/releases" class="btn-download">下载 AppImage</a>
+          <p>Ubuntu/Debian</p>
+          <a href="https://github.com/monkey-wenjun/dagegong/releases">下载 AppImage</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Tech Stack -->
-  <section class="tech-stack">
+  <!-- Tech -->
+  <section class="tech">
     <div class="container">
-      <div class="section-title">
-        <h2>🛠️ 技术栈</h2>
+      <div class="section-header">
+        <h2>技术栈</h2>
         <p>现代化技术打造稳定高效的桌面应用</p>
       </div>
       <div class="tech-grid">
@@ -621,18 +722,12 @@
   <!-- Footer -->
   <footer>
     <p>Made with ❤️ by <a href="https://www.awen.me" target="_blank">阿文</a></p>
-    <p>
-      <a href="mailto:hi@awen.me">hi@awen.me</a> • 
+    <div class="footer-links">
+      <a href="mailto:hi@awen.me">hi@awen.me</a>
       <a href="https://github.com/monkey-wenjun/dagegong" target="_blank">GitHub</a>
-    </p>
-    <div class="social-links">
-      <a href="https://github.com/monkey-wenjun/dagegong" target="_blank" title="GitHub">🐙</a>
-      <a href="mailto:hi@awen.me" title="Email">✉️</a>
-      <a href="https://www.awen.me" target="_blank" title="Blog">📝</a>
+      <a href="https://www.awen.me" target="_blank">Blog</a>
     </div>
-    <p style="margin-top: 2rem; font-size: 0.9rem; opacity: 0.6;">
-      © 2024 打个工 (dagegong) • ISC License
-    </p>
+    <p>© 2024 打个工 (dagegong) · ISC License</p>
   </footer>
 </body>
 </html>

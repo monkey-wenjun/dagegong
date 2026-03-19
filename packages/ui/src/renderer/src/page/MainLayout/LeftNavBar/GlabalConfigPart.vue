@@ -2,14 +2,14 @@
   <div class="group-item">
     <div class="group-title">全局设置</div>
     <div flex flex-col class="link-list">
-      <a href="javascript:void(0)" @click="handleClickConfigCommonJobCondition">
-        公共职位筛选条件
+      <RouterLink to="/main-layout/common-job-condition">
+        求职全局设置选项
+      </RouterLink>
+      <a href="javascript:void(0)" @click="handleClickBrowserAssistant">
+        配置浏览器助手<TopRight w-1em h-1em mr10px />
       </a>
-      <a href="javascript:void(0)" @click="handleClickBrowserSetting">
-        编辑浏览器偏好<TopRight w-1em h-1em mr10px />
-      </a>
-      <a href="javascript:void(0)" @click="handleClickConfigLlm">
-        配置大语言模型
+      <RouterLink to="/main-layout/llm-config">
+        配置AI模型
         <div>
           <el-tooltip
             placement="right"
@@ -34,15 +34,17 @@
                   style="background-color: #462ac4"
                   >Qwen2.5</span
                 >
-                模型<br />支持多个“服务商-模型”组合按权重搭配使用
+                模型<br />支持多个"服务商-模型"组合按权重搭配使用
               </div>
             </template>
             <QuestionFilled w-1em h-1em mr10px />
           </el-tooltip>
           <TopRight w-1em h-1em mr10px />
         </div>
-      </a>
+      </RouterLink>
     </div>
+    
+
   </div>
 </template>
 
@@ -51,34 +53,16 @@ import { gtagRenderer } from '@renderer/utils/gtag'
 import { ElMessage } from 'element-plus'
 import { TopRight, QuestionFilled } from '@element-plus/icons-vue'
 
-const handleClickBrowserSetting = async () => {
+const handleClickBrowserAssistant = async () => {
   gtagRenderer('browser_setting_clicked')
   try {
     await electron.ipcRenderer.invoke('config-with-browser-assistant')
     ElMessage({
       type: 'success',
-      message: '浏览器偏好保存成功'
+      message: '浏览器助手配置成功'
     })
   } catch {
     //
-  }
-}
-
-const handleClickConfigLlm = async () => {
-  gtagRenderer('config_llm_clicked')
-  try {
-    await electron.ipcRenderer.invoke('llm-config')
-  } catch (err) {
-    console.log(err)
-  }
-}
-
-const handleClickConfigCommonJobCondition = async () => {
-  gtagRenderer('config_cjc_clicked', { entry: 'left-nav' })
-  try {
-    await electron.ipcRenderer.invoke('common-job-condition-config')
-  } catch (err) {
-    console.log(err)
   }
 }
 </script>

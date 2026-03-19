@@ -6,7 +6,7 @@
     :close-on-press-escape="false"
     :show-close="false"
     width="400px"
-    @closed="fillEmptySteps"
+    @closed="handleClosed"
   >
     <div flex flex-col flex-items-center>
       <div class="dialog-header" w-full>
@@ -55,14 +55,15 @@
 </template>
 
 <script lang="ts" setup>
-// import { useTaskManagerStore } from '@renderer/store'
+import { useRunningStepsStore } from '@renderer/store'
 import { getAutoStartChatSteps } from '../../../../common/prerequisite-step-by-step-check'
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch, onMounted } from 'vue'
 import {
   AUTO_CHAT_ERROR_EXIT_CODE,
   RUNNING_STATUS_ENUM
 } from '../../../../common/enums/auto-start-chat'
 import { gtagRenderer } from '@renderer/utils/gtag'
+
 const props = defineProps({
   workerId: {
     type: String
@@ -71,13 +72,15 @@ const props = defineProps({
     type: Number
   }
 })
-// const taskManagerStore = useTaskManagerStore()
-// const runningTaskInfo = computed(() => {
-//   return taskManagerStore.runningTasks?.find((it) => {
-//     return it.workerId === props.workerId
-//   })
-// })
-const steps = ref([])
+
+// 从 store 恢复或保存 runRecordId
+const effectiveRunRecordId = computed(() => {
+  return props.runRecordId ?? runningStepsStore.getRunRecordId(props.workerId || '')
+})
+
+const runningStepsStore = useRunningStepsStore()
+const steps = ref<any[]>([])
+
 const stepsForRender = computed(() => {
   const clonedSteps = JSON.parse(JSON.stringify(steps.value))
   if (clonedSteps.some((it) => it.status === 'rejected')) {
@@ -89,24 +92,75 @@ const stepsForRender = computed(() => {
   }
   return clonedSteps
 })
+
 const runningStatusTextMapByCode = {
   [RUNNING_STATUS_ENUM.RUNNING]: '正在运行中',
   [RUNNING_STATUS_ENUM.NORMAL_EXITED]: '程序已正常退出',
   [RUNNING_STATUS_ENUM.ERROR_EXITED]: '程序异常退出'
 }
+
 const currentRunningStatus = ref(RUNNING_STATUS_ENUM.RUNNING)
-function fillEmptySteps() {
-  const arr = getAutoStartChatSteps()
-  arr.forEach((it) => (it.status = 'todo'))
-  steps.value = arr
-  currentRunningStatus.value = RUNNING_STATUS_ENUM.RUNNING
+
+function initSteps() {
+  if (!props.workerId) return
+  
+  // 先从 store 中读取之前保存的状态
+  const savedSteps = runningStepsStore.getSteps(props.workerId)
+  if (savedSteps && savedSteps.length > 0) {
+    steps.value = JSON.parse(JSON.stringify(savedSteps))
+    currentRunningStatus.value = runningStepsStore.getRunningStatus(props.workerId) || RUNNING_STATUS_ENUM.RUNNING
+  } else {
+    // 如果没有保存的状态，则初始化
+    const arr = getAutoStartChatSteps()
+    arr.forEach((it) => (it.status = 'todo'))
+    steps.value = arr
+    currentRunningStatus.value = RUNNING_STATUS_ENUM.RUNNING
+    // 保存到 store
+    runningStepsStore.setSteps(props.workerId, JSON.parse(JSON.stringify(arr)))
+    runningStepsStore.setRunningStatus(props.workerId, RUNNING_STATUS_ENUM.RUNNING)
+  }
 }
-watch(() => props.runRecordId, fillEmptySteps, {
-  immediate: true
+
+function handleClosed() {
+  // 关闭时保存当前状态
+  if (props.workerId) {
+    runningStepsStore.setSteps(props.workerId, JSON.parse(JSON.stringify(steps.value)))
+    runningStepsStore.setRunningStatus(props.workerId, currentRunningStatus.value)
+  }
+}
+
+// 监听 runRecordId 变化，新任务启动时重置
+watch(() => props.runRecordId, (newVal, oldVal) => {
+  if (newVal !== oldVal && props.workerId) {
+    // 保存 runRecordId 到 store
+    runningStepsStore.setRunRecordId(props.workerId, newVal || null)
+    // 只有当 oldVal 有值（即不是从 null 恢复）且 newVal 有值时，才是新任务
+    if (newVal && oldVal) {
+      // 新任务，清除之前的状态
+      runningStepsStore.clearWorkerState(props.workerId)
+      const arr = getAutoStartChatSteps()
+      arr.forEach((it) => (it.status = 'todo'))
+      steps.value = arr
+      currentRunningStatus.value = RUNNING_STATUS_ENUM.RUNNING
+      runningStepsStore.setSteps(props.workerId, JSON.parse(JSON.stringify(arr)))
+      runningStepsStore.setRunningStatus(props.workerId, RUNNING_STATUS_ENUM.RUNNING)
+    }
+  }
+}, { immediate: true })
+
+// 组件挂载时初始化
+onMounted(() => {
+  initSteps()
 })
+
 watch(
   () => stepsForRender.value,
   (v) => {
+    // 保存状态到 store
+    if (props.workerId) {
+      runningStepsStore.setSteps(props.workerId, JSON.parse(JSON.stringify(steps.value)))
+    }
+    
     const rejectedItems = v?.filter((it) => it.status === 'rejected')
     if (!rejectedItems.length) {
       return
@@ -123,7 +177,7 @@ const { ipcRenderer } = electron
 function messageHandler(ev, { data }) {
   if (
     data.type !== 'prerequisite-step-by-step-checkstep-by-step-check' ||
-    data.runRecordId !== props.runRecordId
+    data.runRecordId !== effectiveRunRecordId.value
   ) {
     return
   }
@@ -133,6 +187,10 @@ function messageHandler(ev, { data }) {
     return
   }
   targetStep.status = stepStatus
+  // 更新 store 中的状态
+  if (props.workerId) {
+    runningStepsStore.updateStepStatus(props.workerId, stepId, stepStatus)
+  }
 }
 const unListenMessage = ipcRenderer.on('worker-to-gui-message', messageHandler)
 onUnmounted(unListenMessage)
@@ -140,6 +198,8 @@ onUnmounted(unListenMessage)
 const isDialogVisible = ref(false)
 const show = () => {
   isDialogVisible.value = true
+  // 显示时重新初始化步骤（用于恢复状态）
+  initSteps()
 }
 const hide = () => {
   isDialogVisible.value = false
@@ -178,6 +238,10 @@ ipcRenderer.on('worker-exited', (ev, payload) => {
       exitCode: code,
       workerId: props.workerId
     })
+  }
+  // 保存最终状态到 store
+  if (props.workerId) {
+    runningStepsStore.setRunningStatus(props.workerId, currentRunningStatus.value)
   }
 })
 </script>

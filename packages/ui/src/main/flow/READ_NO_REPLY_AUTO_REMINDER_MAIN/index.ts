@@ -1,4 +1,5 @@
 import { bootstrap, launchBoss } from './bootstrap'
+import { initPuppeteer } from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
 import { MsgStatus, type ChatListItem } from './types'
 import { Browser, Page } from 'puppeteer'
 import { getGptContent, sendLookForwardReplyEmotion, sendMessage } from './boss-operation'
@@ -36,12 +37,13 @@ import { connectToDaemon, sendToDaemon } from '../OPEN_SETTING_WINDOW/connect-to
 // import { pushCurrentPageScreenshot, SCREENSHOT_INTERVAL_MS } from '../../utils/screenshot'
 import { checkShouldExit } from '../../utils/worker'
 import minimist from 'minimist'
-import { checkCookieListFormat } from '../../../common/utils/cookie'
-import { loginWithCookieAssistant } from '../../features/login-with-cookie-assistant'
 import initPublicIpc from '../../utils/initPublicIpc'
 import { getLastUsedAndAvailableBrowser } from '../DOWNLOAD_DEPENDENCIES/utils/browser-history'
 import { configWithBrowserAssistant } from '../../features/config-with-browser-assistant'
+import { getBrowserConfig } from '../../features/browser-config'
+import { runningLogManager } from '../../features/running-log'
 import { DEFAULT_CONSTANT_OPEN_CONTENT_SEGS } from '../../../common/constant'
+import { setDomainLocalStorage } from '@geekgeekrun/utils/puppeteer/local-storage.mjs'
 
 process.on('SIGTERM', () => {
   console.log('收到SIGTERM信号，正在退出')
@@ -288,7 +290,116 @@ async function checkJobIsClosed() {
 }
 
 let browser: null | Browser = null
+
+// 初始化浏览器配置（包括无头模式）
+async function initBrowserConfig() {
+  const browserConfig = await getBrowserConfig()
+  if (browserConfig.headless) {
+    process.env.GEEKGEEKRUN_BROWSER_HEADLESS = '1'
+    console.log('[Browser] 已启用无头模式')
+  }
+  runningLogManager.logInfo('浏览器配置', { headless: browserConfig.headless })
+}
+
+// 处理重新登录 - 打开浏览器等待用户扫码登录
+async function handleRelogin() {
+  const localStoragePageUrl = `https://www.zhipin.com/desktop/`
+  const bossChatUiUrl = `https://www.zhipin.com/web/geek/chat`
+  
+  // 关闭当前浏览器
+  if (browser) {
+    try {
+      await browser.close()
+    } catch {
+      //
+    }
+    browser = null
+  }
+  
+  runningLogManager.logInfo('正在打开浏览器等待扫码登录...')
+  
+  // 以非无头模式启动浏览器（让用户可以看到并扫码）
+  const { puppeteer } = await initPuppeteer()
+  const loginBrowser = await puppeteer.launch({
+    headless: false,
+    ignoreHTTPSErrors: true,
+    ignoreDefaultArgs: ['--enable-automation'],
+    defaultViewport: null,
+    args: [
+      '--disable-infobars',
+      '--window-size=1440,900',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process,AutomationControlled',
+      '--test-type=ui',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-site-isolation-trials',
+      '--disable-web-security',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--disable-gpu',
+      '--hide-scrollbars',
+      '--disable-background-networking',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-component-update',
+      '--disable-default-apps',
+      '--disable-features=TranslateUI',
+      '--disable-hang-monitor',
+      '--disable-ipc-flooding-protection',
+      '--disable-popup-blocking',
+      '--disable-prompt-on-repost',
+      '--disable-renderer-backgrounding',
+      '--force-color-profile=srgb',
+      '--metrics-recording-only',
+      '--safebrowsing-disable-auto-update',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      '--no-sandbox',
+      '--disable-setuid-sandbox'
+    ]
+  })
+  
+  const loginPage = (await loginBrowser.pages())[0]
+  
+  // 打开聊天页面，会自动跳转到登录页
+  await loginPage.goto(bossChatUiUrl, { timeout: 0 })
+  
+  runningLogManager.logInfo('请扫码登录 BOSS 直聘...')
+  
+  // 等待用户登录成功（页面跳转到聊天页）
+  try {
+    await loginPage.waitForNavigation({
+      url: (url) => url.href.startsWith(bossChatUiUrl),
+      timeout: 5 * 60 * 1000  // 5分钟超时等待扫码
+    })
+  } catch (err) {
+    await loginBrowser.close()
+    throw new Error('LOGIN_STATUS_INVALID')
+  }
+  
+  // 登录成功，保存 cookies
+  runningLogManager.logInfo('登录成功，正在保存登录状态...')
+  const cookies = await loginPage.cookies()
+  const localStorage = await loginPage.evaluate(() => {
+    return JSON.stringify(window.localStorage)
+  }).then(res => JSON.parse(res))
+  
+  await Promise.all([
+    writeStorageFile('boss-cookies.json', cookies),
+    writeStorageFile('boss-local-storage.json', localStorage)
+  ])
+  
+  // 关闭浏览器
+  await loginBrowser.close()
+  runningLogManager.logInfo('登录状态已保存，将以无头模式重新启动')
+}
+
 const mainLoop = async () => {
+  // 确保浏览器配置已初始化
+  await initBrowserConfig()
+  
   if (browser) {
     try {
       const cp = browser.process()
@@ -299,44 +410,6 @@ const mainLoop = async () => {
       browser = null
     }
   }
-  let bossCookies = readStorageFile('boss-cookies.json')
-  let cookieCheckResult = checkCookieListFormat(bossCookies)
-  while (!cookieCheckResult) {
-    try {
-      await loginWithCookieAssistant()
-      bossCookies = readStorageFile('boss-cookies.json')
-      cookieCheckResult = checkCookieListFormat(bossCookies)
-    } catch (err) {
-      await dialog.showMessageBox({
-        type: `error`,
-        message: `登录状态无效`,
-        detail: `请重新登录BOSS直聘`
-      })
-      sendToDaemon({
-        type: 'worker-to-gui-message',
-        data: {
-          type: 'prerequisite-step-by-step-checkstep-by-step-check',
-          step: {
-            id: 'basic-cookie-check',
-            status: 'rejected'
-          },
-          runRecordId
-        }
-      })
-      throw new Error('LOGIN_STATUS_INVALID')
-    }
-  }
-  sendToDaemon({
-    type: 'worker-to-gui-message',
-    data: {
-      type: 'prerequisite-step-by-step-checkstep-by-step-check',
-      step: {
-        id: 'basic-cookie-check',
-        status: 'fulfilled'
-      },
-      runRecordId
-    }
-  })
   const canNotConfirmIfHasReadMsgTemplateList = [
     'Boss还没查看你的消息',
     '你与该职位竞争者PK情况',
@@ -345,7 +418,10 @@ const mainLoop = async () => {
     '设置合适的期望薪资范围'
   ].map((it) => new RegExp(it))
   browser = await bootstrap()
+  runningLogManager.logInfo('浏览器已启动', { headless: process.env.GEEKGEEKRUN_BROWSER_HEADLESS === '1' })
+  
   await Promise.all([launchBoss(browser)])
+  runningLogManager.logInfo('页面已获取')
 
   await sleep(1000)
   pageMapByName.boss!.bringToFront()
@@ -355,29 +431,26 @@ const mainLoop = async () => {
   // #region
   if (currentPageUrl.startsWith('https://www.zhipin.com/web/user/')) {
     writeStorageFile('boss-cookies.json', [])
-    try {
-      // popup login dialog, then update login status
-      await loginWithCookieAssistant()
-    } catch (err) {
-      await dialog.showMessageBox({
-        type: `error`,
-        message: `登录状态无效`,
-        detail: `请重新登录BOSS直聘`
-      })
-      sendToDaemon({
-        type: 'worker-to-gui-message',
-        data: {
-          type: 'prerequisite-step-by-step-checkstep-by-step-check',
-          step: {
-            id: 'login-status-check',
-            status: 'rejected'
-          },
-          runRecordId
-        }
-      })
+    sendToDaemon({
+      type: 'worker-to-gui-message',
+      data: {
+        type: 'prerequisite-step-by-step-checkstep-by-step-check',
+        step: {
+          id: 'login-status-check',
+          status: 'rejected'
+        },
+        runRecordId
+      }
+    })
+    // 如果当前是无头模式，打开浏览器让用户扫码登录
+    if (process.env.GEEKGEEKRUN_BROWSER_HEADLESS === '1') {
+      runningLogManager.logInfo('登录状态已过期，正在打开浏览器等待扫码登录...')
+      await handleRelogin()
+      // 登录成功后重新启动
+      throw new Error('THROW_FOR_RETRY')
+    } else {
       throw new Error('LOGIN_STATUS_INVALID')
     }
-    throw new Error('THROW_FOR_RETRY')
   }
   if (
     currentPageUrl.startsWith('https://www.zhipin.com/web/common/403.html') ||

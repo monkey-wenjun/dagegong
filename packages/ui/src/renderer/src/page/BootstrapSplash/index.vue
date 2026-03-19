@@ -10,7 +10,7 @@
         src="@renderer/../../../resources/icon.png"
       />
     </div>
-    <div mt24px>愿你薪想事成</div>
+    <div mt24px>这辈子最大的愿望就是不上班</div>
   </div>
 </template>
 

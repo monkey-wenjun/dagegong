@@ -290,3 +290,357 @@ export async function sendMessage(page: Page, textToSend: string) {
   const sendButtonSelector = `.chat-conversation .message-controls .chat-op .btn-send:not(.disabled)`
   await page.click(sendButtonSelector)
 }
+
+// PDF 简历解析 Prompt
+const RESUME_PARSE_PROMPT = `你是一位专业的简历解析专家。请从以下 PDF 简历文本中提取关键信息，并整理成 Markdown 格式返回。
+
+**PDF 简历文本：**
+\`\`\`
+{{PDF_TEXT}}
+\`\`\`
+
+**请提取以下信息并返回 JSON 格式：**
+
+1. name: 姓名
+2. workYearDesc: 工作年限描述（如 "3年经验"、"5年以上经验"）
+3. expectJob: 期望职位
+4. expectSalary: 期望薪资范围（数组格式 [最低, 最高]，单位 k，如 ["20", "35"]）
+5. userDescription: 个人优势/自我评价（一句话简介，50字以内）
+6. markdownContent: **完整的简历内容，使用 Markdown 格式**
+
+**markdownContent 格式要求：**
+- 使用标准的 Markdown 语法
+- 包含以下章节（如有）：基本信息、个人优势、工作经历、项目经历、教育背景、技能特长
+- 工作经历格式示例：
+  ### 公司名称
+  **职位**：高级开发工程师  
+  **时间**：2020-01 至 2024-03
+  
+  - 负责 XXX 系统的架构设计与开发
+  - 带领团队完成项目交付
+- 项目经历格式示例：
+  ### 项目名称
+  **角色**：技术负责人  
+  **时间**：2022-06 至 2023-12
+  
+  - 项目描述：...
+  - 技术栈：...
+  - 项目成果：...
+
+**输出格式：**
+只返回 JSON 数据，不要包含任何解释文字。
+
+格式示例：
+{"name":"张三","workYearDesc":"5年经验","expectJob":"Java开发工程师","expectSalary":["20","35"],"userDescription":"5年Java开发经验，精通Spring生态","markdownContent":"# 个人简历\\n\\n## 工作经历\\n\\n### XX公司\\n**职位**：Java开发工程师\\n**时间**：2020-01 至 2024-03\\n\\n- 负责...\\n- 使用...\\n"}
+
+**注意事项：**
+- 确保 JSON 格式正确，markdownContent 中的换行使用 \\n 转义
+- 如果某个字段在简历中没有明确信息，使用空字符串
+- 工作经历和项目经历按时间倒序排列（最近的在前面）
+- 完整保留简历中的所有重要信息到 markdownContent 中`
+
+/**
+ * 使用 LLM 解析 PDF 简历文本
+ * @param pdfText PDF 中提取的文本内容
+ * @returns 解析后的简历结构化数据
+ */
+export const parseResumeFromPdf = async (pdfText: string) => {
+  if (!pdfText?.trim()) {
+    throw new Error('PDF text is empty')
+  }
+
+  const systemMessage = RESUME_PARSE_PROMPT.replace('{{PDF_TEXT}}', pdfText)
+  const chatList = [
+    {
+      role: 'system',
+      content: systemMessage
+    },
+    {
+      role: 'user',
+      content: '请解析上述 PDF 简历，返回 JSON 格式的结构化数据。'
+    }
+  ]
+
+  const llmConfigList = await readConfigFile('llm.json')
+  if (!Array.isArray(llmConfigList) || !llmConfigList.length) {
+    throw new Error('No LLM configuration found')
+  }
+
+  // 使用第一个启用的模型
+  const llmConfig = llmConfigList.find((it) => it.enabled) || llmConfigList[0]
+
+  const llmRequestRecord: Omit<LlmModelUsageRecord, 'id' | 'providerApiSecretMd5'> & {
+    providerApiSecret: string
+  } = {
+    providerCompleteApiUrl: llmConfig.providerCompleteApiUrl,
+    model: llmConfig.model,
+    providerApiSecret: llmConfig.providerApiSecret,
+    requestStartTime: new Date(),
+    hasError: false,
+    errorMessage: '',
+    requestScene: RequestSceneEnum.resumeParse
+  }
+
+  let res
+  try {
+    const completion = await completes(
+      {
+        baseURL: llmConfig.providerCompleteApiUrl,
+        apiKey: llmConfig.providerApiSecret,
+        model: llmConfig.model
+      },
+      chatList
+    )
+    res = completion?.choices?.[0] ?? null
+    Object.assign(llmRequestRecord, {
+      completionTokens: completion.usage?.completion_tokens ?? null,
+      promptCacheHitTokens: completion.usage?.prompt_cache_hit_tokens ?? null,
+      promptCacheMissTokens: completion.usage?.prompt_cache_miss_tokens ?? null,
+      promptTokens: completion.usage?.prompt_tokens ?? null,
+      totalTokens: completion.usage?.total_tokens ?? null
+    })
+  } catch (err) {
+    console.log('LLM request failed', err)
+    Object.assign(llmRequestRecord, {
+      hasError: true,
+      errorMessage: err?.message ?? ''
+    })
+    throw new Error('LLM request failed: ' + err?.message)
+  } finally {
+    llmRequestRecord.requestEndTime = new Date()
+    try {
+      await recordGptCompletionRequest(llmRequestRecord)
+    } catch (err) {
+      console.log('CANNOT_SAVE_LLM_COMPLETION_LOG', err)
+    }
+  }
+
+  // 解析 LLM 返回的 JSON
+  let parsedResume
+  try {
+    let rawMarkdownText = res?.message?.content
+    console.log('LLM raw response:', rawMarkdownText)
+    
+    // 尝试提取 JSON 代码块 - 处理多种格式
+    // 格式1: ```json\n{...}\n```
+    // 格式2: ```json {...}```
+    // 格式3: ```\n{...}\n```
+    let jsonText = rawMarkdownText
+    
+    // 先尝试匹配带 json 标记的代码块
+    const jsonCodeBlockMatch = rawMarkdownText.match(/```json\s*([\s\S]*?)\s*```/)
+    if (jsonCodeBlockMatch) {
+      jsonText = jsonCodeBlockMatch[1]
+    } else {
+      // 尝试匹配不带 json 标记的代码块
+      const codeBlockMatch = rawMarkdownText.match(/```\s*([\s\S]*?)\s*```/)
+      if (codeBlockMatch) {
+        jsonText = codeBlockMatch[1]
+      }
+    }
+    
+    // 清理可能的换行和空格
+    jsonText = jsonText.trim()
+    
+    // 如果内容不是以 { 或 [ 开头，尝试找 JSON 部分
+    if (!jsonText.startsWith('{') && !jsonText.startsWith('[')) {
+      const jsonObjMatch = jsonText.match(/(\{[\s\S]*\})/)
+      const jsonArrMatch = jsonText.match(/(\[[\s\S]*\])/)
+      if (jsonObjMatch) {
+        jsonText = jsonObjMatch[1]
+      } else if (jsonArrMatch) {
+        jsonText = jsonArrMatch[1]
+      }
+    }
+    
+    // 修复常见的 JSON 格式问题
+    jsonText = fixJsonText(jsonText)
+    
+    console.log('Parsed JSON text:', jsonText)
+    
+    // 尝试解析修复后的 JSON
+    try {
+      parsedResume = JSON.parse(jsonText)
+    } catch (parseErr) {
+      // 如果还是失败，检查是否是截断的 JSON 并尝试修复
+      console.log('First parse failed, error:', parseErr.message)
+      if (isJsonTruncated(jsonText)) {
+        console.log('JSON appears truncated, trying to fix...')
+        const fixedTruncated = fixTruncatedJson(jsonText)
+        console.log('Fixed truncated JSON:', fixedTruncated)
+        parsedResume = JSON.parse(fixedTruncated)
+      } else {
+        throw parseErr
+      }
+    }
+  } catch (err) {
+    console.error('Failed to parse LLM response:', err)
+    console.error('Raw response:', res?.message?.content)
+    throw new Error('Failed to parse LLM resume data: ' + err?.message)
+  }
+
+  // 验证并填充默认值
+  const defaultResume = {
+    name: '',
+    workYearDesc: '',
+    expectJob: '',
+    expectSalary: ['', ''],
+    userDescription: '',
+    markdownContent: '',
+    geekWorkExpList: [],
+    geekProjExpList: []
+  }
+
+  const result = { ...defaultResume, ...parsedResume }
+
+  // 确保数组字段正确
+  if (!Array.isArray(result.geekWorkExpList)) {
+    result.geekWorkExpList = []
+  }
+  if (!Array.isArray(result.geekProjExpList)) {
+    result.geekProjExpList = []
+  }
+  if (!Array.isArray(result.expectSalary)) {
+    result.expectSalary = ['', '']
+  }
+
+  return result
+}
+
+/**
+ * 修复 LLM 返回的可能损坏的 JSON 字符串
+ * 处理常见问题：未转义的字符、未闭合的字符串、尾部逗号等
+ */
+function fixJsonText(jsonText: string): string {
+  // 1. 首先处理换行符和回车符
+  let fixed = jsonText.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  
+  // 2. 移除零宽字符和其他控制字符（保留 \n \t \r 的转义形式）
+  fixed = fixed.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u200b-\u200f\ufeff]/g, '')
+  
+  // 3. 修复字符串中实际的换行符（转为 \n）
+  // 但首先保护已经在字符串内的 \n
+  fixed = fixed.replace(/\\n/g, '\x00NEWLINE\x00')
+  fixed = fixed.replace(/\\t/g, '\x00TAB\x00')
+  fixed = fixed.replace(/\\"/g, '\x00QUOTE\x00')
+  fixed = fixed.replace(/\\\\/g, '\x00BACKSLASH\x00')
+  
+  // 4. 现在将真实的换行和回车转为 \n
+  fixed = fixed.replace(/\n/g, '\\n')
+  fixed = fixed.replace(/\t/g, '\\t')
+  
+  // 5. 恢复被保护的转义序列
+  fixed = fixed.replace(/\x00NEWLINE\x00/g, '\\n')
+  fixed = fixed.replace(/\x00TAB\x00/g, '\\t')
+  fixed = fixed.replace(/\x00QUOTE\x00/g, '\\"')
+  fixed = fixed.replace(/\x00BACKSLASH\x00/g, '\\\\')
+  
+  // 6. 移除对象和数组末尾的多余逗号
+  fixed = fixed.replace(/,\s*([}\]])/g, '$1')
+  
+  return fixed
+}
+
+/**
+ * 检测 JSON 是否被截断
+ */
+function isJsonTruncated(text: string): boolean {
+  const trimmed = text.trim()
+  // 如果最后不是 } 或 ]，说明可能被截断了
+  if (!trimmed.endsWith('}') && !trimmed.endsWith(']')) {
+    return true
+  }
+  
+  // 检查括号是否平衡
+  const openBraces = (trimmed.match(/\{/g) || []).length
+  const closeBraces = (trimmed.match(/\}/g) || []).length
+  const openBrackets = (trimmed.match(/\[/g) || []).length
+  const closeBrackets = (trimmed.match(/\]/g) || []).length
+  
+  return openBraces !== closeBraces || openBrackets !== closeBrackets
+}
+
+/**
+ * 修复被截断的 JSON
+ * 找到最后一个完整的键值对并截断，然后补全括号
+ */
+function fixTruncatedJson(text: string): string {
+  let result = ''
+  let inString = false
+  let escaped = false
+  let stringStartChar = ''
+  let braceDepth = 0
+  let bracketDepth = 0
+  let lastSafePos = -1
+  
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]
+    
+    if (!inString) {
+      if (char === '"' || char === "'") {
+        inString = true
+        stringStartChar = char
+      } else if (char === '{') {
+        braceDepth++
+      } else if (char === '}') {
+        braceDepth--
+        if (braceDepth >= 0 && bracketDepth === 0) {
+          lastSafePos = i + 1
+        }
+      } else if (char === '[') {
+        bracketDepth++
+      } else if (char === ']') {
+        bracketDepth--
+        if (bracketDepth >= 0 && braceDepth === 0) {
+          lastSafePos = i + 1
+        }
+      } else if (char === ',' && braceDepth === 0 && bracketDepth === 0) {
+        // 顶层逗号，安全截断点
+        lastSafePos = i
+      }
+    } else {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === stringStartChar) {
+        inString = false
+        // 字符串结束，如果是在顶层，记录位置
+        if (braceDepth === 0 && bracketDepth === 0) {
+          lastSafePos = i + 1
+        }
+      }
+    }
+  }
+  
+  // 如果字符串未闭合，添加闭合引号
+  if (inString) {
+    result = text + stringStartChar
+  } else {
+    result = text
+  }
+  
+  // 如果检测到截断，截断到最后一个安全位置
+  if (lastSafePos > 0 && isJsonTruncated(result)) {
+    result = result.substring(0, lastSafePos)
+  }
+  
+  // 移除末尾可能的逗号
+  result = result.replace(/,\s*$/, '')
+  
+  // 补全未闭合的括号
+  const openBraces = (result.match(/\{/g) || []).length - (result.match(/\}/g) || []).length
+  const openBrackets = (result.match(/\[/g) || []).length - (result.match(/\]/g) || []).length
+  
+  for (let i = 0; i < openBraces; i++) {
+    result += '}'
+  }
+  for (let i = 0; i < openBrackets; i++) {
+    result += ']'
+  }
+  
+  return result
+}
+
+
+

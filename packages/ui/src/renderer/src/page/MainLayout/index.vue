@@ -41,21 +41,15 @@
         <div>
           <div>当前版本: {{ buildInfo.version }}({{ buildInfo.buildVersion }})</div>
           <div class="feedback-button-area flex flex-items-center mt-8px">
-            <el-button type="text" size="small" @click="handleGotoProjectPageClick"
-              >项目首页</el-button
-            >
+            <el-button type="text" size="small" @click="handleGotoBlogClick">作者：阿文</el-button>
             |
-            <el-button type="text" size="small" @click="handleFeedbackClick">反馈问题</el-button>
+            <el-button type="text" size="small" @click="handleEmailClick">hi@awen.me</el-button>
           </div>
         </div>
       </div>
     </div>
-    <div class="router-view-wrap">
-      <RouterView v-slot="{ Component }" class="flex-1 of-hidden">
-        <KeepAlive>
-          <component :is="Component" />
-        </KeepAlive>
-      </RouterView>
+    <div class="router-view-wrap of-auto">
+      <RouterView />
     </div>
   </div>
 </template>
@@ -72,13 +66,11 @@ import RunDataRecordPart from './LeftNavBar/RunDataRecordPart.vue'
 useRouter()
 
 const { buildInfo } = useBuildInfo()
-const handleFeedbackClick = () => {
-  gtagRenderer('goto_feedback_clicked')
-  electron.ipcRenderer.send('send-feed-back-to-github-issue')
+const handleEmailClick = () => {
+  electron.ipcRenderer.send('open-external-link', 'mailto:hi@awen.me')
 }
-const handleGotoProjectPageClick = () => {
-  gtagRenderer('goto_project_github_clicked')
-  electron.ipcRenderer.send('open-external-link', 'https://github.com/geekgeekrun/geekgeekrun')
+const handleGotoBlogClick = () => {
+  electron.ipcRenderer.send('open-external-link', 'https://www.awen.me')
 }
 
 const updateStore = useUpdateStore()
@@ -97,13 +89,14 @@ void taskManagerStore
 
 <style lang="scss" scoped>
 .aside-nav {
-  background-image: linear-gradient(45deg, #eaf4f1, #dcf6f2);
+  background-color: #1a1a1a;
+  color: #ffffff;
   .nav-list {
     hr.group-divider {
       width: 100%;
       border: 0 solid;
       height: 1px;
-      background-color: #b3c8c3;
+      background-color: #444;
       margin-top: 4px;
       margin-bottom: 4px;
       margin-right: 0;
@@ -123,5 +116,6 @@ void taskManagerStore
   flex: 1;
   height: 100%;
   box-shadow: -4px 1px 20px rgb(50 114 108 / 29%);
+  padding-left: 20px;
 }
 </style>

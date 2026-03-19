@@ -11,13 +11,51 @@ const bossChatUiUrl = `https://www.zhipin.com/web/geek/chat`
 export async function bootstrap() {
   const { puppeteer } = await initPuppeteer()
 
+  // 从环境变量读取无头模式配置
+  const headlessMode = process.env.GEEKGEEKRUN_BROWSER_HEADLESS === '1'
+  if (headlessMode) {
+    console.log('[Browser] 以无头模式启动浏览器')
+  }
+
   const browser = await puppeteer.launch({
-    headless: false,
+    headless: headlessMode ? 'new' : false,
     ignoreHTTPSErrors: true,
-    defaultViewport: {
-      width: 1440,
-      height: 800
-    },
+    ignoreDefaultArgs: ['--enable-automation'],
+    defaultViewport: null,
+    args: [
+      '--disable-infobars',
+      '--window-size=1440,900',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process,AutomationControlled',
+      '--test-type=ui',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-site-isolation-trials',
+      '--disable-web-security',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--disable-gpu',
+      '--hide-scrollbars',
+      '--disable-background-networking',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-component-update',
+      '--disable-default-apps',
+      '--disable-features=TranslateUI',
+      '--disable-hang-monitor',
+      '--disable-ipc-flooding-protection',
+      '--disable-popup-blocking',
+      '--disable-prompt-on-repost',
+      '--disable-renderer-backgrounding',
+      '--force-color-profile=srgb',
+      '--metrics-recording-only',
+      '--safebrowsing-disable-auto-update',
+      '--password-store=basic',
+      '--use-mock-keychain',
+      '--no-sandbox',
+      '--disable-setuid-sandbox'
+    ],
     devtools: process.env.NODE_ENV === 'development'
   })
 

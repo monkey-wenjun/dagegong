@@ -141,6 +141,56 @@ const expectCityList = (
     commonJobConditionConfig.expectCityList
 ) ?? []
 
+/**
+ * 检查职位是否匹配期望城市列表（支持城市-区域格式）
+ * @param {string} cityName - 职位所在城市
+ * @param {string} areaDistrict - 职位所在区域/区县
+ * @param {string[]} expectCities - 期望城市列表（可能包含 "城市-区域" 格式）
+ * @returns {boolean} - 是否匹配
+ */
+function checkCityMatch(cityName, areaDistrict, expectCities) {
+  if (!Array.isArray(expectCities) || expectCities.length === 0) {
+    return true
+  }
+  
+  // 解析期望城市配置
+  const expectCitiesOnly = [] // 只配置了城市，没有配置区域
+  const expectCityDistrictMap = new Map() // 配置了城市+区域
+  
+  for (const item of expectCities) {
+    if (typeof item !== 'string') continue
+    
+    if (item.includes('-')) {
+      // 格式: "城市-区域"，如 "杭州-西湖区"
+      const [city, ...districtParts] = item.split('-')
+      const district = districtParts.join('-') // 处理区域名中可能包含的-
+      if (!expectCityDistrictMap.has(city)) {
+        expectCityDistrictMap.set(city, new Set())
+      }
+      expectCityDistrictMap.get(city).add(district)
+    } else {
+      // 只有城市名
+      expectCitiesOnly.push(item)
+    }
+  }
+  
+  // 1. 如果只配置了城市名（没有区域），检查城市名是否匹配
+  if (expectCitiesOnly.includes(cityName)) {
+    return true
+  }
+  
+  // 2. 如果配置了城市+区域，需要同时匹配城市和区域
+  if (expectCityDistrictMap.has(cityName)) {
+    const expectDistricts = expectCityDistrictMap.get(cityName)
+    // 如果职位有区域信息，检查是否匹配
+    if (areaDistrict && expectDistricts.has(areaDistrict)) {
+      return true
+    }
+  }
+  
+  return false
+}
+
 const strategyScopeOptionWhenMarkJobCityNotMatch = readConfigFile('boss.json').strategyScopeOptionWhenMarkJobCityNotMatch ?? StrategyScopeOptionWhenMarkJobNotMatch.ONLY_COMPANY_MATCHED_JOB
 
 // salary
@@ -846,12 +896,21 @@ async function toRecommendPage (hooks) {
         // await page.click(USER_SET_EXPECT_JOB_ENTRIES_SELECTOR)
         await sleep(3000)
         let onPageCurrentSourceIndex = -1
-        for (let i=0; i < computedSourceList.length; i++) {
-          const computedSource = computedSourceList[i]
-          if (await computedSource.getIsCurrentActiveSource()) {
-            onPageCurrentSourceIndex = i
-            break
+        try {
+          for (let i=0; i < computedSourceList.length; i++) {
+            const computedSource = computedSourceList[i]
+            if (await computedSource.getIsCurrentActiveSource()) {
+              onPageCurrentSourceIndex = i
+              break
+            }
           }
+        } catch (frameErr) {
+          // 如果页面已导航/刷新，frame 会被分离，需要重启浏览器
+          if (frameErr.message?.includes('detached Frame')) {
+            console.warn('页面已刷新，需要重启浏览器:', frameErr.message)
+            throw new Error('STARTUP_CHAT_ERROR_WITH_UNKNOWN_ERROR')
+          }
+          throw frameErr
         }
         if (
           (
@@ -973,7 +1032,7 @@ async function toRecommendPage (hooks) {
                 ) {
                   console.log(`add job city not suit into blockJobNotSuit set`)
                   for (const it of jobListData) {
-                    if (!expectCityList.includes(it.cityName)) {
+                    if (!checkCityMatch(it.cityName, it.areaDistrict, expectCityList)) {
                       blockJobNotSuit.add(it.encryptJobId)
                     }
                   }
@@ -1031,7 +1090,7 @@ async function toRecommendPage (hooks) {
                             MarkAsNotSuitOp.MARK_AS_NOT_SUIT_ON_LOCAL
                           ].includes(expectCityNotMatchStrategy) &&
                           strategyScopeOptionWhenMarkJobCityNotMatch === StrategyScopeOptionWhenMarkJobNotMatch.ALL_JOB
-                        ) ? !expectCityList.includes(it.cityName) : false
+                        ) ? !checkCityMatch(it.cityName, it.areaDistrict, expectCityList) : false
                       ) || (
                         // enter job detail to mark as not suit for work exp filter
                         (
@@ -1426,7 +1485,7 @@ async function toRecommendPage (hooks) {
                     notSuitReasonIdToStrategyMap.active = jobNotActiveStrategy
                   }
                   if (
-                    (Array.isArray(expectCityList) && expectCityList.length) && !expectCityList.includes(selectedJobData.cityName)
+                    (Array.isArray(expectCityList) && expectCityList.length) && !checkCityMatch(selectedJobData.cityName, selectedJobData.areaDistrict, expectCityList)
                   ) {
                     notSuitReasonIdToStrategyMap.city = expectCityNotMatchStrategy
                   }
@@ -1516,24 +1575,70 @@ async function toRecommendPage (hooks) {
           const startChatButtonInnerHTML = await page.evaluate('document.querySelector(".job-detail-box .op-btn.op-btn-chat")?.innerHTML.trim()')
 
           await hooks.newChatWillStartup?.promise(targetJobData)
+          
+          // 等待按钮可见且可点击
+          await page.waitForSelector('.job-detail-box .op-btn.op-btn-chat', {
+            visible: true,
+            timeout: 5000
+          })
+          
           const startChatButtonProxy = await page.$('.job-detail-box .op-btn.op-btn-chat')
+          if (!startChatButtonProxy) {
+            throw new Error('STARTUP_CHAT_ERROR_WITH_UNKNOWN_ERROR: 无法找到立即沟通按钮')
+          }
+          
           await sleep(500)
+          
           //#region click the chat button
-          await startChatButtonProxy.click()
+          try {
+            await startChatButtonProxy.click()
+          } catch (clickErr) {
+            console.log('[Click] 常规点击失败，尝试使用 JavaScript 点击:', clickErr.message)
+            await page.evaluate(() => {
+              const btn = document.querySelector('.job-detail-box .op-btn.op-btn-chat')
+              if (btn) {
+                btn.click()
+              }
+            })
+          }
+          
+          hooks.logInfo?.('[Chat] 已点击立即沟通按钮，等待响应...')
 
           const waitAddFriendResponse = async () => {
+            hooks.logInfo?.('[Chat] 等待打招呼响应...')
+            let responseReceived = false
             const addFriendResponse = await page.waitForResponse(
               response => {
-                if (
-                  response.url().startsWith('https://www.zhipin.com/wapi/zpgeek/friend/add.json') && response.url().includes(`jobId=${targetJobData.jobInfo.encryptId}`)
-                ) {
-                  return true
+                const url = response.url()
+                if (url.startsWith('https://www.zhipin.com/wapi/zpgeek/friend/add.json')) {
+                  hooks.logInfo?.(`[Chat] 收到 add.json 响应: ${url.substring(0, 100)}...`)
+                  if (url.includes(`jobId=${targetJobData.jobInfo.encryptId}`)) {
+                    responseReceived = true
+                    return true
+                  }
                 }
                 return false
-              }
+              },
+              { timeout: 10000 }
             );
-            const res = await addFriendResponse.json()
-            return res
+            hooks.logInfo?.(`[Chat] 响应状态: ${addFriendResponse.status()}`)
+            // 处理可能的 preflight 请求或响应体读取失败
+            try {
+              const res = await addFriendResponse.json()
+              hooks.logInfo?.(`[Chat] 响应数据: code=${res.code}, message=${res.message || '无'}`)
+              return res
+            } catch (parseErr) {
+              // 如果读取响应体失败（可能是 preflight 或响应已过期），直接抛出错误让外层重启
+              console.warn('读取打招呼响应失败:', parseErr.message)
+              hooks.logError?.(`[Chat] 读取打招呼响应失败: ${parseErr.message}`)
+              // 尝试获取响应文本以便诊断
+              try {
+                const text = await addFriendResponse.text()
+                console.warn('响应内容:', text)
+                hooks.logError?.(`[Chat] 响应内容: ${text.substring(0, 200)}`)
+              } catch (e) {}
+              throw new Error('STARTUP_CHAT_ERROR_WITH_UNKNOWN_ERROR')
+            }
           }
           const waitAndHandleChatSuccess = async () => {
             await hooks.newChatStartup?.promise(
@@ -1595,6 +1700,9 @@ async function toRecommendPage (hooks) {
               throw new Error('STARTUP_CHAT_ERROR_DUE_TO_TODAY_CHANCE_HAS_USED_OUT')
             }
             else {
+              console.error(
+                '打招呼接口返回未知错误格式:'
+              )
               console.error(
                 JSON.stringify(res, null, 2)
               )
@@ -1660,17 +1768,71 @@ export async function mainLoop (hooks) {
     await initPuppeteer()
   }
   try {
+    // 从环境变量读取无头模式配置
+    const headlessMode = process.env.GEEKGEEKRUN_BROWSER_HEADLESS === '1'
+    if (headlessMode) {
+      console.log('[Browser] 以无头模式启动浏览器')
+    }
+    
     browser = await puppeteer.launch({
-      headless: false,
+      headless: headlessMode ? 'new' : false,
       ignoreHTTPSErrors: true,
-      defaultViewport: {
+      ignoreDefaultArgs: ['--enable-automation'],
+      defaultViewport: headlessMode ? null : {
         width: 1440,
         height: 900 - 140,
-      }
+      },
+      args: [
+        '--disable-infobars',
+        '--window-size=1440,900',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-features=IsolateOrigins,site-per-process,AutomationControlled',
+        '--test-type=ui',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-site-isolation-trials',
+        '--disable-web-security',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+        '--hide-scrollbars',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-breakpad',
+        '--disable-component-update',
+        '--disable-default-apps',
+        '--disable-features=TranslateUI',
+        '--disable-hang-monitor',
+        '--disable-ipc-flooding-protection',
+        '--disable-popup-blocking',
+        '--disable-prompt-on-repost',
+        '--disable-renderer-backgrounding',
+        '--force-color-profile=srgb',
+        '--metrics-recording-only',
+        '--safebrowsing-disable-auto-update',
+        '--password-store=basic',
+        '--use-mock-keychain',
+        '--no-sandbox',
+        '--disable-setuid-sandbox'
+      ]
     })
     hooks.puppeteerLaunched?.call(browser)
     page = (await browser.pages())[0]
     hooks.pageGotten?.call(page)
+    
+    // 监听浏览器断开连接
+    browser.on('disconnected', () => {
+      console.error('[Browser] 浏览器进程已断开连接')
+      hooks.logError?.('[Browser] 浏览器进程已断开连接（可能已崩溃）')
+    })
+    
+    // 监听页面崩溃
+    page.on('error', (err) => {
+      console.error('[Page] 页面错误:', err.message)
+      hooks.logError?.(`[Page] 页面错误: ${err.message}`)
+    })
+    
     //set cookies
     const bossCookies = readStorageFile('boss-cookies.json')
     const bossLocalStorage = readStorageFile('boss-local-storage.json')

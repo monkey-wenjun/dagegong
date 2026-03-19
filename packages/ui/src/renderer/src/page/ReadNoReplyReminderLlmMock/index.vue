@@ -89,6 +89,7 @@
         <el-empty>
           <template #description>
             <template v-if="!isLoading">
+              <div mb10px>
               点击下方 “<el-button
                 font-size-16px
                 h-fit-content
@@ -98,6 +99,17 @@
                 @click.prevent="sendLlmGeneratedContent"
                 >发送开场白</el-button
               >” 以开始模拟聊天
+              </div>
+              <div font-size-12px color-gray>
+                提示：您可以在<el-button
+                  font-size-12px
+                  h-fit-content
+                  align-baseline
+                  p0
+                  type="text"
+                  @click.prevent="openResumeEditor"
+                >简历编辑器</el-button>中导入 PDF 简历自动解析
+              </div>
             </template>
             <template v-else>请稍候，第一条消息正在回复的路上~</template>
           </template>
@@ -135,7 +147,7 @@
             }"
           >
             <div>{{ it.model }}</div>
-            <div class="font-size-12px color-#bbb">
+            <div class="font-size-12px" style="color: #bbb">
               {{ formatApiSecret(it.providerApiSecret) || '' }}
             </div>
           </div>
@@ -318,6 +330,10 @@ async function sendLlmGeneratedContent() {
 
 function closeWindow() {
   electron.ipcRenderer.send(`close-read-no-reply-reminder-llm-mock-window`)
+}
+
+function openResumeEditor() {
+  electron.ipcRenderer.invoke('resume-edit')
 }
 
 function formatApiSecret(text) {

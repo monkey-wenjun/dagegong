@@ -4,7 +4,7 @@
   "description": "BOSS 炸弹 - 自动开聊BOSS，助力每位打工人求职！",
   "main": "./out/main/index.js",
   "author": "geekgeekrun",
-  "productName": "GeekGeekRun",
+  "productName": "找个工打打",
   "homepage": "https://github.com/geekgeekrun",
   "scripts": {
     "start": "node scripts/run-build-sqlite-plugin.mjs && electron-vite preview",
@@ -26,6 +26,7 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
+    "pdf-parse": "^1.1.1",
     "@geekgeekrun/launch-bosszhipin-login-page-with-preload-extension": "workspace:*",
     "@geekgeekrun/pm": "workspace:*",
     "@geekgeekrun/puppeteer-extra-plugin-laodeng": "workspace:*",

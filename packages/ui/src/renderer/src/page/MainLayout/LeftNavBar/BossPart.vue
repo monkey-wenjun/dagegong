@@ -84,45 +84,16 @@
           <QuestionFilled w-1em h-1em mr10px />
         </el-tooltip>
       </RouterLink>
-      <a href="javascript:void(0)" @click="handleClickLaunchBossLogin">
-        编辑登录凭据<TopRight w-1em h-1em mr10px />
-      </a>
-      <a href="javascript:void(0)" @click="handleLaunchBossSite">
-        手动逛<TopRight w-1em h-1em mr10px />
-      </a>
+
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { gtagRenderer } from '@renderer/utils/gtag'
-import { debounce } from 'lodash'
-import { ElMessage } from 'element-plus'
-import { TopRight, QuestionFilled } from '@element-plus/icons-vue'
+import { QuestionFilled } from '@element-plus/icons-vue'
 
-const handleClickLaunchBossLogin = async () => {
-  gtagRenderer('launch_login_clicked')
-  try {
-    await electron.ipcRenderer.invoke('login-with-cookie-assistant')
-    ElMessage({
-      type: 'success',
-      message: '登录凭据保存成功'
-    })
-  } catch {
-    //
-  }
-}
 
-const handleLaunchBossSite = debounce(
-  async () => {
-    gtagRenderer('launch_boss_site_clicked')
-    return await electron.ipcRenderer.invoke('open-site-with-boss-cookie', {
-      url: `https://www.zhipin.com/`
-    })
-  },
-  1000,
-  { leading: true, trailing: false }
-)
 </script>
 
 <style scoped lang="scss" src="./style.scss"></style>

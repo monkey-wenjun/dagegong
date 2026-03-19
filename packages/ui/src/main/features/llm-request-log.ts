@@ -3,7 +3,8 @@ import { saveGptCompletionRequestRecord } from '@geekgeekrun/sqlite-plugin/dist/
 export enum RequestSceneEnum {
   testing = 1,
   readNoReplyAutoReminder = 2,
-  geekAutoStartChatWithBoss = 3
+  geekAutoStartChatWithBoss = 3,
+  resumeParse = 4
 }
 
 let dbInitPromise

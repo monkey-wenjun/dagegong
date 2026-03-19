@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "@geekgeekrun/dingtalk-plugin",
+  "main": "./index.mjs",
   "module": "./index.mjs",
   "type": "module",
   "scripts": {
