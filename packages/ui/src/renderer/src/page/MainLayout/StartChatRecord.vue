@@ -1,8 +1,49 @@
 <template>
   <div class="page-wrap flex flex-col of-hidden">
+    <div class="page-header" flex flex-items-center flex-justify-between p12px border-b>
+      <div flex flex-items-center gap8>
+        <h3>沟通记录</h3>
+        <el-tag v-if="pagination.totalItemCount > 0" type="info" size="small">
+          共 {{ pagination.totalItemCount }} 条记录
+        </el-tag>
+        <el-tag v-if="lastSyncTime" type="success" size="small">
+          上次同步: {{ formatSyncTime(lastSyncTime) }}
+        </el-tag>
+      </div>
+      <div flex gap8>
+        <el-button
+          :loading="isSyncing"
+          size="small"
+          type="success"
+          @click="handleSync"
+        >
+          <template #icon>
+            <i class="i-mdi-sync" />
+          </template>
+          同步BOSS沟通记录
+        </el-button>
+        <el-button
+          :loading="isTableLoading"
+          size="small"
+          @click="refresh"
+        >刷新</el-button>
+        <el-button size="small" type="primary" @click="exportRecords">导出</el-button>
+      </div>
+    </div>
+    
+    <!-- 标签切换 -->
+    <div class="tabs-container" px12px pt8px>
+      <el-radio-group v-model="activeTab" size="small" @change="handleTabChange">
+        <el-radio-button label="boss">BOSS沟通记录 ({{ bossRelationCount }})</el-radio-button>
+        <el-radio-button label="auto">本应用开聊记录 ({{ autoStartChatCount }})</el-radio-button>
+      </el-radio-group>
+    </div>
+    
     <div v-loading="isTableLoading" class="flex-1 of-hidden">
       <div ref="tableContainerEl" class="h-100% of-hidden">
+        <!-- BOSS沟通记录 -->
         <ElTable
+          v-if="activeTab === 'boss'"
           ref="tableRef"
           :max-height="tableMaxHeight"
           :data="tableData"
@@ -10,20 +51,82 @@
           size="small"
           table-layout="auto"
           highlight-current-row
+          stripe
+          border
         >
-          <ElTableColumn prop="companyName" label="公司" />
-          <ElTableColumn prop="jobName" label="职位名称" />
-          <ElTableColumn prop="positionName" label="职位分类" />
+          <ElTableColumn prop="bossName" label="BOSS" min-width="100" show-overflow-tooltip>
+            <template #default="{ row }">
+              <div flex items-center gap-2>
+                <el-avatar :size="24" :src="row.bossAvatar" />
+                <span>{{ row.bossName }}</span>
+                <el-tag v-if="row.unreadCount > 0" type="danger" size="small">{{ row.unreadCount }}未读</el-tag>
+                <el-tag v-if="row.isTop" type="warning" size="small">置顶</el-tag>
+              </div>
+            </template>
+          </ElTableColumn>
+          <ElTableColumn prop="bossTitle" label="职位" min-width="120" show-overflow-tooltip />
+          <ElTableColumn prop="brandName" label="公司" min-width="120" show-overflow-tooltip />
+          <ElTableColumn prop="jobName" label="职位名称" min-width="150" show-overflow-tooltip />
+          <ElTableColumn prop="lastText" label="最后消息" min-width="200" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span :class="{ 'text-unread': row.unreadCount > 0 && !row.lastIsSelf }">
+                {{ row.lastIsSelf ? '我: ' : '' }}{{ row.lastText || '-' }}
+              </span>
+            </template>
+          </ElTableColumn>
+          <ElTableColumn
+            prop="updateTime"
+            label="更新时间"
+            min-width="150"
+            :formatter="formatUpdateTime"
+          />
+          <ElTableColumn label="操作" fixed="right" width="150" align="center">
+            <template #default="{ row }">
+              <ElButton
+                link
+                type="primary"
+                size="small"
+                @click="handleOpenChat(row.encryptBossId, row.encryptJobId)"
+              >打开聊天</ElButton>
+              <ElButton
+                link
+                type="primary"
+                size="small"
+                @click="handleViewJobOnline(row.encryptJobId)"
+              >查看职位</ElButton>
+            </template>
+          </ElTableColumn>
+        </ElTable>
+        
+        <!-- 自动开聊记录 -->
+        <ElTable
+          v-else
+          ref="tableRef"
+          :max-height="tableMaxHeight"
+          :data="tableData"
+          :row-key="getRowKey"
+          size="small"
+          table-layout="auto"
+          highlight-current-row
+          stripe
+          border
+        >
+          <ElTableColumn prop="companyName" label="公司" min-width="120" show-overflow-tooltip />
+          <ElTableColumn prop="jobName" label="职位名称" min-width="150" show-overflow-tooltip />
+          <ElTableColumn prop="positionName" label="职位分类" min-width="100" show-overflow-tooltip />
           <ElTableColumn
             prop="date"
             label="开聊时间"
+            min-width="150"
+            sortable
             :formatter="
               (_row, _col, val) => val ? transformUtcDateToLocalDate(val).format('YYYY-MM-DD HH:mm:ss') : '-'
             "
           />
-          <ElTableColumn prop="experienceName" label="工作经验" />
+          <ElTableColumn prop="experienceName" label="工作经验" min-width="90" />
           <ElTableColumn
             label="薪资"
+            min-width="100"
             :formatter="
               (row, _col, _val) =>
                 row.salaryLow != null && row.salaryHigh != null
@@ -32,8 +135,8 @@
                   : '-'
             "
           />
-          <ElTableColumn prop="bossName" label="BOSS" />
-          <ElTableColumn prop="bossTitle" label="BOSS身份" />
+          <ElTableColumn prop="bossName" label="BOSS" min-width="100" show-overflow-tooltip />
+          <ElTableColumn prop="bossTitle" label="BOSS身份" min-width="100" show-overflow-tooltip />
           <ElTableColumn label="职位信息" fixed="right" :width="120">
             <template #default="{ row }">
               <ElButton
@@ -47,7 +150,7 @@
                 link
                 type="primary"
                 size="small"
-                @click="handleViewJobOnlineButtonClick(row.encryptJobId)"
+                @click="handleViewJobOnline(row.encryptJobId)"
                 >线上</ElButton
               >
             </template>
@@ -55,19 +158,16 @@
         </ElTable>
       </div>
     </div>
-    <div class="flex flex-0 flex-justify-between pt10px pb10px">
+    <div class="flex flex-0 flex-justify-between pt10px pb10px px12px">
       <div class="w100px">
-        <el-button
-          :loading="isTableLoading"
-          size="small"
-          @click="
-            () => {
-              gtagRenderer('start_chat_record_refresh_clicked')
-              getAutoStartChatRecord()
-            }
-          "
-          >刷新</el-button
-        >
+        <el-select v-model="pagination.pageSize" size="small" style="width: 90px" @change="handlePageSizeChange">
+          <el-option
+            v-for="size in pageSizeList"
+            :key="size"
+            :label="`${size}条/页`"
+            :value="size"
+          />
+        </el-select>
       </div>
       <ElPagination
         v-model:current-page="pagination.pageNo"
@@ -75,10 +175,9 @@
         :page-sizes="pageSizeList"
         small
         :disabled="isTableLoading"
-        layout="total, sizes, prev, pager, next, jumper"
+        layout="total, prev, pager, next, jumper"
         :total="pagination.totalItemCount"
-        @size-change="getAutoStartChatRecord"
-        @current-change="getAutoStartChatRecord"
+        @current-change="loadData"
       />
       <div class="w100px" />
     </div>
@@ -100,71 +199,266 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElPagination, ElDrawer } from 'element-plus'
+import { ElTable, ElTableColumn, ElButton, ElPagination, ElDrawer, ElTag, ElMessage, ElAvatar } from 'element-plus'
 import { type VChatStartupLog } from '@geekgeekrun/sqlite-plugin/src/entity/VChatStartupLog'
+import { type VBossChatRelation } from '@geekgeekrun/sqlite-plugin/src/entity/VBossChatRelation'
 import { transformUtcDateToLocalDate } from '@geekgeekrun/utils/date.mjs'
 import { PageReq, PagedRes } from '../../../../common/types/pagination'
 import JobInfoSnapshot from '../../features/JobInfoSnapshot/index.vue'
 import { gtagRenderer } from '@renderer/utils/gtag'
+import dayjs from 'dayjs'
 
-const tableData = ref<VChatStartupLog[]>([])
-const pageSizeList = ref<number[]>([100, 200, 300, 400])
+// 标签页
+const activeTab = ref<'boss' | 'auto'>('boss')
+const bossRelationCount = ref(0)
+const autoStartChatCount = ref(0)
+
+// 数据
+const tableData = ref<VChatStartupLog[] | VBossChatRelation[]>([])
+const pageSizeList = ref<number[]>([20, 50, 100, 200])
 const pagination = ref<Omit<PageReq & PagedRes<unknown>, 'data'>>({
   pageNo: 1,
   pageSize: pageSizeList.value[0],
   totalItemCount: 0
 })
-const getRowKey = (row: VChatStartupLog) => {
+
+const getRowKey = (row: any) => {
+  if (activeTab.value === 'boss') {
+    return `${row.friendId}`
+  }
   return `${row.encryptJobId}@${row.date}`
 }
+
 const tableRef = ref<InstanceType<typeof ElTable>>()
 const isTableLoading = ref(false)
-async function getAutoStartChatRecord() {
+const isSyncing = ref(false)
+const lastSyncTime = ref<Date | null>(null)
+
+// 获取当前用户ID
+const getCurrentUserId = async () => {
   try {
-    gtagRenderer('start_chat_record_request_sent', {
-      page_no: pagination.value.pageNo,
-      page_size: pagination.value.pageSize,
-    })
+    const userInfo = await electron.ipcRenderer.invoke('get-user-info')
+    return userInfo?.encryptUserId || ''
+  } catch {
+    return ''
+  }
+}
+
+// 加载数据
+async function loadData() {
+  if (activeTab.value === 'boss') {
+    await getBossChatRelationList()
+  } else {
+    await getAutoStartChatRecord()
+  }
+}
+
+// 获取BOSS沟通记录
+async function getBossChatRelationList() {
+  try {
     isTableLoading.value = true
-    const { data: res } = (await electron.ipcRenderer.invoke('get-auto-start-chat-record', {
+    const encryptUserId = await getCurrentUserId()
+    
+    const { data: res } = (await electron.ipcRenderer.invoke('get-boss-chat-relation-list', {
       pageNo: pagination.value.pageNo,
-      pageSize: pagination.value.pageSize
-    })) as { data: PagedRes<VChatStartupLog> }
+      pageSize: pagination.value.pageSize,
+      encryptUserId
+    })) as { data: PagedRes<VBossChatRelation> }
+    
     tableData.value = res.data
     pagination.value = {
       totalItemCount: res.totalItemCount,
       pageNo: res.pageNo,
       pageSize: pagination.value.pageSize
     }
-    gtagRenderer('start_chat_record_request_success', {
-      page_no: pagination.value.pageNo,
-      page_size: pagination.value.pageSize,
-    })
+    bossRelationCount.value = res.totalItemCount
   } catch (err) {
-    gtagRenderer('start_chat_record_request_error', {
-      err,
-      page_no: pagination.value.pageNo,
-      page_size: pagination.value.pageSize,
-    })
-    console.log(err)
-    tableData.value = []
+    console.error(err)
+    ElMessage.error('获取沟通记录失败')
   } finally {
     isTableLoading.value = false
-    // Delay to ensure table is updated before scrolling
     setTimeout(() => {
       tableRef.value?.setScrollTop(0)
     }, 0)
   }
 }
 
-getAutoStartChatRecord()
+// 获取自动开聊记录
+async function getAutoStartChatRecord() {
+  try {
+    isTableLoading.value = true
+    const { data: res } = (await electron.ipcRenderer.invoke('get-auto-start-chat-record', {
+      pageNo: pagination.value.pageNo,
+      pageSize: pagination.value.pageSize
+    })) as { data: PagedRes<VChatStartupLog> }
+    
+    tableData.value = res.data
+    pagination.value = {
+      totalItemCount: res.totalItemCount,
+      pageNo: res.pageNo,
+      pageSize: pagination.value.pageSize
+    }
+    autoStartChatCount.value = res.totalItemCount
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('获取开聊记录失败')
+  } finally {
+    isTableLoading.value = false
+    setTimeout(() => {
+      tableRef.value?.setScrollTop(0)
+    }, 0)
+  }
+}
 
+// 刷新
+function refresh() {
+  pagination.value.pageNo = 1
+  loadData()
+}
+
+// 切换标签
+function handleTabChange() {
+  pagination.value.pageNo = 1
+  loadData()
+}
+
+// 同步BOSS沟通记录
+async function handleSync() {
+  try {
+    isSyncing.value = true
+    const encryptUserId = await getCurrentUserId()
+    
+    if (!encryptUserId) {
+      ElMessage.warning('未获取到当前用户ID，请先登录')
+      return
+    }
+    
+    const result = await electron.ipcRenderer.invoke('sync-boss-chat-relations', { encryptUserId })
+    
+    if (result.success) {
+      ElMessage.success(`同步成功，共 ${result.data.syncedCount} 条沟通记录`)
+      lastSyncTime.value = new Date(result.data.syncTime)
+      refresh()
+    } else {
+      ElMessage.error(result.error || '同步失败')
+    }
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('同步失败')
+  } finally {
+    isSyncing.value = false
+  }
+}
+
+// 格式化更新时间
+function formatUpdateTime(row: any, column: any, val: number) {
+  if (!val) return '-'
+  // 时间戳是毫秒还是秒
+  const timestamp = val > 1000000000000 ? val : val * 1000
+  return dayjs(timestamp).format('YYYY-MM-DD HH:mm:ss')
+}
+
+// 格式化同步时间
+function formatSyncTime(date: Date) {
+  return dayjs(date).format('MM-DD HH:mm')
+}
+
+// 处理每页条数变化
+const handlePageSizeChange = (newSize: number) => {
+  pagination.value.pageSize = newSize
+  pagination.value.pageNo = 1
+  loadData()
+}
+
+// 导出记录
+const exportRecords = () => {
+  if (tableData.value.length === 0) {
+    ElMessage.warning('没有可导出的数据')
+    return
+  }
+  
+  if (activeTab.value === 'boss') {
+    // 导出BOSS沟通记录
+    const headers = ['BOSS', '职位', '公司', '职位名称', '最后消息', '更新时间', '未读数']
+    const rows = (tableData.value as VBossChatRelation[]).map(row => [
+      row.bossName,
+      row.bossTitle || '-',
+      row.brandName,
+      row.jobName,
+      row.lastText || '-',
+      row.updateTime ? dayjs(row.updateTime).format('YYYY-MM-DD HH:mm:ss') : '-',
+      row.unreadCount
+    ])
+    
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `BOSS沟通记录_${dayjs().format('YYYYMMDD_HHmmss')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  } else {
+    // 导出自动开聊记录
+    const headers = ['公司', '职位名称', '职位分类', '开聊时间', '工作经验', '薪资', 'BOSS', 'BOSS身份']
+    const rows = (tableData.value as VChatStartupLog[]).map(row => [
+      row.companyName || '-',
+      row.jobName || '-',
+      row.positionName || '-',
+      row.date ? transformUtcDateToLocalDate(row.date).format('YYYY-MM-DD HH:mm:ss') : '-',
+      row.experienceName || '-',
+      row.salaryLow != null && row.salaryHigh != null
+        ? `${row.salaryLow}-${row.salaryHigh}k` + (row.salaryMonth ? `* ${row.salaryMonth}薪` : '')
+        : '-',
+      row.bossName || '-',
+      row.bossTitle || '-'
+    ])
+    
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `开聊记录_${dayjs().format('YYYYMMDD_HHmmss')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+  
+  gtagRenderer('start_chat_record_export')
+  ElMessage.success('导出成功')
+}
+
+// 打开聊天
+async function handleOpenChat(encryptBossId: string, encryptJobId: string) {
+  await electron.ipcRenderer.invoke('open-site-with-boss-cookie', {
+    url: `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}&jobId=${encryptJobId}`
+  })
+}
+
+// 查看线上职位
+async function handleViewJobOnline(encryptJobId: string) {
+  await electron.ipcRenderer.invoke('open-site-with-boss-cookie', {
+    url: `https://www.zhipin.com/job_detail/${encryptJobId}.html`
+  })
+}
+
+// 查看快照
+const drawVisibleModelValue = ref(false)
+const selectedJobInfoForViewSnapshot = ref<VChatStartupLog | null>(null)
+
+function handleViewJobSnapshotButtonClick(record: VChatStartupLog) {
+  selectedJobInfoForViewSnapshot.value = record
+  drawVisibleModelValue.value = true
+}
+
+// 表格高度自适应
 const tableMaxHeight = ref<number | undefined>(undefined)
 const tableContainerEl = ref<HTMLElement>()
 const setTableMaxHeight = () =>
   (tableMaxHeight.value = tableContainerEl.value?.clientHeight ?? undefined)
 let ro: ResizeObserver | null = null
 onMounted(() => {
+  loadData()
   setTableMaxHeight()
   ro = new ResizeObserver(() => setTableMaxHeight())
   if (tableContainerEl.value) {
@@ -175,20 +469,6 @@ onBeforeUnmount(() => {
   ro?.disconnect()
   ro = null
 })
-
-async function handleViewJobOnlineButtonClick(encryptJobId: string) {
-  return await electron.ipcRenderer.invoke('open-site-with-boss-cookie', {
-    url: `https://www.zhipin.com/job_detail/${encryptJobId}.html`
-  })
-}
-
-const drawVisibleModelValue = ref(false)
-const selectedJobInfoForViewSnapshot = ref<VChatStartupLog | null>(null)
-
-function handleViewJobSnapshotButtonClick(record: VChatStartupLog) {
-  selectedJobInfoForViewSnapshot.value = record
-  drawVisibleModelValue.value = true
-}
 </script>
 
 <style scoped lang="scss">
@@ -199,16 +479,45 @@ function handleViewJobSnapshotButtonClick(record: VChatStartupLog) {
   padding-right: 20px;
   padding-top: 20px;
   width: 100%;
-  :deep(.el-drawer) {
-    .el-drawer__header {
-      padding: 16px 20px;
-      margin-bottom: 0;
-    }
-    .el-drawer__body {
-      padding: 0;
-      margin: 0 0 20px 20px;
-      padding-right: 20px;
-    }
+}
+
+.page-header {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
   }
+}
+
+.tabs-container {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding-bottom: 8px;
+}
+
+:deep(.el-drawer) {
+  .el-drawer__header {
+    padding: 16px 20px;
+    margin-bottom: 0;
+  }
+  .el-drawer__body {
+    padding: 0;
+    margin: 0 0 20px 20px;
+    padding-right: 20px;
+  }
+}
+
+:deep(.el-table) {
+  font-size: 13px;
+  
+  .el-table__cell {
+    padding: 8px 0;
+  }
+}
+
+.text-unread {
+  color: var(--el-color-danger);
+  font-weight: 500;
 }
 </style>

@@ -109,3 +109,13 @@ export const saveAndGetCurrentRunRecord = async () => {
   })
   return res
 }
+
+export const getBossChatRelationList = async ({ pageNo, pageSize, encryptUserId }: Partial<PageReq> & { encryptUserId?: string } = {}) => {
+  const res = await createWorkerPromise({
+    type: 'getBossChatRelationList',
+    pageNo,
+    pageSize,
+    encryptUserId
+  })
+  return res
+}

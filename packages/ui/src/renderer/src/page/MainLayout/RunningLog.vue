@@ -2,7 +2,38 @@
   <div class="running-log-page" flex flex-col h-full>
     <div class="log-header" flex flex-items-center flex-justify-between p12px border-b>
       <h3>运行日志</h3>
-      <div flex gap8>
+      <div flex gap8 flex-items-center>
+        <!-- 日志级别筛选 -->
+        <el-select
+          v-model="selectedLogTypes"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          placeholder="筛选级别"
+          size="small"
+          style="width: 200px"
+          clearable
+        >
+          <el-option
+            v-for="type in logTypeOptions"
+            :key="type.value"
+            :label="type.label"
+            :value="type.value"
+          >
+            <span flex items-center gap-2>
+              <span class="log-type-dot" :class="type.value"></span>
+              {{ type.label }}
+            </span>
+          </el-option>
+        </el-select>
+        <!-- 关键词搜索 -->
+        <el-input
+          v-model="filterKeyword"
+          placeholder="搜索日志..."
+          size="small"
+          clearable
+          style="width: 150px"
+        />
         <el-button size="small" @click="clearLogs">清空日志</el-button>
         <el-button size="small" type="primary" @click="exportLogs">导出日志</el-button>
       </div>
@@ -21,7 +52,9 @@
           <pre>{{ formatDetails(log.details) }}</pre>
         </div>
       </div>
-      <div v-if="filteredLogs.length === 0" class="empty-tip">暂无日志</div>
+      <div v-if="filteredLogs.length === 0" class="empty-tip">
+        {{ logs.length === 0 ? '暂无日志' : '没有匹配筛选条件的日志' }}
+      </div>
     </div>
   </div>
 </template>
@@ -32,7 +65,7 @@ import dayjs from 'dayjs'
 
 interface LogItem {
   timestamp: number
-  type: 'click' | 'network' | 'navigation' | 'error' | 'info'
+  type: 'click' | 'network' | 'navigation' | 'error' | 'info' | 'warn' | 'debug'
   message?: string
   method?: string
   url?: string
@@ -40,19 +73,41 @@ interface LogItem {
   details?: any
 }
 
+// 日志类型选项
+const logTypeOptions = [
+  { label: '信息', value: 'info' },
+  { label: '调试', value: 'debug' },
+  { label: '请求', value: 'network' },
+  { label: '点击', value: 'click' },
+  { label: '导航', value: 'navigation' },
+  { label: '警告', value: 'warn' },
+  { label: '错误', value: 'error' }
+]
+
 const logs = ref<LogItem[]>([])
 const filterKeyword = ref('')
+const selectedLogTypes = ref<string[]>([]) // 选中的日志类型，空数组表示全部
 const logContainer = ref<HTMLElement>()
 
-// 过滤后的日志（仅按关键词过滤）
+// 过滤后的日志（按关键词和类型筛选）
 const filteredLogs = computed(() => {
-  if (!filterKeyword.value) return logs.value
+  let result = logs.value
   
-  const keyword = filterKeyword.value.toLowerCase()
-  return logs.value.filter((log) => {
-    const searchText = `${log.message || ''} ${log.url || ''} ${log.method || ''}`.toLowerCase()
-    return searchText.includes(keyword)
-  })
+  // 按类型筛选（如果有选中类型）
+  if (selectedLogTypes.value.length > 0) {
+    result = result.filter((log) => selectedLogTypes.value.includes(log.type))
+  }
+  
+  // 按关键词筛选
+  if (filterKeyword.value) {
+    const keyword = filterKeyword.value.toLowerCase()
+    result = result.filter((log) => {
+      const searchText = `${log.message || ''} ${log.url || ''} ${log.method || ''}`.toLowerCase()
+      return searchText.includes(keyword)
+    })
+  }
+  
+  return result
 })
 
 // 格式化时间
@@ -67,6 +122,8 @@ const getTypeLabel = (type: string) => {
     network: '请求',
     navigation: '导航',
     error: '错误',
+    warn: '警告',
+    debug: '调试',
     info: '信息'
   }
   return labelMap[type] || type.toUpperCase()
@@ -265,6 +322,24 @@ onUnmounted(() => {
     }
   }
 
+  &.warn {
+    .log-type-tag {
+      color: #ffa657;
+    }
+    .log-message {
+      color: #ffa657;
+    }
+  }
+
+  &.debug {
+    .log-type-tag {
+      color: #8b949e;
+    }
+    .log-message {
+      color: #8b949e;
+    }
+  }
+
   &.info {
     .log-type-tag {
       color: #d2a8ff;
@@ -272,5 +347,30 @@ onUnmounted(() => {
   }
 }
 
+// 日志类型选择器中的颜色指示点
+.log-type-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  
+  &.info { background-color: #d2a8ff; }
+  &.debug { background-color: #8b949e; }
+  &.network { background-color: #7ee787; }
+  &.click { background-color: #79c0ff; }
+  &.navigation { background-color: #ffa657; }
+  &.warn { background-color: #ffa657; }
+  &.error { background-color: #ff7b72; }
+}
 
+// Element Plus 样式覆盖
+:deep(.el-select) {
+  .el-select__tags {
+    .el-tag {
+      background-color: #333;
+      border-color: #444;
+      color: #d4d4d4;
+    }
+  }
+}
 </style>

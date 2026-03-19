@@ -177,4 +177,39 @@ export default function initPublicIpc() {
     await saveBrowserConfig(config)
     return { success: true }
   })
+  
+  // 获取当前用户信息（从cookie或storage中）
+  ipcMain.handle('get-user-info', async () => {
+    try {
+      // 尝试从storage中获取用户信息
+      const cookies = readStorageFile('boss-cookies.json') || []
+      const wt2Cookie = cookies.find(c => c.name === 'wt2')
+      
+      // 尝试从数据库获取最近的用户
+      const { getPublicDbFilePath } = await import('@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs')
+      const { initDb } = await import('@geekgeekrun/sqlite-plugin')
+      const { DataSource } = await import('typeorm')
+      
+      let ds: any
+      try {
+        ds = await initDb(getPublicDbFilePath())
+        const result = await ds.query('SELECT encryptUserId, name FROM user_info ORDER BY ROWID DESC LIMIT 1')
+        if (result && result.length > 0) {
+          return {
+            encryptUserId: result[0].encryptUserId,
+            name: result[0].name
+          }
+        }
+      } finally {
+        if (ds && ds.isInitialized) {
+          await ds.destroy()
+        }
+      }
+      
+      return null
+    } catch (error) {
+      console.error('Get user info error:', error)
+      return null
+    }
+  })
 }

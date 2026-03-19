@@ -18,7 +18,8 @@ import {
   getCompanyLibrary,
   getJobLibrary,
   getJobHistoryByEncryptId,
-  getMarkAsNotSuitRecord
+  getMarkAsNotSuitRecord,
+  getBossChatRelationList
 } from '../utils/db/index'
 import { PageReq } from '../../../../common/types/pagination'
 import { pipeWriteRegardlessError } from '../../utils/pipe'
@@ -319,6 +320,21 @@ export default function initIpc() {
   ipcMain.handle('get-company-library', async (ev, payload: PageReq) => {
     const a = await getCompanyLibrary(payload)
     return a
+  })
+  ipcMain.handle('get-boss-chat-relation-list', async (ev, payload: PageReq & { encryptUserId?: string }) => {
+    const a = await getBossChatRelationList(payload)
+    return a
+  })
+  ipcMain.handle('sync-boss-chat-relations', async (ev, data?: { encryptUserId?: string }) => {
+    // 获取当前用户ID
+    const encryptUserId = data?.encryptUserId || ''
+    if (!encryptUserId) {
+      return { success: false, error: '未获取到当前用户ID' }
+    }
+    
+    // 打开BOSS直聘聊天页面并获取沟通列表
+    const result = await syncBossChatRelations(encryptUserId)
+    return result
   })
 
   let subProcessOfOpenBossSiteDefer: null | PromiseWithResolvers<ChildProcess> = null
@@ -630,4 +646,133 @@ export default function initIpc() {
   ipcMain.handle('exit-app-immediately', () => {
     app.exit(0)
   })
+}
+
+// 同步BOSS直聘沟通列表
+import { initDb } from '@geekgeekrun/sqlite-plugin'
+import { getPublicDbFilePath } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { saveBossChatRelationList } from '@geekgeekrun/sqlite-plugin/dist/handlers'
+import { BossChatRelation } from '@geekgeekrun/sqlite-plugin/dist/entity/BossChatRelation'
+
+async function syncBossChatRelations(encryptUserId: string) {
+  const dbInitPromise = initDb(getPublicDbFilePath())
+  
+  try {
+    // 获取cookie
+    const cookies = readStorageFile('boss-cookies.json') || []
+    if (!cookies.length) {
+      return { success: false, error: '未配置BOSS直聘Cookie' }
+    }
+    
+    // 构建请求头
+    const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
+    const zpToken = cookies.find(c => c.name === 'zp_token')?.value || ''
+    const bst = cookies.find(c => c.name === 'bst')?.value || ''
+    
+    // 调用BOSS直聘API获取沟通列表
+    const allChatList: any[] = []
+    let page = 1
+    const pageSize = 50
+    let hasMore = true
+    
+    while (hasMore) {
+      const response = await fetch(
+        `https://www.zhipin.com/wapi/zprelation/friend/geekFilterByLabel?labelId=0&page=${page}&pageSize=${pageSize}`,
+        {
+          headers: {
+            'Host': 'www.zhipin.com',
+            'Cookie': cookieStr,
+            'zp_token': zpToken,
+            'bst': bst,
+            'x-requested-with': 'XMLHttpRequest',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
+            'accept': 'application/json, text/plain, */*',
+            'sec-fetch-site': 'same-origin',
+            'sec-fetch-mode': 'cors',
+            'referer': 'https://www.zhipin.com/web/geek/chat',
+            'accept-language': 'zh-CN,zh;q=0.9'
+          }
+        }
+      )
+      
+      if (!response.ok) {
+        throw new Error(`API请求失败: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.code !== 0) {
+        throw new Error(`API返回错误: ${result.message || result.msg}`)
+      }
+      
+      const list = result.zpData?.list || []
+      
+      if (list.length === 0) {
+        hasMore = false
+        break
+      }
+      
+      // 转换数据格式
+      const formattedList = list.map((item: any) => ({
+        friendId: item.friendId,
+        encryptBossId: item.encryptBossId || item.bossId,
+        name: item.name,
+        title: item.title,
+        avatar: item.avatar,
+        encryptJobId: item.encryptJobId || item.jobId,
+        jobName: item.jobName,
+        brandName: item.brandName,
+        encryptCompanyId: item.encryptCompanyId || item.companyId,
+        lastText: item.lastText,
+        lastMessageId: item.lastMessageId,
+        unreadCount: item.unreadCount || 0,
+        lastMsgStatus: item.lastMsgStatus,
+        lastTS: item.lastTS,
+        updateTime: item.updateTime,
+        isTop: item.isTop || 0,
+        relationType: item.relationType,
+        friendSource: item.friendSource,
+        goldGeekStatus: item.goldGeekStatus,
+        sourceTitle: item.sourceTitle,
+        lastIsSelf: item.lastIsSelf || false
+      }))
+      
+      allChatList.push(...formattedList)
+      
+      // 如果返回的数据少于pageSize，说明没有更多了
+      if (list.length < pageSize) {
+        hasMore = false
+      } else {
+        page++
+      }
+      
+      // 最多获取1000条，防止无限循环
+      if (allChatList.length >= 1000) {
+        hasMore = false
+      }
+    }
+    
+    if (allChatList.length === 0) {
+      return { success: false, error: '未获取到沟通记录' }
+    }
+    
+    // 保存到数据库
+    const ds = await dbInitPromise
+    const result = await saveBossChatRelationList(ds, allChatList, encryptUserId)
+    
+    return {
+      success: true,
+      data: {
+        syncedCount: result.syncedCount,
+        syncTime: result.syncTime
+      }
+    }
+    
+  } catch (error) {
+    console.error('Sync boss chat relations error:', error)
+    return {
+      success: false,
+      error: error.message || '同步沟通记录失败'
+    }
+  }
 }

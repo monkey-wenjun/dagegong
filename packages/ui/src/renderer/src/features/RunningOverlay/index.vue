@@ -251,11 +251,13 @@ ipcRenderer.on('worker-exited', (ev, payload) => {
   position: absolute;
   width: 100%;
   height: 100%;
-  backdrop-filter: blur(3px);
+  backdrop-filter: blur(12px);
+  background-color: rgba(255, 255, 255, 0.7);
 
-  background-color: transparent;
-  background-image: radial-gradient(transparent 1px, #fff 1px);
-  background-size: 4px 4px;
+  // 深色模式适配
+  @media (prefers-color-scheme: dark) {
+    background-color: rgba(0, 0, 0, 0.5);
+  }
 
   .el-overlay-dialog {
     position: absolute;

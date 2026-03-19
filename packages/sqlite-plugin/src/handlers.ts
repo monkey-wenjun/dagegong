@@ -388,3 +388,106 @@ export async function getJobHireStatusRecord(
   })
   return result
 }
+
+import { BossChatRelation } from './entity/BossChatRelation'
+
+export interface ChatRelationItem {
+  friendId: number
+  encryptBossId: string
+  name: string
+  title?: string
+  avatar?: string
+  encryptJobId: string
+  jobName: string
+  brandName: string
+  encryptCompanyId?: string
+  lastText?: string
+  lastMessageId?: string
+  unreadCount: number
+  lastMsgStatus?: number
+  lastTS?: number
+  updateTime: number
+  isTop: number
+  relationType?: number
+  friendSource?: number
+  goldGeekStatus?: number
+  sourceTitle?: string
+  lastIsSelf: boolean
+}
+
+export async function saveBossChatRelationList(
+  ds: DataSource,
+  chatList: ChatRelationItem[],
+  encryptUserId: string
+) {
+  const repo = ds.getRepository(BossChatRelation)
+  const syncTime = new Date()
+  
+  for (const item of chatList) {
+    // 查找是否已存在
+    let relation = await repo.findOne({
+      where: {
+        friendId: item.friendId,
+        encryptUserId
+      }
+    })
+    
+    if (!relation) {
+      relation = new BossChatRelation()
+      relation.friendId = item.friendId
+      relation.encryptUserId = encryptUserId
+    }
+    
+    // 更新字段
+    relation.encryptBossId = item.encryptBossId
+    relation.bossName = item.name
+    relation.bossTitle = item.title
+    relation.bossAvatar = item.avatar
+    relation.encryptJobId = item.encryptJobId
+    relation.jobName = item.jobName
+    relation.brandName = item.brandName
+    relation.encryptCompanyId = item.encryptCompanyId
+    relation.lastText = item.lastText
+    relation.lastMessageId = item.lastMessageId
+    relation.unreadCount = item.unreadCount
+    relation.lastMsgStatus = item.lastMsgStatus
+    relation.lastTS = item.lastTS
+    relation.updateTime = item.updateTime
+    relation.isTop = item.isTop
+    relation.relationType = item.relationType
+    relation.friendSource = item.friendSource
+    relation.goldGeekStatus = item.goldGeekStatus
+    relation.sourceTitle = item.sourceTitle
+    relation.lastIsSelf = item.lastIsSelf
+    relation.syncTime = syncTime
+    
+    await repo.save(relation)
+  }
+  
+  return {
+    syncedCount: chatList.length,
+    syncTime
+  }
+}
+
+export async function getBossChatRelationList(
+  ds: DataSource,
+  encryptUserId: string,
+  options: { pageNo?: number; pageSize?: number } = {}
+) {
+  const { pageNo = 1, pageSize = 100 } = options
+  const repo = ds.getRepository(BossChatRelation)
+  
+  const [data, totalItemCount] = await repo.findAndCount({
+    where: { encryptUserId },
+    order: { updateTime: 'DESC' },
+    skip: (pageNo - 1) * pageSize,
+    take: pageSize
+  })
+  
+  return {
+    data,
+    pageNo,
+    totalItemCount
+  }
+}

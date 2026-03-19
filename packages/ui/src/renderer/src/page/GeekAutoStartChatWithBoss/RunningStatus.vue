@@ -77,12 +77,48 @@ onMounted(async () => {
     margin: 0 auto;
     margin-top: -15vh;
     max-width: 640px;
+    padding: 40px 50px;
+    border-radius: 24px;
+    // 毛玻璃效果
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    
+    // 深色模式适配
+    @media (prefers-color-scheme: dark) {
+      background: rgba(30, 30, 30, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    
+    article {
+      h1 {
+        margin-top: 0;
+        font-size: 1.8rem;
+        margin-bottom: 1.5rem;
+      }
+      p {
+        margin: 0.8rem 0;
+        line-height: 1.6;
+        font-size: 1.05rem;
+      }
+    }
+    
+    .el-button {
+      margin-top: 2rem;
+      width: 100%;
+      height: 44px;
+      font-size: 1rem;
+      border-radius: 12px;
+    }
   }
   .flying-company-logo-list {
     position: absolute;
     inset: 0;
     z-index: -1;
-    opacity: 0.25;
+    opacity: 0.35;
   }
 }
 </style>

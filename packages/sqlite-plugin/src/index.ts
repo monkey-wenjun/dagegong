@@ -17,6 +17,8 @@ import { VBossLibrary } from "./entity/VBossLibrary";
 import { VJobLibrary } from "./entity/VJobLibrary";
 import { VCompanyLibrary } from "./entity/VCompanyLibrary"
 import { VMarkAsNotSuitLog } from "./entity/VMarkAsNotSuitLog"
+import { BossChatRelation } from './entity/BossChatRelation'
+import { VBossChatRelation } from './entity/VBossChatRelation'
 import { ChatMessageRecord } from './entity/ChatMessageRecord'
 import { LlmModelUsageRecord } from './entity/LlmModelUsageRecord'
 import { JobHireStatusRecord } from './entity/JobHireStatusRecord'
@@ -28,7 +30,9 @@ import {
   getNotSuitMarkRecordsInLastSomeDays,
   getChatStartupRecordsInLastSomeDays,
   getBossIdsByJobIds,
-  saveJobHireStatusRecord
+  saveJobHireStatusRecord,
+  saveBossChatRelationList,
+  getBossChatRelationList
 } from "./handlers";
 import { UpdateChatStartupLogTable1729182577167 } from "./migrations/1729182577167-UpdateChatStartupLogTable";
 import minimist from 'minimist'
@@ -38,6 +42,7 @@ import { AddColumnForMarkAsNotSuitLog1746092370665 } from "./migrations/17460923
 import { Init1000000000000 } from "./migrations/1000000000000-Init";
 import { AddJobSourceColumnForChatStartupLogAndMarkAsNotSuitLog1752380078526 } from "./migrations/1752380078526-AddJobSourceColumnForChatStartupLogAndMarkAsNotSuitLog";
 import { AddJobHireStatusTable1766466476822 } from "./migrations/1766466476822-AddJobHireStatusTable";
+import { AddBossChatRelationTable1770000000000 } from "./migrations/1770000000000-AddBossChatRelationTable";
 import chunk from 'lodash/chunk'
 import * as typeorm from 'typeorm'
 
@@ -69,6 +74,8 @@ export function initDb(dbFilePath) {
       ChatMessageRecord,
       LlmModelUsageRecord,
       JobHireStatusRecord,
+      BossChatRelation,
+      VBossChatRelation,
     ],
     migrations: [
       Init1000000000000,
@@ -76,7 +83,8 @@ export function initDb(dbFilePath) {
       UpdateBossInfoTable1732032381304,
       AddColumnForMarkAsNotSuitLog1746092370665,
       AddJobSourceColumnForChatStartupLogAndMarkAsNotSuitLog1752380078526,
-      AddJobHireStatusTable1766466476822
+      AddJobHireStatusTable1766466476822,
+      AddBossChatRelationTable1770000000000
     ],
     migrationsRun: true
   });
@@ -249,3 +257,12 @@ export default class SqlitePlugin {
     });
   }
 }
+
+// Export entities
+export { ChatStartupLog } from './entity/ChatStartupLog'
+export { JobInfo } from './entity/JobInfo'
+export { BossInfo } from './entity/BossInfo'
+export { CompanyInfo } from './entity/CompanyInfo'
+export { UserInfo } from './entity/UserInfo'
+export { BossChatRelation } from './entity/BossChatRelation'
+export { VBossChatRelation } from './entity/VBossChatRelation'
