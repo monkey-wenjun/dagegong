@@ -149,7 +149,10 @@ const expectCityList = (
  * @returns {boolean} - 是否匹配
  */
 function checkCityMatch(cityName, areaDistrict, expectCities) {
+  console.log(`[CityMatch] 检查: cityName=${cityName}, areaDistrict=${areaDistrict}, expectCities=${JSON.stringify(expectCities)}`)
+  
   if (!Array.isArray(expectCities) || expectCities.length === 0) {
+    console.log(`[CityMatch] 期望城市列表为空，返回true`)
     return true
   }
   
@@ -174,25 +177,30 @@ function checkCityMatch(cityName, areaDistrict, expectCities) {
     }
   }
   
+  console.log(`[CityMatch] 解析后: expectCitiesOnly=${JSON.stringify(expectCitiesOnly)}, expectCityDistrictMapKeys=${[...expectCityDistrictMap.keys()].join(',')}`)
+  
   // 1. 检查城市名是否匹配（如果只配置了城市名）
   if (expectCitiesOnly.includes(cityName)) {
+    console.log(`[CityMatch] 城市名${cityName}在expectCitiesOnly中，返回true`)
     return true
   }
   
   // 2. 如果配置了城市+区域
   if (expectCityDistrictMap.has(cityName)) {
     const expectDistricts = expectCityDistrictMap.get(cityName)
+    console.log(`[CityMatch] 找到城市${cityName}的期望区域: ${[...expectDistricts].join(',')}`)
     // 如果职位有区域信息，检查是否匹配
     if (areaDistrict && expectDistricts.has(areaDistrict)) {
+      console.log(`[CityMatch] 区域完全匹配: ${areaDistrict}，返回true`)
       return true
     }
     // 注意：BOSS直聘返回的areaDistrict可能是商圈（如"西溪"）而不是行政区（如"西湖区"）
     // 如果区域不匹配，但城市匹配，我们认为这是一个"可能匹配"的情况
-    // 这种情况下返回true，但会在日志中记录警告
-    console.log(`[CityMatch] 城市匹配但区域可能不匹配: ${cityName}, 职位区域: ${areaDistrict}, 期望区域: ${[...expectDistricts].join(',')}`)
+    console.log(`[CityMatch] 城市匹配但区域不匹配: 职位区域=${areaDistrict}, 期望区域=${[...expectDistricts].join(',')}，但返回true`)
     return true
   }
   
+  console.log(`[CityMatch] 城市名${cityName}不匹配，返回false`)
   return false
 }
 
