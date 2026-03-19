@@ -148,8 +148,17 @@ const expectCityList = (
  * @param {string[]} expectCities - 期望城市列表（可能包含 "城市-区域" 格式）
  * @returns {boolean} - 是否匹配
  */
-function checkCityMatch(cityName, areaDistrict, expectCities) {
-  console.log(`[CityMatch] 检查: cityName=${cityName}, areaDistrict=${areaDistrict}, expectCities=${JSON.stringify(expectCities)}`)
+/**
+ * 检查职位是否匹配期望城市列表（支持城市-区域格式）
+ * 改进版：使用详细地址辅助判断
+ * @param {string} cityName - 职位所在城市
+ * @param {string} areaDistrict - 职位所在区域/商圈
+ * @param {string} address - 职位详细地址
+ * @param {string[]} expectCities - 期望城市列表（可能包含 "城市-区域" 格式）
+ * @returns {boolean} - 是否匹配
+ */
+function checkCityMatch(cityName, areaDistrict, address, expectCities) {
+  console.log(`[CityMatch] 检查: cityName=${cityName}, areaDistrict=${areaDistrict}, address=${address}, expectCities=${JSON.stringify(expectCities)}`)
   
   if (!Array.isArray(expectCities) || expectCities.length === 0) {
     console.log(`[CityMatch] 期望城市列表为空，返回true`)
@@ -189,13 +198,27 @@ function checkCityMatch(cityName, areaDistrict, expectCities) {
   if (expectCityDistrictMap.has(cityName)) {
     const expectDistricts = expectCityDistrictMap.get(cityName)
     console.log(`[CityMatch] 找到城市${cityName}的期望区域: ${[...expectDistricts].join(',')}`)
+    
     // 如果职位有区域信息，检查是否匹配
     if (areaDistrict && expectDistricts.has(areaDistrict)) {
       console.log(`[CityMatch] 区域完全匹配: ${areaDistrict}，返回true`)
       return true
     }
-    // 注意：BOSS直聘返回的areaDistrict可能是商圈（如"西溪"）而不是行政区（如"西湖区"）
-    // 如果区域不匹配，但城市匹配，我们认为这是一个"可能匹配"的情况
+    
+    // 3. 【新增】使用详细地址辅助判断
+    // 如果areaDistrict是商圈名（如"西溪"），但address包含行政区名（如"西湖区"）
+    if (address) {
+      for (const district of expectDistricts) {
+        // 移除"区"字进行模糊匹配
+        const districtBase = district.replace(/区$/, '')
+        if (address.includes(district) || address.includes(districtBase)) {
+          console.log(`[CityMatch] 详细地址匹配到区域: ${district}, address=${address}，返回true`)
+          return true
+        }
+      }
+    }
+    
+    // 4. 【兜底】如果区域不匹配，但城市匹配，我们认为这是一个"可能匹配"的情况
     console.log(`[CityMatch] 城市匹配但区域不匹配: 职位区域=${areaDistrict}, 期望区域=${[...expectDistricts].join(',')}，但返回true`)
     return true
   }
@@ -1045,7 +1068,7 @@ async function toRecommendPage (hooks) {
                 ) {
                   console.log(`add job city not suit into blockJobNotSuit set`)
                   for (const it of jobListData) {
-                    if (!checkCityMatch(it.cityName, it.areaDistrict, expectCityList)) {
+                    if (!checkCityMatch(it.cityName, it.areaDistrict, it.address, expectCityList)) {
                       blockJobNotSuit.add(it.encryptJobId)
                     }
                   }
@@ -1103,7 +1126,7 @@ async function toRecommendPage (hooks) {
                             MarkAsNotSuitOp.MARK_AS_NOT_SUIT_ON_LOCAL
                           ].includes(expectCityNotMatchStrategy) &&
                           strategyScopeOptionWhenMarkJobCityNotMatch === StrategyScopeOptionWhenMarkJobNotMatch.ALL_JOB
-                        ) ? !checkCityMatch(it.cityName, it.areaDistrict, expectCityList) : false
+                        ) ? !checkCityMatch(it.cityName, it.areaDistrict, it.address, expectCityList) : false
                       ) || (
                         // enter job detail to mark as not suit for work exp filter
                         (
@@ -1498,7 +1521,7 @@ async function toRecommendPage (hooks) {
                     notSuitReasonIdToStrategyMap.active = jobNotActiveStrategy
                   }
                   if (
-                    (Array.isArray(expectCityList) && expectCityList.length) && !checkCityMatch(selectedJobData.cityName, selectedJobData.areaDistrict, expectCityList)
+                    (Array.isArray(expectCityList) && expectCityList.length) && !checkCityMatch(selectedJobData.cityName, selectedJobData.areaDistrict, selectedJobData.address, expectCityList)
                   ) {
                     notSuitReasonIdToStrategyMap.city = expectCityNotMatchStrategy
                   }
