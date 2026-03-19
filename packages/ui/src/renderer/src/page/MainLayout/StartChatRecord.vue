@@ -326,14 +326,8 @@ function handleTabChange() {
 async function handleSync() {
   try {
     isSyncing.value = true
-    const encryptUserId = await getCurrentUserId()
     
-    if (!encryptUserId) {
-      ElMessage.warning('未获取到当前用户ID，请先登录')
-      return
-    }
-    
-    const result = await electron.ipcRenderer.invoke('sync-boss-chat-relations', { encryptUserId })
+    const result = await electron.ipcRenderer.invoke('sync-boss-chat-relations')
     
     if (result.success) {
       ElMessage.success(`同步成功，共 ${result.data.syncedCount} 条沟通记录`)

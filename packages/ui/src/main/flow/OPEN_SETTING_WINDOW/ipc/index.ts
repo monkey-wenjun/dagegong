@@ -325,15 +325,9 @@ export default function initIpc() {
     const a = await getBossChatRelationList(payload)
     return a
   })
-  ipcMain.handle('sync-boss-chat-relations', async (ev, data?: { encryptUserId?: string }) => {
-    // 获取当前用户ID
-    const encryptUserId = data?.encryptUserId || ''
-    if (!encryptUserId) {
-      return { success: false, error: '未获取到当前用户ID' }
-    }
-    
-    // 打开BOSS直聘聊天页面并获取沟通列表
-    const result = await syncBossChatRelations(encryptUserId)
+  ipcMain.handle('sync-boss-chat-relations', async () => {
+    // 打开BOSS直聘聊天页面并获取沟通列表（自动获取当前登录用户）
+    const result = await syncBossChatRelations()
     return result
   })
 
@@ -654,8 +648,11 @@ import { getPublicDbFilePath } from '@geekgeekrun/geek-auto-start-chat-with-boss
 import { saveBossChatRelationList } from '@geekgeekrun/sqlite-plugin/dist/handlers'
 import { BossChatRelation } from '@geekgeekrun/sqlite-plugin/dist/entity/BossChatRelation'
 
-async function syncBossChatRelations(encryptUserId: string) {
+import { initPuppeteer } from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
+
+async function syncBossChatRelations() {
   const dbInitPromise = initDb(getPublicDbFilePath())
+  let browser = null
   
   try {
     // 获取cookie
@@ -664,6 +661,46 @@ async function syncBossChatRelations(encryptUserId: string) {
       return { success: false, error: '未配置BOSS直聘Cookie' }
     }
     
+    // 启动浏览器获取用户信息
+    const initResult = await initPuppeteer()
+    browser = initResult.browser
+    const page = await browser.newPage()
+    
+    // 设置cookie
+    await page.setCookie(...cookies.map(c => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      path: c.path,
+      expires: c.expirationDate,
+      httpOnly: c.httpOnly,
+      secure: c.secure,
+      sameSite: c.sameSite
+    })))
+    
+    // 打开聊天页面获取用户信息
+    await page.goto('https://www.zhipin.com/web/geek/chat', {
+      waitUntil: 'networkidle0',
+      timeout: 60000
+    })
+    
+    // 获取当前用户信息
+    const userInfo = await page.evaluate(() => {
+      const vueStore = (document.querySelector('.main-wrap') as any)?.__vue__?.$store
+      return vueStore?.state?.userInfo || null
+    })
+    
+    if (!userInfo || !userInfo.encryptUserId) {
+      await browser.close()
+      return { success: false, error: '未获取到当前用户信息，请确保已登录' }
+    }
+    
+    const encryptUserId = userInfo.encryptUserId
+    
+    // 关闭浏览器，后续使用API请求
+    await browser.close()
+    browser = null
+    
     // 构建请求头
     const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
     const zpToken = cookies.find(c => c.name === 'zp_token')?.value || ''
@@ -671,13 +708,13 @@ async function syncBossChatRelations(encryptUserId: string) {
     
     // 调用BOSS直聘API获取沟通列表
     const allChatList: any[] = []
-    let page = 1
+    let pageNum = 1
     const pageSize = 50
     let hasMore = true
     
     while (hasMore) {
       const response = await fetch(
-        `https://www.zhipin.com/wapi/zprelation/friend/geekFilterByLabel?labelId=0&page=${page}&pageSize=${pageSize}`,
+        `https://www.zhipin.com/wapi/zprelation/friend/geekFilterByLabel?labelId=0&page=${pageNum}&pageSize=${pageSize}`,
         {
           headers: {
             'Host': 'www.zhipin.com',
@@ -743,7 +780,7 @@ async function syncBossChatRelations(encryptUserId: string) {
       if (list.length < pageSize) {
         hasMore = false
       } else {
-        page++
+        pageNum++
       }
       
       // 最多获取1000条，防止无限循环
@@ -769,6 +806,9 @@ async function syncBossChatRelations(encryptUserId: string) {
     }
     
   } catch (error) {
+    if (browser) {
+      await browser.close()
+    }
     console.error('Sync boss chat relations error:', error)
     return {
       success: false,
