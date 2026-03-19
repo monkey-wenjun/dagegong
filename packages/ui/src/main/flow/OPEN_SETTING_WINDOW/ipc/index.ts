@@ -649,6 +649,7 @@ import { saveBossChatRelationList } from '@geekgeekrun/sqlite-plugin/dist/handle
 import { BossChatRelation } from '@geekgeekrun/sqlite-plugin/dist/entity/BossChatRelation'
 
 import { initPuppeteer } from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
+import { getAnyAvailablePuppeteerExecutable } from '../../DOWNLOAD_DEPENDENCIES/utils/puppeteer-executable/index'
 
 async function syncBossChatRelations() {
   const dbInitPromise = initDb(getPublicDbFilePath())
@@ -662,8 +663,13 @@ async function syncBossChatRelations() {
     }
     
     // 启动浏览器获取用户信息
-    const initResult = await initPuppeteer()
-    browser = initResult.browser
+    const { puppeteer } = await initPuppeteer()
+    const executablePath = await getAnyAvailablePuppeteerExecutable()
+    browser = await puppeteer.launch({
+      headless: true,
+      executablePath: executablePath || undefined,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    })
     const page = await browser.newPage()
     
     // 设置cookie
