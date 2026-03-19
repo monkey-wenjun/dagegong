@@ -305,6 +305,88 @@
             >
           </el-tooltip>
         </el-form-item>
+        <el-form-item>
+          <div>
+            <div font-size-14px mb8px>
+              自动运行时间设置
+              <el-tooltip
+                effect="light"
+                placement="bottom-start"
+                @show="gtagRenderer('tooltip_show_about_auto_run_time_rnrr')"
+              >
+                <template #content>
+                  <div>
+                    启用后，已读不回自动复聊功能将只在指定的时间段和星期几内运行。<br />
+                    当到达结束时间或非运行日期时，程序会自动停止。<br />
+                    你可以随时手动点击"停止开聊"来提前停止。
+                  </div>
+                </template>
+                <el-button type="text" font-size-12px
+                  ><span><QuestionFilled w-1em h-1em mr2px /></span
+                  >这个配置是如何工作的？</el-button
+                >
+              </el-tooltip>
+            </div>
+            <div>
+              <el-checkbox
+                v-model="formContent.autoReminder.autoRunTimeEnabled"
+                @change="
+                  (v) => {
+                    gtagRenderer('auto_run_time_rnrr_enabled_changed', { v })
+                  }
+                "
+              >
+                启用自动运行时间控制
+              </el-checkbox>
+            </div>
+            <div pl-1.5em mt12px font-size-12px>
+              <div
+                :style="{
+                  color: formContent.autoReminder.autoRunTimeEnabled ? '' : '#aaa'
+                }"
+              >
+                <div flex items-center gap-16px mb12px>
+                  <span>运行时间段：</span>
+                  <el-time-select
+                    v-model="formContent.autoReminder.autoRunStartTime"
+                    :disabled="!formContent.autoReminder.autoRunTimeEnabled"
+                    start="00:00"
+                    step="00:30"
+                    end="23:30"
+                    placeholder="开始时间"
+                    @change="(v) => gtagRenderer('auto_run_rnrr_start_time_changed', { v })"
+                  />
+                  <span>至</span>
+                  <el-time-select
+                    v-model="formContent.autoReminder.autoRunEndTime"
+                    :disabled="!formContent.autoReminder.autoRunTimeEnabled"
+                    start="00:00"
+                    step="00:30"
+                    end="23:30"
+                    placeholder="结束时间"
+                    @change="(v) => gtagRenderer('auto_run_rnrr_end_time_changed', { v })"
+                  />
+                </div>
+                <div flex items-center gap-16px>
+                  <span>运行星期：</span>
+                  <el-checkbox-group 
+                    v-model="formContent.autoReminder.autoRunWeekdays"
+                    :disabled="!formContent.autoReminder.autoRunTimeEnabled"
+                    @change="(v) => gtagRenderer('auto_run_rnrr_weekdays_changed', { v })"
+                  >
+                    <el-checkbox :label="1">周一</el-checkbox>
+                    <el-checkbox :label="2">周二</el-checkbox>
+                    <el-checkbox :label="3">周三</el-checkbox>
+                    <el-checkbox :label="4">周四</el-checkbox>
+                    <el-checkbox :label="5">周五</el-checkbox>
+                    <el-checkbox :label="6">周六</el-checkbox>
+                    <el-checkbox :label="0">周日</el-checkbox>
+                  </el-checkbox-group>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-form-item>
         <el-form-item class="last-form-item" flex>
           <el-button type="primary" @click="handleSubmit">开始提醒</el-button>
         </el-form-item>
@@ -385,7 +467,12 @@ const formContent = ref({
     onlyRemindBossWithoutBlockCompanyName: true,
     openContentSource: OPEN_CONTENT_SOURCE.CONSTANT_CONTENT,
     // openLlmFallback: OPEN_LLM_FALLBACK.SEND_CONSTANT_CONTENT,
-    constantOpenContent: ''
+    constantOpenContent: '',
+    // 自动运行时间配置
+    autoRunTimeEnabled: false,
+    autoRunStartTime: '10:00',
+    autoRunEndTime: '21:00',
+    autoRunWeekdays: [1, 2, 3, 4, 5] // 周一到周五
   }
 })
 
@@ -422,6 +509,11 @@ electron.ipcRenderer.invoke('fetch-config-file-content').then((res) => {
   conf.rechatLlmFallback = conf.rechatLlmFallback ?? RECHAT_LLM_FALLBACK.SEND_LOOK_FORWARD_EMOTION
   conf.openContentSource = conf.openContentSource ?? OPEN_CONTENT_SOURCE.CONSTANT_CONTENT
   conf.constantOpenContent = conf.constantOpenContent ?? ''
+  // 加载自动运行时间配置
+  conf.autoRunTimeEnabled = conf.autoRunTimeEnabled ?? false
+  conf.autoRunStartTime = conf.autoRunStartTime ?? '10:00'
+  conf.autoRunEndTime = conf.autoRunEndTime ?? '21:00'
+  conf.autoRunWeekdays = conf.autoRunWeekdays ?? [1, 2, 3, 4, 5]
   formContent.value.autoReminder = conf
 })
 

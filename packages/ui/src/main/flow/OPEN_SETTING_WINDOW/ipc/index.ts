@@ -284,7 +284,87 @@ export default function initIpc() {
 
   ipcMain.handle('run-read-no-reply-auto-reminder', async () => {
     const mode = 'readNoReplyAutoReminderMain'
-    const { runRecordId } = await runCommon({ mode })
+    
+    // 检查自动运行时间配置
+    const bossConfig = readConfigFile('boss.json')
+    const autoReminderConfig = bossConfig.autoReminder || {}
+    if (autoReminderConfig.autoRunTimeEnabled) {
+      const now = new Date()
+      const currentDay = now.getDay() // 0=周日, 1=周一, ..., 6=周六
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      
+      // 检查星期几
+      const allowedWeekdays = autoReminderConfig.autoRunWeekdays || [1, 2, 3, 4, 5]
+      if (!allowedWeekdays.includes(currentDay)) {
+        const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+        const allowedWeekdayNames = allowedWeekdays.map(d => weekdayNames[d]).join('、')
+        return {
+          success: false,
+          error: `不在运行日期范围内。当前设置只允许在 ${allowedWeekdayNames} 运行。`
+        }
+      }
+      
+      // 检查时间段
+      const startTime = autoReminderConfig.autoRunStartTime || '10:00'
+      const endTime = autoReminderConfig.autoRunEndTime || '21:00'
+      if (currentTime < startTime || currentTime > endTime) {
+        return {
+          success: false,
+          error: `不在运行时间段内。当前设置只允许在 ${startTime} ~ ${endTime} 运行。`
+        }
+      }
+    }
+    
+    const { runRecordId, isAlreadyRunning } = await runCommon({ mode })
+    
+    // 如果启用了时间控制，设置定时器检查运行时间
+    let timeCheckInterval: NodeJS.Timeout | null = null
+    if (autoReminderConfig.autoRunTimeEnabled && !isAlreadyRunning) {
+      timeCheckInterval = setInterval(() => {
+        const now = new Date()
+        const currentDay = now.getDay()
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+        
+        const allowedWeekdays = autoReminderConfig.autoRunWeekdays || [1, 2, 3, 4, 5]
+        const startTime = autoReminderConfig.autoRunStartTime || '10:00'
+        const endTime = autoReminderConfig.autoRunEndTime || '21:00'
+        
+        // 检查是否超出时间范围
+        const shouldStop = !allowedWeekdays.includes(currentDay) || 
+                          currentTime < startTime || 
+                          currentTime > endTime
+        
+        if (shouldStop) {
+          console.log('[AutoRunTime] 已读不回复聊超出运行时间范围，自动停止任务')
+          // 发送停止命令
+          sendToDaemon(
+            {
+              type: 'stop-worker',
+              workerId: mode
+            },
+            { needCallback: false }
+          )
+          // 清除定时器
+          if (timeCheckInterval) {
+            clearInterval(timeCheckInterval)
+            timeCheckInterval = null
+          }
+        }
+      }, 60000) // 每分钟检查一次
+      
+      // 监听任务退出，清除定时器
+      const cleanupHandler = (message: any) => {
+        if (message.workerId === mode && message.type === 'worker-exited') {
+          if (timeCheckInterval) {
+            clearInterval(timeCheckInterval)
+            timeCheckInterval = null
+          }
+          daemonEE.off('message', cleanupHandler)
+        }
+      }
+      daemonEE.on('message', cleanupHandler)
+    }
+    
     daemonEE.on('message', function handler(message) {
       if (message.workerId !== mode) {
         return
