@@ -664,10 +664,13 @@ async function syncBossChatRelations() {
     
     // 启动浏览器获取用户信息
     const { puppeteer } = await initPuppeteer()
-    const executablePath = await getAnyAvailablePuppeteerExecutable()
+    const browserInfo = await getAnyAvailablePuppeteerExecutable()
+    if (!browserInfo) {
+      return { success: false, error: '未找到可用的浏览器，请先配置浏览器' }
+    }
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: executablePath || undefined,
+      executablePath: browserInfo.executablePath,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     })
     const page = await browser.newPage()
@@ -684,132 +687,77 @@ async function syncBossChatRelations() {
       sameSite: c.sameSite
     })))
     
-    // 打开聊天页面获取用户信息
+    // 打开聊天页面获取用户信息和沟通列表
     await page.goto('https://www.zhipin.com/web/geek/chat', {
       waitUntil: 'networkidle0',
       timeout: 60000
     })
     
-    // 获取当前用户信息
-    const userInfo = await page.evaluate(() => {
+    // 等待聊天列表加载
+    await page.waitForFunction(() => {
+      return Array.isArray(document.querySelector('.main-wrap .chat-user')?.__vue__?.list)
+    }, { timeout: 30000 })
+    
+    // 获取当前用户信息和沟通列表
+    const pageData = await page.evaluate(() => {
       const vueStore = (document.querySelector('.main-wrap') as any)?.__vue__?.$store
-      return vueStore?.state?.userInfo || null
+      const chatList = document.querySelector('.main-wrap .chat-user')?.__vue__?.list || []
+      return {
+        userInfo: vueStore?.state?.userInfo || null,
+        chatList: chatList.map((item: any) => ({
+          friendId: item.friendId,
+          encryptBossId: item.encryptBossId || item.bossId,
+          name: item.name,
+          title: item.title,
+          avatar: item.avatar,
+          encryptJobId: item.encryptJobId || item.jobId,
+          jobName: item.jobName,
+          brandName: item.brandName,
+          encryptCompanyId: item.encryptCompanyId || item.companyId,
+          lastText: item.lastText,
+          lastMessageId: item.lastMessageId,
+          unreadCount: item.unreadCount || 0,
+          lastMsgStatus: item.lastMsgStatus,
+          lastTS: item.lastTS,
+          updateTime: item.updateTime,
+          isTop: item.isTop || 0,
+          relationType: item.relationType,
+          friendSource: item.friendSource,
+          goldGeekStatus: item.goldGeekStatus,
+          sourceTitle: item.sourceTitle,
+          lastIsSelf: item.lastIsSelf || false
+        }))
+      }
     })
     
-    if (!userInfo || !userInfo.encryptUserId) {
+    if (!pageData.userInfo || !pageData.userInfo.encryptUserId) {
       await browser.close()
       return { success: false, error: '未获取到当前用户信息，请确保已登录' }
     }
     
-    const encryptUserId = userInfo.encryptUserId
+    const encryptUserId = pageData.userInfo.encryptUserId
     
-    // 关闭浏览器，后续使用API请求
+    // 关闭浏览器
     await browser.close()
     browser = null
     
-    // 构建请求头
-    const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
-    const zpToken = cookies.find(c => c.name === 'zp_token')?.value || ''
-    const bst = cookies.find(c => c.name === 'bst')?.value || ''
-    
-    // 调用BOSS直聘API获取沟通列表
-    const allChatList: any[] = []
-    let pageNum = 1
-    const pageSize = 50
-    let hasMore = true
-    
-    while (hasMore) {
-      const response = await fetch(
-        `https://www.zhipin.com/wapi/zprelation/friend/geekFilterByLabel?labelId=0&page=${pageNum}&pageSize=${pageSize}`,
-        {
-          headers: {
-            'Host': 'www.zhipin.com',
-            'Cookie': cookieStr,
-            'zp_token': zpToken,
-            'bst': bst,
-            'x-requested-with': 'XMLHttpRequest',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
-            'accept': 'application/json, text/plain, */*',
-            'sec-fetch-site': 'same-origin',
-            'sec-fetch-mode': 'cors',
-            'referer': 'https://www.zhipin.com/web/geek/chat',
-            'accept-language': 'zh-CN,zh;q=0.9'
-          }
+    // 如果已经从页面获取到数据，直接返回
+    if (pageData.chatList.length > 0) {
+      // 保存到数据库
+      const ds = await dbInitPromise
+      const result = await saveBossChatRelationList(ds, pageData.chatList, encryptUserId)
+      
+      return {
+        success: true,
+        data: {
+          syncedCount: result.syncedCount,
+          syncTime: result.syncTime
         }
-      )
-      
-      if (!response.ok) {
-        throw new Error(`API请求失败: ${response.status}`)
-      }
-      
-      const result = await response.json()
-      
-      if (result.code !== 0) {
-        throw new Error(`API返回错误: ${result.message || result.msg}`)
-      }
-      
-      const list = result.zpData?.list || []
-      
-      if (list.length === 0) {
-        hasMore = false
-        break
-      }
-      
-      // 转换数据格式
-      const formattedList = list.map((item: any) => ({
-        friendId: item.friendId,
-        encryptBossId: item.encryptBossId || item.bossId,
-        name: item.name,
-        title: item.title,
-        avatar: item.avatar,
-        encryptJobId: item.encryptJobId || item.jobId,
-        jobName: item.jobName,
-        brandName: item.brandName,
-        encryptCompanyId: item.encryptCompanyId || item.companyId,
-        lastText: item.lastText,
-        lastMessageId: item.lastMessageId,
-        unreadCount: item.unreadCount || 0,
-        lastMsgStatus: item.lastMsgStatus,
-        lastTS: item.lastTS,
-        updateTime: item.updateTime,
-        isTop: item.isTop || 0,
-        relationType: item.relationType,
-        friendSource: item.friendSource,
-        goldGeekStatus: item.goldGeekStatus,
-        sourceTitle: item.sourceTitle,
-        lastIsSelf: item.lastIsSelf || false
-      }))
-      
-      allChatList.push(...formattedList)
-      
-      // 如果返回的数据少于pageSize，说明没有更多了
-      if (list.length < pageSize) {
-        hasMore = false
-      } else {
-        pageNum++
-      }
-      
-      // 最多获取1000条，防止无限循环
-      if (allChatList.length >= 1000) {
-        hasMore = false
       }
     }
     
-    if (allChatList.length === 0) {
-      return { success: false, error: '未获取到沟通记录' }
-    }
-    
-    // 保存到数据库
-    const ds = await dbInitPromise
-    const result = await saveBossChatRelationList(ds, allChatList, encryptUserId)
-    
-    return {
-      success: true,
-      data: {
-        syncedCount: result.syncedCount,
-        syncTime: result.syncTime
-      }
-    }
+    // 如果页面没有数据，说明用户可能没有沟通记录
+    return { success: false, error: '未获取到沟通记录，请确保BOSS直聘账号有沟通记录' }
     
   } catch (error) {
     if (browser) {
