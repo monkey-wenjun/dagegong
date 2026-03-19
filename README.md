@@ -1,184 +1,147 @@
-# 牛人快跑 - GeekGeekRun
+# 🔥 打个工 - 打工人求职神器
+
+> **BOSS 炸弹** - 自动开聊 BOSS，助力每位打工人求职！
+
+<p align="center">
+  <img src="screenshot.png" alt="打个工截图" width="800">
+</p>
+
+[![Build Status](https://github.com/monkey-wenjun/dagegong/workflows/Build%20Electron%20App/badge.svg)](https://github.com/monkey-wenjun/dagegong/actions)
+[![Version](https://img.shields.io/badge/version-0.17.1-blue.svg)](https://github.com/monkey-wenjun/dagegong/releases)
+[![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
+
+## ✨ 功能特性
+
+### 🎯 自动开聊
+按照你设置的求职偏好，自动在 BOSS 直聘上与匹配的招聘者打招呼：
+
+- **智能匹配** - 根据公司名称、职位类型、职位描述自动筛选目标职位
+- **活跃度检测** - 自动跳过长期不活跃的 BOSS，提高回复率
+- **自动筛选** - 不匹配的职位自动标记为不合适，减少无效推荐
+- **异常处理** - 自动切换筛选条件获取更多职位，用完开聊次数后智能暂停
+
+### 💬 已读不回自动复聊
+BOSS 已读不回？自动提醒功能帮你把握机会：
+
+- **智能检测** - 自动查找已读不回的聊天
+- **定时跟进** - 支持设置跟进时限和间隔
+- **AI 回复** - 集成大语言模型，根据简历和聊天上下文生成个性化跟进内容
+- **多种提醒** - 支持发送表情和自定义消息
+
+### 📊 数据管理
+- **职位库** - 管理所有浏览过的职位信息
+- **公司库** - 记录和筛选目标公司
+- **BOSS 库** - 管理沟通过的招聘者
+- **运行日志** - 查看详细的操作记录
+
+### ⚙️ 高级配置
+- **任务管理** - 创建和管理多个求职任务
+- **LLM 配置** - 配置 AI 回复服务
+- **Cookie 助手** - 便捷登录 BOSS 直聘
+- **浏览器助手** - 智能浏览器辅助工具
+
+## 🚀 快速开始
 
-一款可以帮助你在BOSS直聘上**自动批量开聊BOSS**的脚本，基于Puppeteer。
+### 下载安装
 
-与每一位牛人站在一起
+访问 [Releases](https://github.com/monkey-wenjun/dagegong/releases) 页面下载最新版本：
 
-- 使命：用科技让复杂的求职过程变简单
-- 愿景：天下没有难找的工作，天下牛人都有满意的工作
+- **Windows**: `geekgeekrun-ui_x.x.x_x64_setup.exe`
+- **macOS**: `geekgeekrun-ui_x.x.x.dmg`
+- **Linux**: `geekgeekrun-ui_x.x.x.AppImage`
 
-各行各业，无论你是小白还是大佬，都能通过几步简单的配置，快速开始求职！
+### 开发环境
 
-## TO 有求职之外其他用途的朋友
-本程序的目标，是帮助求职者调研求职市场行情或寻找工作。如果有其它用途，请勿下载使用。
+```bash
+# 克隆项目
+git clone git@github.com:monkey-wenjun/dagegong.git
+cd dagegong
 
-## 程序有哪些功能？运行逻辑是什么？怎样使用？
+# 安装依赖
+pnpm install
 
-### 自动开聊
-扩列神器！按照你所设置的求职偏好，自动开聊推荐职位列表中的匹配的BOSS。可以帮你开聊推荐列表中的职位、根据设置的求职期望推荐的职位以及根据你设置的关键词通过搜索找到的职位；可以通过拖拽的方式自定义搜索顺序哦~
+# 启动开发模式
+cd packages/ui
+pnpm run dev
 
-<img width="1309" alt="image" src="https://github.com/user-attachments/assets/fda33e53-347b-453d-a791-5a1dcd506605" />
+# 构建应用
+pnpm run build:win    # Windows
+pnpm run build:mac    # macOS
+pnpm run build:linux  # Linux
+```
 
+## 🏗️ 项目结构
 
-#### 匹配步骤
-1. 选择职位来源、职位筛选条件
-   <img width="1680" height="1050" alt="image" src="https://github.com/user-attachments/assets/cbdea071-ec28-49b0-af12-1018aa9579a9" />
+```
+dagegong/
+├── packages/
+│   ├── ui/                              # Electron 桌面应用
+│   ├── geek-auto-start-chat-with-boss/  # 核心自动聊天逻辑
+│   ├── run-core-of-geek-auto-start-chat-with-boss/  # 守护进程
+│   ├── sqlite-plugin/                   # SQLite 数据库插件
+│   ├── pm/                              # 进程管理
+│   ├── utils/                           # 公共工具库
+│   ├── dingtalk-plugin/                 # 钉钉通知插件
+│   └── launch-bosszhipin-login-page-with-preload-extension/  # 登录扩展
+├── .github/workflows/                   # CI/CD 工作流
+└── README.md
+```
 
-2. 按照公司名称在列表中查找职位，查找到目标职位后，自动点击这个职位，右侧将会展示职位详情
-3. 对工作地、薪资、工作经验、职位名称、职位类型、职位描述、BOSS活跃度进行匹配
-    - 如果可以匹配，则自动点击开聊按钮
-    - 不匹配则根据你设置的标记不合适的策略将职位标记为不合适
-        - 首先查看是否命中策略为“在BOSS直聘上标记不合适”的配置，如果命中则在BOSS直聘上点击相关UI，标记不合适，一段时间内你将不会在BOSS上看到这个职位，且将会推荐新职位置换这个职位（对于“推荐列表中的职位”、“通过搜索找到的职位”，此项会回落到“在本地数据库中标记不合适，且7天内再遇到这个职位时直接跳过”）
-        - 然后查看是否命中策略为“在本地数据库中标记不合适，且7天内再遇到这个职位时直接跳过”的配置，如果命中则仅在本地数据库中记录，且本次运行将无视这个职位
-        - 最后查看是否命中策略为了“仅在本次运行中记录不合适，且本次运行再遇到这个职位时直接跳过”的配置，如果命中则本次运行将无视这个职位，但下次运行可能还会查看这个职位
+## 🛠️ 技术栈
 
-#### 异常情况
-- 当前页面筛选条件下，如果没有更多可投递职位，则自动切换筛选条件，以获取更多新职位；如果所有筛选条件搜索完没有更多可投递职位，则切换其它职位来源继续查找更多新职位；如果所有职位来源筛选完没有更多可投递职位，则等候一段时间后，会回到第一个职位来源的第一个筛选条件，从头开始查找职位
-- 如当天开聊次数用完，本程序会暂停运行60分钟，之后尝试继续重新运行；如重新运行时间已在第二天，则将会继续开聊
+- **框架**: Electron + Vue 3 + TypeScript
+- **构建**: Vite + electron-vite
+- **UI 组件**: Element Plus + UnoCSS
+- **状态管理**: Pinia
+- **自动化**: Puppeteer
+- **构建工具**: electron-builder
+- **包管理**: pnpm workspace
 
-#### 运行效果
+## 📝 使用指南
 
-> BOSS直聘界面已改版，如下是旧版BOSS直聘界面
+### 1. 配置 Cookie
+首次使用需要登录 BOSS 直聘：
+1. 打开应用，点击左侧"Cookie 助手"
+2. 按照指引登录 BOSS 直聘账号
+3. 复制 Cookie 到应用中
 
-https://github.com/user-attachments/assets/672f1637-dd54-416c-922e-1ecf09b0874a
+### 2. 设置求职偏好
+1. 进入"自动开聊"页面
+2. 配置期望职位、城市、薪资等筛选条件
+3. 设置职位关键词匹配规则
 
+### 3. 启动自动开聊
+1. 点击"准备运行"检查配置
+2. 确认无误后点击"开始运行"
+3. 程序将自动打开浏览器并开始匹配职位
 
-### 已读不回自动复聊
-BOSS不明原因已读不回？简历就是投不出去？
+### 4. 配置已读不回提醒（可选）
+1. 进入"已读不回自动复聊"页面
+2. 配置跟进时限和间隔
+3. 选择发送内容类型（表情/AI 生成）
+4. 启动功能即可
 
-已读不回自动复聊，有事没事提醒一下已读不回的 Ta，助力沟通双向奔赴
+## 🤝 贡献
 
-<img width="1024" alt="image" src="https://github.com/user-attachments/assets/51a43b0f-118d-4b0a-957c-40a5367e29e4" />
+欢迎提交 Issue 和 Pull Request！
 
+1. Fork 本仓库
+2. 创建你的特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 打开一个 Pull Request
 
-#### 匹配逻辑
-1. 在聊天列表中查找对你消息已读不回的BOSS，再发一条消息，多次复聊；同时：
-    - 如果设置了“跟进时限”，那么在这个时间之前活跃的聊天将不会被检查
-    - 如果设置了“跟进间隔”，且再次检查时发现BOSS已读不回，且距离上次提醒时间间隔小于这个时间，那么聊天将暂时不会跟进，直到下次检查时距离上次提醒时间间隔大于这个时间
+## 📄 许可证
 
-#### 发送内容
-以下二者之一：
-1. “[盼回复]”表情
-2. 由大语言模型（根据简历及当前聊天上下文）生成的内容
+[ISC](LICENSE) © geekgeekrun
 
-## 辅助功能介绍
-### BOSS 登录助手
-帮你用十分简单的方式，登录到 BOSS 直聘，以进行自动开聊、已读不回提醒，避免和乱七八糟的技术名词（类似：Cookie、登录凭证、JSON……）打交道
+## 👨‍💻 作者
 
-<img width="1680" alt="image" src="https://github.com/user-attachments/assets/b5d02385-f1c0-4045-b01a-66c5f747fec5" />
+- **阿文** - [hi@awen.me](mailto:hi@awen.me)
+- 博客: [https://www.awen.me](https://www.awen.me)
 
+---
 
-### 大语言模型设置
-设置本程序运行过程中可能会使用的大模型，有大语言模型加持，让求职更智能。支持配置多个备用模型，确保生成内容更随机，同时确保当某个模型不可用时也能继续让其他模型继续为你服务
-
-<img width="576" alt="image" src="https://github.com/user-attachments/assets/ef91642f-b0b0-438f-8c66-e650f0de139b" />
-
-
-### 已读不回自动复聊提示词模板编辑
-对生成的提醒消息不够满意？您不妨可以自己进行编辑提示词，来获得您期望的结果
-
-<img width="1139" alt="image" src="https://github.com/user-attachments/assets/db956573-61c0-44d4-b588-5c04fe941f84" />
-
-
-### 已读不回自动复聊提醒过程模拟
-想要测试配置的某一款模型可不可用？想测试使用当前配置生成的内容效果如何？那就来这里试试吧
-
-<img width="600" alt="image" src="https://github.com/user-attachments/assets/3b2776bd-ae5b-48d1-a01c-0819509d96a1" />
-
-
-### 配置模板选项
-初次见面，不会配置本程序？当心配置出现问题？本程序为一些关键的功能配置（例如：自动开聊中的期望公司设置、职位详情筛选设置；大语言模型设置）加入了配置模板，让本程序更易用，助你轻松完成配置，开始求职。不妨来试试吧
-
-<img width="576" alt="image" src="https://github.com/user-attachments/assets/2cccfece-17e7-4cc2-bf33-67f0ce500625" />
-
-
-<img width="1024" alt="image" src="https://github.com/user-attachments/assets/f0c7453d-454e-494a-8c03-246107b1384f" />
-
-
-## 系统要求
-- 操作系统及处理器
-    - Windows（x86_64）：最低 Windows 10 1507（如果你的电脑是2016年后出厂、默认安装 Window 10 的电脑，一般都可以使用）
-    - Linux（x86_64）：支持包含默认桌面环境的 Ubuntu 20.04；暂未测试其它 Linux 发行版及桌面环境
-    - macOS（Apple Silicon、x86_64）：支持 Sonoma 14.0；暂未测试更早前的操作系统
-
-## 安装方式
-- Windows
-    1. 打开 https://github.com/geekgeekrun/geekgeekrun/releases ，下载最新发行版安装包（文件名后缀`.exe`）
-    1. 双击安装包，即可开始安装
-    1. 安装完成后，程序将自动启动，并引导你为初次使用进行一些配置
-
-- Linux
-    1. 打开 https://github.com/geekgeekrun/geekgeekrun/releases ，下载最新发行版安装包（文件名后缀`.deb`）
-    1. 使用 `dpkg` 进行配置
-    1. 从桌面启动；启动后，将引导你为初次使用进行一些配置
-
-- macOS
-    1. 打开 https://github.com/geekgeekrun/geekgeekrun/releases ，根据处理器架构，下载最新发行版安装包（文件名后缀`.dmg`）
-    1. 双击以挂载dmg文件，然后将应用程序图标拽入Application文件夹
-    1. 进入Application文件夹；由于发行包无签名，因此不能直接通过双击运行（直接双击将提示`“GeekGeekRun”已损坏，无法打开。 你应该将它移到废纸篓。`），您需要在终端中依次执行如下命令以解决此问题，详情请百度搜索
-        ```sh
-        sudo spctl --master-disable
-        xattr -cr /Applications/GeekGeekRun.app
-        ```
-    1. 双击应用程序图标以启动程序；启动后，将引导你为初次使用进行一些配置
-
-## 关于软件不能正常启动、不能按预期运行的一些说明
-本程序一直都在不断地更新迭代中，包括新功能的增加以及Bug的修复。
-
-然而作者本人只有 1台 macOS （Apple Silicon）设备、1台 Windows 设备，且只有作者1人自测（白天工作，晚上熬夜开发、测试），测试条件不是太好（人力不足、设备不足），测试时只要确保两台设备能够正常运行本程序主要流程以及新增逻辑时，即认为可以准出、发版。
-
-所以不能确保任何设备一定能够正确运行本程序；因此期望朋友们使用过程中，可以帮忙**参与测试**并通过Issue区**反馈问题**。Issue区任何内容我都会看，问题也会尝试进行修复。
-
-如果部分朋友超级喜欢写代码，或者本身工作就是写代码，可以帮忙下载 [Debugtron](https://github.com/pd4d10/debugtron/releases/tag/v1.0.0-alpha.0) 来调试本程序，查看反馈本程序的日志（如下图）。
-
-![image](https://github.com/user-attachments/assets/4ee9955c-e1c0-4399-9d00-ce89f6657bba)
-
-在此先谢过了~
-
-## 为什么要写这个程序？
-根据日常使用求职平台（BOSS直聘）的经验，在已经开聊很多职位的情况下，经常会推荐：
-1. 一些长时间不活跃的“僵尸”职位 - 活跃信息默认隐藏，需要点开职位详情才能看到
-2. 牛头不对马嘴，不符合求职期望的职位
-
-人工筛选这些职位会有很大的心智负担，真的会吐……
-
-因此，我在自动开聊代码中，加入了清理机制，将通过标记不合适的方式，尝试让这些不活跃职位、不合适职位消失；保证只开聊符合你口味的职位。
-
-## 使用必读及免责声明
-如下是使用必读及免责声明，请您务必逐条阅读；本程序首次启动时，您还会再看到一次；若您不接受如下提到的任何内容，请不要使用本程序。
-- 本程序从某种程度上说属于辅助工具，与《<a href="https://about.zhipin.com/agreement/?id=registerprotocol_30" rel="noreferer noopener" target="blank">BOSS直聘用户协议</a>》（2023年3月版）相关条款相违背，您在注册BOSS直聘时已签署过这一条款；根据该条款`七、用户的平台使用义务`、`八、违约责任` 章节，如果一些非正常用户行为被风控监测到，您需要承受包括不仅限于**账号被强制退出登录**、**账号被限制使用**、**账号被封禁**等对您不利的风险；因此使用本程序即意味着**您愿意接受以上风险**，且如果相关风险发生，您需要自行承担相关后果，**本程序概不负责** 。
-- 本程序需要存储您的登录凭据，即Cookie，来模拟您在BOSS直聘上开聊BOSS的行为；本程序仅会把您的Cookie存储在本地，并在您访问BOSS直聘时将其传输到BOSS直聘，**不会泄露给第三方**，也不会进行除自动开聊BOSS以外的行为；**请勿向他人泄漏您的Cookie**。
-- 本程序会通过尽可能模仿用户行为来规避相关风险，但并不能保证可以完全规避。建议您使用本程序时**注意节制**，建议当天开聊次数用尽后，隔几天再使用。建议您**注册一个本程序专用的新的BOSS直聘账号**进行求职。
-- 本程序原理是模拟用户在BOSS直聘网页上，寻找关键元素并进行点击操作；BOSS直聘网站经常**发生改版**，且有可能**包含A/B实验**，这将导致本程序相关脚本失效（典型表现为本程序运行到某一步骤后，浏览器重复“闪退、重新启动”）。如果您在使用过程中遇上程序未按照预期执行的情况，请[点击这里](https://github.com/geekgeekrun/geekgeekrun/issues/new)进行反馈。
-- 您所在公司可能会采购上网行为监控工具或网关（例如奇安信、深信服、绿盟等厂商的产品），对您的计算机终端或网络进行**监控**，从而**审计**、**跟踪**您的行为；您的上级/IT/HR 可能会获取到监控数据，从而了解团队成员离职倾向。如果您不希望您的上级/IT/HR 了解到您正在求职，建议您**不要在您所在公司提供的计算机终端或网络上使用本程序**。
-- 本程序尊重您的隐私，**不会参与任何钓鱼活动**、**不会上报能够识别出您身份的信息**、**不会向您所在公司及您的上级/IT/HR 报告您的求职行为**、**不会向任何猎头公司泄露您的个人信息**。但由于本程序开源，任何人均可更改本程序源码并重新发布，这一过程中其它开发者是可以加入恶意程序的，因此请从你信任的源下载本程序。
-- 本程序**没有内置任何付费功能**，**下载**、**使用**是**免费**的，任何人可以**免费获得**、**免费使用**。**作者没有利用本程序赚到过任何收入**。如果您是从GitHub以外的地方付费后“购买”的本程序，或您被提示“必须付费后才能使用本程序”，那**您大概率被骗了**，或者**您下载到了本程序修改版**。**本程序对此概不负责，请勿找作者商讨退款、售后事宜，相关事宜请咨询卖方**。
-- 本程序**不对您的求职过程与结果负责**，为您开聊的职位均在BOSS直聘上发布，职位信息真实性由BOSS直聘负责；请**自行甄别为您开聊的公司**、**认真决定是否参加面试**、**慎重选择Offer**。
-- 请在BOSS直聘上自行**屏蔽您不期望投递的公司**；如果您不希望您当前公司其它具有招聘账号的员工看到您在BOSS直聘上活跃，请**在BOSS直聘上屏蔽当前公司及与之关联的公司**。
-- 本程序经历过了多次测试，理论上来说大部分情况下可以正常运行，但可能也会出现测试用例覆盖不到位，导致程序不按预期运行的情况；如果您有顾虑，建议通过VMware Workstation/Fusion、Oracle VirtualBox、Microsoft Hyper-V等虚拟化技术运行本程序。如果您在使用过程中遇上程序未按照预期执行的情况，请[点击这里](https://github.com/geekgeekrun/geekgeekrun/issues/new)进行反馈。
-
-## 想联系作者？想反馈使用体验上的问题？想找求职搭子？
-
-<img width="360" alt="QQ Group QRCode" src="https://github.com/user-attachments/assets/67560948-467b-44f5-a3e3-c8713255d8b7" />
-
-
-欢迎进群聊天（刚建的群，人有点少，大胆聊就好）
-
---------
-
-以上
-
-更多功能还在开发中~
-
-祝你求职成功，事业顺利，事事顺心
-
-## Star
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=geekgeekrun/geekgeekrun&type=Date&theme=dark" />
-  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=geekgeekrun/geekgeekrun&type=Date" />
-  <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=geekgeekrun/geekgeekrun&type=Date" />
-</picture>
-
-感谢支持
-# dagegong
+<p align="center">
+  ⭐ 如果这个项目帮到了你，请给个 Star！
+</p>
