@@ -41,6 +41,11 @@ import { waitForSageTimeOrJustContinue } from './sage-time.mjs'
 import cityGroupData from './cityGroup.mjs'
 import { hasIntersection } from '@geekgeekrun/utils/number.mjs';
 const flattedCityList = []
+
+// Track daily remaining chat count (null = unknown, 0 = reached limit)
+let dailyRemainingChatCount = null
+const DAILY_CHAT_LIMIT = 150
+
 ;(cityGroupData?.zpData?.cityGroup ?? []).forEach(it => {
   const firstChar = it.firstChar
   it.cityList.forEach(city => {
@@ -1634,6 +1639,19 @@ async function toRecommendPage (hooks) {
 
           await hooks.newChatWillStartup?.promise(targetJobData)
           
+          // Check daily chat limit before starting new chat
+          if (dailyRemainingChatCount === 0) {
+            const msg = `[DailyLimit] 今日沟通次数已达上限 (${DAILY_CHAT_LIMIT}次)，停止自动聊天`
+            hooks.logWarn?.(msg)
+            console.warn(msg)
+            throw new Error('STARTUP_CHAT_ERROR_DUE_TO_TODAY_CHANCE_HAS_USED_OUT')
+          }
+          if (dailyRemainingChatCount !== null && dailyRemainingChatCount <= 5) {
+            const msg = `[DailyLimit] 警告：今日仅剩 ${dailyRemainingChatCount} 次沟通机会`
+            hooks.logWarn?.(msg)
+            console.warn(msg)
+          }
+          
           // 等待按钮可见且可点击
           await page.waitForSelector('.job-detail-box .op-btn.op-btn-chat', {
             visible: true,
@@ -1715,7 +1733,23 @@ async function toRecommendPage (hooks) {
             await sleepWithRandomDelay(2000)
           }
           const handleAddFriendResponse = async (res) => {
+            // Parse remaining chat count from response
+            const chatRemindContent = res.zpData?.bizData?.chatRemindDialog?.content
+            if (chatRemindContent) {
+              const match = chatRemindContent.match(/剩(\d+)次沟通机会/)
+              if (match) {
+                dailyRemainingChatCount = parseInt(match[1], 10)
+                hooks.logInfo?.(`[DailyLimit] 今日剩余沟通次数: ${dailyRemainingChatCount}`)
+                console.log(`[DailyLimit] 今日剩余沟通次数: ${dailyRemainingChatCount}`)
+              }
+            }
+            
             if (res.code === 0) {
+              // Success: decrement remaining count if known
+              if (dailyRemainingChatCount !== null && dailyRemainingChatCount > 0) {
+                dailyRemainingChatCount--
+                hooks.logInfo?.(`[DailyLimit] 沟通成功，剩余次数更新为: ${dailyRemainingChatCount}`)
+              }
               await waitAndHandleChatSuccess()
             }
             else if (
@@ -1779,7 +1813,7 @@ async function toRecommendPage (hooks) {
               }
               case 'STARTUP_CHAT_ERROR_DUE_TO_TODAY_CHANCE_HAS_USED_OUT': {
                 let nextTrySeconds = 60 * 60
-                const msg = `Today chance has used out. Just explore positions you\'ve chatted. New chat will be tried to start after ${nextTrySeconds} seconds.`
+                const msg = `今日沟通次数已达上限（${DAILY_CHAT_LIMIT}次/天）。已停止自动聊天，将在 ${Math.round(nextTrySeconds/60)} 分钟后重试。`
                 hooks.errorEncounter?.call(msg)
                 console.error(msg)
                 await sleep(nextTrySeconds * 1000)
@@ -1822,6 +1856,11 @@ async function toRecommendPage (hooks) {
 }
 
 export async function mainLoop (hooks) {
+  // Reset daily chat count at the start of each session (new day assumed)
+  dailyRemainingChatCount = null
+  hooks.logInfo?.('[DailyLimit] 每日沟通次数限制已重置（新会话开始）')
+  console.log('[DailyLimit] 每日沟通次数限制已重置（新会话开始）')
+  
   if (!puppeteer) {
     await initPuppeteer()
   }
