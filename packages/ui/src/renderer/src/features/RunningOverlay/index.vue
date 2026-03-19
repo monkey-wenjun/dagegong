@@ -104,6 +104,23 @@ const currentRunningStatus = ref(RUNNING_STATUS_ENUM.RUNNING)
 function initSteps() {
   if (!props.workerId) return
   
+  // 检查 runRecordId 是否匹配
+  const savedRunRecordId = runningStepsStore.getRunRecordId(props.workerId)
+  const currentRunRecordId = props.runRecordId
+  
+  // 如果 runRecordId 不匹配，说明是新任务，需要重置状态
+  if (currentRunRecordId && currentRunRecordId !== savedRunRecordId) {
+    runningStepsStore.clearWorkerState(props.workerId)
+    const arr = getAutoStartChatSteps()
+    arr.forEach((it) => (it.status = 'todo'))
+    steps.value = arr
+    currentRunningStatus.value = RUNNING_STATUS_ENUM.RUNNING
+    runningStepsStore.setSteps(props.workerId, JSON.parse(JSON.stringify(arr)))
+    runningStepsStore.setRunningStatus(props.workerId, RUNNING_STATUS_ENUM.RUNNING)
+    runningStepsStore.setRunRecordId(props.workerId, currentRunRecordId)
+    return
+  }
+  
   // 先从 store 中读取之前保存的状态
   const savedSteps = runningStepsStore.getSteps(props.workerId)
   if (savedSteps && savedSteps.length > 0) {
@@ -133,9 +150,11 @@ function handleClosed() {
 watch(() => props.runRecordId, (newVal, oldVal) => {
   if (newVal !== oldVal && props.workerId) {
     // 保存 runRecordId 到 store
+    const savedRunRecordId = runningStepsStore.getRunRecordId(props.workerId)
     runningStepsStore.setRunRecordId(props.workerId, newVal || null)
-    // 只有当 oldVal 有值（即不是从 null 恢复）且 newVal 有值时，才是新任务
-    if (newVal && oldVal) {
+    
+    // 如果 runRecordId 变化了（包括从 null 变为有值），说明是新任务，需要重置状态
+    if (newVal && newVal !== savedRunRecordId) {
       // 新任务，清除之前的状态
       runningStepsStore.clearWorkerState(props.workerId)
       const arr = getAutoStartChatSteps()
