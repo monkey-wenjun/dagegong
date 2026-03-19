@@ -152,7 +152,7 @@ jobs:
       - name: Create release for public
         uses: ncipollo/release-action@v1
         with:
-          repo: geekgeekrun
+          repo: monkey-wenjun/dagegong
           prerelease: true
           allowUpdates: true
           artifacts: geekgeekrun-ui@${{ github.sha }}/*
