@@ -83,4 +83,7 @@ export class VBossChatRelation {
 
   @ViewColumn()
   syncTime: Date;
+
+  @ViewColumn()
+  encryptUserId: string;
 }
