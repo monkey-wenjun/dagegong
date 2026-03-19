@@ -2,6 +2,19 @@
 
 > **BOSS 炸弹** - 自动开聊 BOSS，助力每位打工人求职！
 
+---
+
+## 📌 项目声明
+
+**本项目基于 [geekgeekrun/geekgeekrun](https://github.com/geekgeekrun/geekgeekrun) 进行二次开发。**
+
+原项目是一个开源的 BOSS 直聘自动化工具，感谢原作者的贡献。本项目在此基础上进行了部分定制和优化。
+
+- 🔗 原项目地址：https://github.com/geekgeekrun/geekgeekrun
+- 📝 原项目作者：[@geekgeekrun](https://github.com/geekgeekrun)
+
+---
+
 <p align="center">
   <img src="screenshot.png" alt="打个工截图" width="800">
 </p>
