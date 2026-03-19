@@ -44,6 +44,7 @@ import { AddJobSourceColumnForChatStartupLogAndMarkAsNotSuitLog1752380078526 } f
 import { AddJobHireStatusTable1766466476822 } from "./migrations/1766466476822-AddJobHireStatusTable";
 import { AddBossChatRelationTable1770000000000 } from "./migrations/1770000000000-AddBossChatRelationTable";
 import { AddVBossChatRelationView1770000000001 } from "./migrations/1770000000001-AddVBossChatRelationView";
+import { FixBossChatRelationNullable1770000000002 } from "./migrations/1770000000002-FixBossChatRelationNullable";
 import chunk from 'lodash/chunk'
 import * as typeorm from 'typeorm'
 
@@ -86,7 +87,8 @@ export function initDb(dbFilePath) {
       AddJobSourceColumnForChatStartupLogAndMarkAsNotSuitLog1752380078526,
       AddJobHireStatusTable1766466476822,
       AddBossChatRelationTable1770000000000,
-      AddVBossChatRelationView1770000000001
+      AddVBossChatRelationView1770000000001,
+      FixBossChatRelationNullable1770000000002
     ],
     migrationsRun: true
   });

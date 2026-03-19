@@ -9,7 +9,8 @@ import {
   writeStorageFile,
   configFileNameList,
   readConfigFile,
-  readStorageFile
+  readStorageFile,
+  writeConfigFile
 } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import { runningLogManager } from '../features/running-log'
 import { getBrowserConfig, saveBrowserConfig } from '../features/browser-config'
@@ -129,6 +130,13 @@ export default function initPublicIpc() {
     })
 
     return result
+  })
+
+  // 保存求职全局设置配置
+  ipcMain.handle('save-common-job-condition-config', async (_ev, payload) => {
+    console.log('[IPC] save-common-job-condition-config called', payload)
+    await writeConfigFile('common-job-condition-config.json', payload)
+    return { success: true }
   })
 
   // PDF 简历解析

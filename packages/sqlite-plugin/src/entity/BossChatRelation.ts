@@ -23,16 +23,16 @@ export class BossChatRelation {
   @Column({ nullable: true })
   bossTitle?: string;
 
-  @Column()
+  @Column({ nullable: true })
   bossAvatar?: string;
 
-  @Column()
+  @Column({ nullable: true })
   encryptJobId: string;
 
-  @Column()
+  @Column({ nullable: true })
   jobName: string;
 
-  @Column()
+  @Column({ nullable: true })
   brandName: string;
 
   @Column()

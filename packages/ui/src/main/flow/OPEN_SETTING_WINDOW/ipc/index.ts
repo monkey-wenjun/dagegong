@@ -688,109 +688,215 @@ async function syncBossChatRelations() {
     })))
     
     // 打开聊天页面获取用户信息和沟通列表
+    console.log('[SyncBossChat] Navigating to chat page...')
     await page.goto('https://www.zhipin.com/web/geek/chat', {
-      waitUntil: 'networkidle0',
+      waitUntil: 'networkidle2',
       timeout: 60000
     })
     
-    // 等待聊天列表加载
-    await page.waitForFunction(() => {
-      return Array.isArray(document.querySelector('.main-wrap .chat-user')?.__vue__?.list)
-    }, { timeout: 30000 })
-    
-    // 获取当前用户信息
-    const userInfo = await page.evaluate(() => {
-      const vueStore = (document.querySelector('.main-wrap') as any)?.__vue__?.$store
-      return vueStore?.state?.userInfo || null
+    // 等待页面基本结构加载
+    console.log('[SyncBossChat] Waiting for page structure...')
+    await page.waitForSelector('.main-wrap, .chat-container, #container', { 
+      timeout: 30000 
+    }).catch(() => {
+      console.log('[SyncBossChat] Main container not found, trying alternative selectors...')
     })
+    
+    // 等待一段时间让 Vue 应用初始化
+    await new Promise(r => setTimeout(r, 3000))
+    
+    // 检查是否登录（通过检查页面中的登录状态）
+    console.log('[SyncBossChat] Checking login status...')
+    const isLoggedIn = await page.evaluate(() => {
+      // 检查页面中是否有登录相关的元素或数据
+      const hasVueData = !!(document.querySelector('.main-wrap') as any)?.__vue__
+      const hasUserElement = document.querySelector('.user-info, .avatar-wrap, .user-name')
+      const hasLoginForm = document.querySelector('.login-wrap, .login-form, [class*="login"]')
+      return { hasVueData, hasUserElement: !!hasUserElement, hasLoginForm: !!hasLoginForm }
+    })
+    
+    console.log('[SyncBossChat] Login check:', isLoggedIn)
+    
+    if (isLoggedIn.hasLoginForm && !isLoggedIn.hasUserElement) {
+      await browser.close()
+      return { success: false, error: 'BOSS直聘 Cookie 已过期，请重新登录' }
+    }
+    
+    // 尝试等待聊天列表加载（使用更宽松的条件）
+    console.log('[SyncBossChat] Waiting for chat list...')
+    try {
+      await page.waitForFunction(() => {
+        const chatUser = document.querySelector('.chat-user, .chat-list, [class*="chat"]')
+        const vueData = (chatUser as any)?.__vue__
+        return vueData || document.querySelector('.chat-item, .user-item, .friend-item')
+      }, { timeout: 30000 })
+    } catch (waitError) {
+      console.log('[SyncBossChat] Chat list wait timeout, checking alternative methods...')
+    }
+    
+    // 获取当前用户信息（尝试多种方式）
+    console.log('[SyncBossChat] Getting user info...')
+    const userInfo = await page.evaluate(() => {
+      // 尝试从 Vue store 获取
+      const mainWrap = document.querySelector('.main-wrap, #app, #container')
+      const vueStore = (mainWrap as any)?.__vue__?.$store
+      if (vueStore?.state?.userInfo) {
+        return vueStore.state.userInfo
+      }
+      
+      // 尝试从全局变量获取
+      const globalUserInfo = (window as any).__INITIAL_STATE__?.userInfo || (window as any).userInfo
+      if (globalUserInfo) {
+        return globalUserInfo
+      }
+      
+      return null
+    })
+    
+    console.log('[SyncBossChat] User info:', userInfo ? 'found' : 'not found')
     
     if (!userInfo || !userInfo.encryptUserId) {
       await browser.close()
-      return { success: false, error: '未获取到当前用户信息，请确保已登录' }
+      return { success: false, error: '未获取到当前用户信息，请确保BOSS直聘 Cookie 有效且未过期' }
     }
     
     const encryptUserId = userInfo.encryptUserId
     
-    // 在浏览器环境中使用 fetch 调用 API 获取所有沟通记录
-    const allChatList = await page.evaluate(async () => {
-      const allList: any[] = []
-      let pageNum = 1
-      const pageSize = 50
-      let hasMore = true
-      
-      while (hasMore && allList.length < 1000) {
-        try {
-          const response = await fetch(
-            `https://www.zhipin.com/wapi/zprelation/friend/geekFilterByLabel?labelId=0&page=${pageNum}&pageSize=${pageSize}`,
-            {
-              headers: {
-                'accept': 'application/json, text/plain, */*',
-                'x-requested-with': 'XMLHttpRequest'
-              },
-              credentials: 'include'
-            }
-          )
-          
-          if (!response.ok) {
-            console.error('API request failed:', response.status)
-            break
-          }
-          
-          const result = await response.json()
-          
-          if (result.code !== 0) {
-            console.error('API error:', result.message || result.msg)
-            break
-          }
-          
-          const list = result.zpData?.list || []
-          
-          if (list.length === 0) {
-            hasMore = false
-            break
-          }
-          
-          // 转换数据格式
-          const formattedList = list.map((item: any) => ({
-            friendId: item.friendId,
-            encryptBossId: item.encryptBossId || item.bossId,
-            name: item.name,
-            title: item.title,
-            avatar: item.avatar,
-            encryptJobId: item.encryptJobId || item.jobId,
-            jobName: item.jobName,
-            brandName: item.brandName,
-            encryptCompanyId: item.encryptCompanyId || item.companyId,
-            lastText: item.lastText,
-            lastMessageId: item.lastMessageId,
-            unreadCount: item.unreadCount || 0,
-            lastMsgStatus: item.lastMsgStatus,
-            lastTS: item.lastTS,
-            updateTime: item.updateTime,
-            isTop: item.isTop || 0,
-            relationType: item.relationType,
-            friendSource: item.friendSource,
-            goldGeekStatus: item.goldGeekStatus,
-            sourceTitle: item.sourceTitle,
-            lastIsSelf: item.lastIsSelf || false
-          }))
-          
-          allList.push(...formattedList)
-          
-          // 如果返回的数据少于pageSize，说明没有更多了
-          if (list.length < pageSize) {
-            hasMore = false
-          } else {
-            pageNum++
-          }
-        } catch (error) {
-          console.error('Fetch error:', error)
-          break
+    // 首先尝试从页面的 Vue 数据中直接获取沟通记录
+    console.log('[SyncBossChat] Trying to get chat list from Vue data...')
+    let allChatList = await page.evaluate(() => {
+      try {
+        // 尝试从 Vue 组件获取沟通列表
+        const chatUserEl = document.querySelector('.chat-user, .chat-list')
+        const vueData = (chatUserEl as any)?.__vue__
+        
+        if (vueData?.list && Array.isArray(vueData.list)) {
+          return vueData.list
         }
+        
+        // 尝试从 store 获取
+        const mainWrap = document.querySelector('.main-wrap, #app')
+        const store = (mainWrap as any)?.__vue__?.$store
+        if (store?.state?.chat?.list) {
+          return store.state.chat.list
+        }
+        
+        return null
+      } catch (e) {
+        console.error('Error getting Vue data:', e)
+        return null
       }
-      
-      return allList
     })
+    
+    // 如果 Vue 数据获取失败，尝试通过 API 获取
+    if (!allChatList || allChatList.length === 0) {
+      console.log('[SyncBossChat] Trying to get chat list from API...')
+      allChatList = await page.evaluate(async () => {
+        const allList: any[] = []
+        let pageNum = 1
+        const pageSize = 50
+        let hasMore = true
+        
+        // 尝试多个 API 端点
+        const apiEndpoints = [
+          (page: number, size: number) => `/wapi/zprelation/friend/geekFilterByLabel?labelId=0&page=${page}&pageSize=${size}`,
+          (page: number, size: number) => `/wapi/zprelation/friend/getGeekFriendList?page=${page}&pageSize=${size}`,
+          (page: number, size: number) => `/wapi/zprelation/friend/list?page=${page}&pageSize=${size}&scene=1`
+        ]
+        
+        for (const getEndpoint of apiEndpoints) {
+          if (allList.length > 0) break // 如果已经获取到数据，不再尝试其他端点
+          
+          pageNum = 1
+          hasMore = true
+          
+          while (hasMore && allList.length < 1000 && pageNum <= 20) {
+            try {
+              const endpoint = getEndpoint(pageNum, pageSize)
+              console.log(`[SyncBossChat] Trying API: ${endpoint}`)
+              
+              const response = await fetch(endpoint, {
+                headers: {
+                  'accept': 'application/json, text/plain, */*',
+                  'x-requested-with': 'XMLHttpRequest'
+                },
+                credentials: 'include'
+              })
+              
+              if (!response.ok) {
+                console.error('API request failed:', response.status)
+                break
+              }
+              
+              const result = await response.json()
+              console.log('[SyncBossChat] API response:', result.code, result.message || '')
+              
+              if (result.code !== 0) {
+                console.error('API error:', result.message || result.msg)
+                break
+              }
+              
+              // 尝试多种数据结构 (BOSS直聘 API 返回 friendList 而不是 list)
+              let list = result.zpData?.friendList || result.zpData?.list || result.data?.friendList || result.data?.list || []
+              
+              if (!Array.isArray(list)) {
+                console.error('List is not array:', typeof list)
+                break
+              }
+              
+              if (list.length === 0) {
+                console.log('[SyncBossChat] Empty list returned')
+                hasMore = false
+                break
+              }
+              
+              console.log(`[SyncBossChat] Got ${list.length} items from page ${pageNum}`)
+              
+              // 转换数据格式 (根据实际 API 返回结构调整)
+              const formattedList = list.map((item: any) => ({
+                friendId: Number(item.friendId || item.id || 0),
+                encryptBossId: item.encryptFriendId || item.encryptBossId || item.bossId || '',
+                name: item.name || '',
+                title: item.bossTitle || item.title || '',
+                avatar: item.avatar || '',
+                encryptJobId: item.encryptJobId || item.jobId || '',
+                jobName: item.jobName || '',
+                brandName: item.brandName || '',
+                encryptCompanyId: item.encryptCompanyId || item.companyId || '',
+                lastText: item.lastText || '',
+                lastMessageId: item.lastMessageId || '',
+                unreadCount: item.unreadCount || 0,
+                lastMsgStatus: item.lastMsgStatus || 0,
+                lastTS: item.lastTS || item.updateTime || Date.now(),
+                updateTime: item.updateTime || Date.now(),
+                isTop: item.isTop || 0,
+                relationType: item.relationType || 1,
+                friendSource: item.friendSource || 0,
+                goldGeekStatus: item.goldGeekStatus || 0,
+                sourceTitle: item.sourceTitle || '',
+                lastIsSelf: item.lastIsSelf || false
+              }))
+              
+              allList.push(...formattedList)
+              
+              // 如果返回的数据少于pageSize，说明没有更多了
+              if (list.length < pageSize) {
+                hasMore = false
+              } else {
+                pageNum++
+              }
+            } catch (error) {
+              console.error('Fetch error:', error)
+              break
+            }
+          }
+        }
+        
+        return allList
+      })
+    } else {
+      console.log(`[SyncBossChat] Got ${allChatList.length} items from Vue data`)
+    }
     
     // 关闭浏览器
     await browser.close()

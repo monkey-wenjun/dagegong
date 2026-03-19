@@ -707,20 +707,33 @@ function handleCancel() {
 
 const formRef = ref()
 async function handleSave() {
-  await formRef.value?.validate()
-  await ipcRenderer.invoke(
-    'save-common-job-condition-config',
-    JSON.parse(
-      JSON.stringify({
-        ...formContent.value,
-        expectCompanies: formContent.value.expectCompanies
-          ? formContent.value.expectCompanies.split(',').map((s) => s.trim())
-          : []
-      })
+  try {
+    await formRef.value?.validate()
+    await ipcRenderer.invoke(
+      'save-common-job-condition-config',
+      JSON.parse(
+        JSON.stringify({
+          ...formContent.value,
+          expectCompanies: formContent.value.expectCompanies
+            ? formContent.value.expectCompanies.split(',').map((s) => s.trim())
+            : []
+        })
+      )
     )
-  )
-  ElMessage.success('保存成功')
-  window.history.back()
+    ElMessage.success({
+      message: '保存成功',
+      duration: 1500
+    })
+    setTimeout(() => {
+      window.history.back()
+    }, 500)
+  } catch (error) {
+    ElMessage.error({
+      message: '保存失败：' + (error?.message || '未知错误'),
+      duration: 3000
+    })
+    console.error('Save failed:', error)
+  }
 }
 
 ipcRenderer.invoke('fetch-config-file-content').then((res) => {
