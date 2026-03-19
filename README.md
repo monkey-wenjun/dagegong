@@ -16,12 +16,18 @@
 ---
 
 <p align="center">
-  <img src="screenshot.png" alt="打个工截图" width="800">
+  <img src="docs/images/screenshot.png" alt="打个工截图" width="800">
 </p>
 
-[![Build Status](https://github.com/monkey-wenjun/dagegong/workflows/Build%20Electron%20App/badge.svg)](https://github.com/monkey-wenjun/dagegong/actions)
-[![Version](https://img.shields.io/badge/version-0.17.1-blue.svg)](https://github.com/monkey-wenjun/dagegong/releases)
-[![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
+<p align="center">
+  <img src="docs/images/logo.png" alt="打个工 Logo" width="120">
+</p>
+
+<p align="center">
+  <a href="https://github.com/monkey-wenjun/dagegong/actions"><img src="https://github.com/monkey-wenjun/dagegong/workflows/Build%20Electron%20App/badge.svg" alt="Build Status"></a>
+  <a href="https://github.com/monkey-wenjun/dagegong/releases"><img src="https://img.shields.io/badge/version-0.17.1-blue.svg" alt="Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-ISC-green.svg" alt="License"></a>
+</p>
 
 ## ✨ 功能特性
 
