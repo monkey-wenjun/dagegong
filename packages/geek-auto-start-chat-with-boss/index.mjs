@@ -174,18 +174,23 @@ function checkCityMatch(cityName, areaDistrict, expectCities) {
     }
   }
   
-  // 1. 如果只配置了城市名（没有区域），检查城市名是否匹配
+  // 1. 检查城市名是否匹配（如果只配置了城市名）
   if (expectCitiesOnly.includes(cityName)) {
     return true
   }
   
-  // 2. 如果配置了城市+区域，需要同时匹配城市和区域
+  // 2. 如果配置了城市+区域
   if (expectCityDistrictMap.has(cityName)) {
     const expectDistricts = expectCityDistrictMap.get(cityName)
     // 如果职位有区域信息，检查是否匹配
     if (areaDistrict && expectDistricts.has(areaDistrict)) {
       return true
     }
+    // 注意：BOSS直聘返回的areaDistrict可能是商圈（如"西溪"）而不是行政区（如"西湖区"）
+    // 如果区域不匹配，但城市匹配，我们认为这是一个"可能匹配"的情况
+    // 这种情况下返回true，但会在日志中记录警告
+    console.log(`[CityMatch] 城市匹配但区域可能不匹配: ${cityName}, 职位区域: ${areaDistrict}, 期望区域: ${[...expectDistricts].join(',')}`)
+    return true
   }
   
   return false
