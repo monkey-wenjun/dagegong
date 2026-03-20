@@ -15,6 +15,15 @@ files:
   - '!node_modules/date-fns/esm/*'
   - '!node_modules/highlight.js/{styles,scss}/*'
   - '!node_modules/typeorm/browser/*'
+  # Exclude unused typeorm optional dependencies
+  - '!node_modules/@google-cloud/**'
+  - '!node_modules/mongodb/**'
+  - '!node_modules/ioredis/**'
+  - '!node_modules/redis/**'
+  - '!node_modules/hdb-pool/**'
+  - '!node_modules/oracledb/**'
+  - '!node_modules/@sap/hana-client/**'
+  - '!node_modules/better-sqlite3/**'
 asarUnpack:
   - 'resources/**'
 win:
