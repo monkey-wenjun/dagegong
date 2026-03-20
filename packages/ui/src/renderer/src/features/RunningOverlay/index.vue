@@ -136,6 +136,9 @@ const currentRunningStatus = ref(RUNNING_STATUS_ENUM.RUNNING)
 function initSteps() {
   if (!props.workerId) return
   
+  // 重置错误信息
+  exitErrorMessage.value = ''
+  
   // 检查 runRecordId 是否匹配
   const savedRunRecordId = runningStepsStore.getRunRecordId(props.workerId)
   const currentRunRecordId = props.runRecordId
@@ -181,6 +184,9 @@ function handleClosed() {
 // 监听 runRecordId 变化，新任务启动时重置
 watch(() => props.runRecordId, (newVal, oldVal) => {
   if (newVal !== oldVal && props.workerId) {
+    // 清除错误信息
+    exitErrorMessage.value = ''
+    
     // 保存 runRecordId 到 store
     const savedRunRecordId = runningStepsStore.getRunRecordId(props.workerId)
     runningStepsStore.setRunRecordId(props.workerId, newVal || null)
@@ -249,6 +255,8 @@ onUnmounted(unListenMessage)
 const isDialogVisible = ref(false)
 const show = () => {
   isDialogVisible.value = true
+  // 清除错误信息
+  exitErrorMessage.value = ''
   // 显示时重新初始化步骤（用于恢复状态）
   initSteps()
 }
