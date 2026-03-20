@@ -18,32 +18,52 @@ function getIconPath(): string {
 export function createMainWindow(): BrowserWindow {
   const iconPath = getIconPath()
   console.log('[MainWindow] Using icon:', iconPath)
+  console.log('[MainWindow] __dirname:', __dirname)
+  console.log('[MainWindow] app.getAppPath():', app.getAppPath())
+  console.log('[MainWindow] process.resourcesPath:', process.resourcesPath)
+  console.log('[MainWindow] app.isPackaged:', app.isPackaged)
   
   // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
     minWidth: 1280,
-    show: true,
+    show: false, // 先不显示，等加载完成后再显示
     autoHideMenuBar: true,
     frame: true,
     icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+  // 只使用一个 ready-to-show 事件处理器
+  mainWindow.once('ready-to-show', () => {
+    console.log('[MainWindow] Window ready to show')
+    mainWindow?.show()
+    mainWindow?.focus()
     // 设置运行日志管理器的主窗口
     runningLogManager.setMainWindow(mainWindow)
-  })
-  mainWindow.on('ready-to-show', async () => {
-    process.env.NODE_ENV === 'development' &&
+    
+    // 开发模式下打开开发者工具
+    if (process.env.NODE_ENV === 'development') {
       setTimeout(() => {
         mainWindow && openDevTools(mainWindow)
       }, 500)
+    }
+  })
+
+  // 监听加载失败事件
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('[MainWindow] Failed to load:', errorCode, errorDescription)
+  })
+
+  // 监听控制台消息
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer Console ${level}]:`, message)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -54,21 +74,27 @@ export function createMainWindow(): BrowserWindow {
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
+    console.log('[MainWindow] Loading from dev server:', process.env['ELECTRON_RENDERER_URL'])
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     // 添加错误处理和日志
     const htmlPath = path.join(__dirname, '../renderer/index.html')
-    console.log('Loading renderer from:', htmlPath)
-    mainWindow.loadFile(htmlPath).catch(err => {
-      console.error('Failed to load renderer:', err)
+    console.log('[MainWindow] Loading renderer from:', htmlPath)
+    console.log('[MainWindow] File exists check will be performed...')
+    
+    mainWindow.loadFile(htmlPath).then(() => {
+      console.log('[MainWindow] Renderer loaded successfully')
+    }).catch(err => {
+      console.error('[MainWindow] Failed to load renderer:', err)
       // 如果加载失败，显示错误信息
-      mainWindow?.loadURL(`data:text/html,<h1>Error loading app</h1><p>${err.message}</p>`)
+      mainWindow?.loadURL(`data:text/html,<h1>Error loading app</h1><p>${err.message}</p><p>Path: ${htmlPath}</p>`)
     })
   }
 
   mainWindow!.once('closed', () => {
     mainWindow = null
   })
+  
   daemonEE.on('message', (message) => {
     if (message.type === 'worker-to-gui-message') {
       mainWindow?.webContents?.send('worker-to-gui-message', message)
@@ -79,8 +105,10 @@ export function createMainWindow(): BrowserWindow {
       }
     }
   })
+  
   daemonEE.on('error', (err) => {
-    console.log(err)
+    console.log('[MainWindow] Daemon error:', err)
   })
+  
   return mainWindow!
 }

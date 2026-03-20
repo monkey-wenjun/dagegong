@@ -2,8 +2,20 @@
   <div class="geek-auto-start-chat-with-boss__running-status">
     <FlyingCompanyLogoList class="flying-company-logo-list" />
     <div class="tip">
+      <!-- 等待状态 -->
+      <template v-if="isWaiting">
+        <article>
+          <h1 class="main-title">⏰ 任务已启动，等待中...</h1>
+          <p>已开启<b>自动运行时间</b>设置，任务将在设定时间自动开始</p>
+          <p>📅 预计开始时间：<b>{{ waitUntilTime }}</b></p>
+          <p>⏳ 还需等待约：<b>{{ waitMinutes }} 分钟</b></p>
+          <p>🍀 到达设定时间后将自动开始帮你找工作！</p>
+        </article>
+        <el-button type="danger" size="large" :disabled="isStopping" @click="handleStopButtonClick">取消等待</el-button>
+      </template>
+      
       <!-- 正常运行状态 -->
-      <template v-if="!hasError">
+      <template v-else-if="!hasError">
         <article>
           <h1 class="main-title">AI正在帮你找工作中</h1>
           <p>💬 正在为你开聊BOSS，请静候佳音</p>
@@ -52,6 +64,9 @@ const isStopping = ref(false)
 const hasError = ref(false)
 const exitCode = ref<number | null>(null)
 const errorMessage = ref('')
+const isWaiting = ref(false)
+const waitUntilTime = ref('')
+const waitMinutes = ref(0)
 
 const handleStopButtonClick = async () => {
   gtagRenderer('gascwb_stop_button_clicked')
@@ -93,20 +108,40 @@ const handleWorkerExited = (_: any, message: any) => {
   }
 }
 
+const handleAutoRunWaiting = (_: any, data: any) => {
+  if (data.workerId === 'geekAutoStartWithBossMain') {
+    isWaiting.value = true
+    waitUntilTime.value = data.waitUntilTime
+    waitMinutes.value = data.waitMinutes
+    ElMessage.info({
+      message: `任务将在 ${data.waitUntilTime} 自动开始，预计等待 ${data.waitMinutes} 分钟`,
+      duration: 5000
+    })
+  }
+}
+
 ipcRenderer.once('geek-auto-start-chat-with-boss-stopping', handleStopping)
 ipcRenderer.once('geek-auto-start-chat-with-boss-stopped', handleStopped)
 ipcRenderer.on('worker-exited', handleWorkerExited)
+ipcRenderer.on('auto-run-waiting', handleAutoRunWaiting)
 
 onUnmounted(() => {
   ipcRenderer.removeListener('geek-auto-start-chat-with-boss-stopped', handleStopped)
   ipcRenderer.removeListener('geek-auto-start-chat-with-boss-stopping', handleStopping)
   ipcRenderer.removeListener('worker-exited', handleWorkerExited)
+  ipcRenderer.removeListener('auto-run-waiting', handleAutoRunWaiting)
 })
 
 const onMountedHandler = async () => {
   try {
     const result = await electron.ipcRenderer.invoke('run-geek-auto-start-chat-with-boss')
     console.log('[RunningStatus] Task started:', result)
+    // 如果返回的是等待状态，更新UI
+    if (result?.isWaiting) {
+      isWaiting.value = true
+      waitUntilTime.value = result.waitUntilTime
+      waitMinutes.value = Math.round(result.waitMs / 1000 / 60)
+    }
   } catch (err) {
     console.error('[RunningStatus] Failed to start:', err)
     hasError.value = true

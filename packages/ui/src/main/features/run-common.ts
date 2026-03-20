@@ -39,7 +39,10 @@ export async function runCommon({ mode }) {
       AUTO_CHAT_ERROR_EXIT_CODE.PUPPETEER_IS_NOT_EXECUTABLE,
       AUTO_CHAT_ERROR_EXIT_CODE.LOGIN_STATUS_INVALID,
       AUTO_CHAT_ERROR_EXIT_CODE.LLM_UNAVAILABLE
-    ].join(',')
+    ].join(','),
+    // 传递自动运行等待时间配置
+    DAGEGONGD_AUTO_RUN_WAIT_MS: process.env.DAGEGONGD_AUTO_RUN_WAIT_MS,
+    DAGEGONGD_AUTO_RUN_WAIT_UNTIL: process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL
   }
   const args =
     process.env.NODE_ENV === 'development'

@@ -8,19 +8,40 @@ const __dirname = dirname(__filename)
 
 // 检测当前环境：开发环境或构建后的环境
 function getSqlitePluginPath() {
-  // 尝试开发环境路径
-  const devPath = join(__dirname, '../sqlite-plugin/dist/index.js')
-  // 尝试构建后的路径（相对于 out/main/）
-  const buildPath = join(__dirname, '../../../sqlite-plugin/dist/index.js')
-  
   const require = createRequire(import.meta.url)
-  try {
-    // 测试哪个路径可用
-    require.resolve(devPath)
-    return devPath
-  } catch {
-    return buildPath
+  
+  // 尝试多个可能的路径
+  const possiblePaths = [
+    // 开发环境路径
+    join(__dirname, '../sqlite-plugin/dist/index.js'),
+    // 构建后的路径（相对于 out/main/）
+    join(__dirname, '../../../sqlite-plugin/dist/index.js'),
+  ]
+  
+  for (const path of possiblePaths) {
+    try {
+      require.resolve(path)
+      console.log('[sqlite-plugin-compat] Found sqlite-plugin at:', path)
+      return path
+    } catch {
+      // 继续尝试下一个路径
+    }
   }
+  
+  // Electron 打包后，从 asar 内部的 node_modules 加载
+  try {
+    const electronModulePath = 'node_modules/@dagegong/sqlite-plugin/dist/index.js'
+    const asarPath = join(process.resourcesPath, 'app.asar', electronModulePath)
+    require.resolve(asarPath)
+    console.log('[sqlite-plugin-compat] Found sqlite-plugin in asar:', asarPath)
+    return asarPath
+  } catch {
+    // 继续尝试其他路径
+  }
+  
+  // 默认返回第一个路径
+  console.log('[sqlite-plugin-compat] Using default path')
+  return possiblePaths[0]
 }
 
 // 使用 createRequire 加载 CommonJS 模块

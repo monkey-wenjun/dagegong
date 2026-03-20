@@ -2,8 +2,13 @@ appId: com.zhaogegongdada.ui
 productName: 找个工打打
 directories:
   buildResources: build
-icon: resources/icon.png
+icon: icon.ico
+
 files:
+  # Include build output (must be explicit for entry file to work)
+  - 'out/**'
+  - 'resources/**'
+  # Exclusions
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
@@ -15,7 +20,7 @@ files:
   - '!node_modules/date-fns/esm/*'
   - '!node_modules/highlight.js/{styles,scss}/*'
   - '!node_modules/typeorm/browser/*'
-  # Exclude unused typeorm optional dependencies
+  # Exclude unused typeorm optional dependencies (keep better-sqlite3 for sqlite-plugin)
   - '!node_modules/@google-cloud/**'
   - '!node_modules/mongodb/**'
   - '!node_modules/ioredis/**'
@@ -23,12 +28,58 @@ files:
   - '!node_modules/hdb-pool/**'
   - '!node_modules/oracledb/**'
   - '!node_modules/@sap/hana-client/**'
-  - '!node_modules/better-sqlite3/**'
+  # Include workspace dependencies (dagegong packages)
+  - 'node_modules/@dagegong/**'
+  # Include dependencies required by sqlite-plugin
+  - 'node_modules/reflect-metadata/**'
+  - 'node_modules/typeorm/**'
+  - 'node_modules/cli-highlight/**'
+  - 'node_modules/highlight.js/**'
+  - 'node_modules/parse5/**'
+  - 'node_modules/@sqltools/formatter/**'
+  - 'node_modules/tslib/**'
+  - 'node_modules/glob/**'
+  - 'node_modules/mkdirp/**'
+  - 'node_modules/uuid/**'
+  - 'node_modules/app-root-path/**'
+  - 'node_modules/better-sqlite3/**'
+  - 'node_modules/lodash/**'
 asarUnpack:
+  # Only unpack native modules and resources, not JS files
   - 'resources/**'
-  - 'out/**'
+  - 'node_modules/better-sqlite3/**/*.node'
+  - 'node_modules/better-sqlite3/**/*.dll'
+  - 'node_modules/better-sqlite3/**/*.so'
+  - 'node_modules/better-sqlite3/**/*.dylib'
+extraResources:
+  # Placeholder - sqlite-plugin now loaded from within asar
+  # Include workspace dependencies that use __dirname to load resources
+  - from: '../geek-auto-start-chat-with-boss'
+    to: 'geek-auto-start-chat-with-boss'
+    filter:
+      - '**/*.mjs'
+      - '**/*.json'
+      - 'default-config-file/**'
+      - 'internal-config/**'
+      - 'default-storage-file/**'
+  - from: '../utils'
+    to: 'utils'
+    filter:
+      - '**/*.mjs'
+      - '**/*.json'
+  - from: '../pm'
+    to: 'pm'
+    filter:
+      - '**/*.mjs'
+      - '**/*.json'
+  - from: '../launch-bosszhipin-login-page-with-preload-extension'
+    to: 'launch-bosszhipin-login-page-with-preload-extension'
+    filter:
+      - '**/*'
 win:
   executableName: dagegong
+  requestedExecutionLevel: asInvoker
+  signAndEditExecutable: false
 nsis:
   artifactName: dagegong_${version}_${arch}_setup.${ext}
   shortcutName: ${productName}

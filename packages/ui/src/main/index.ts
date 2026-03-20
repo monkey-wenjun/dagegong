@@ -5,19 +5,48 @@ import { launchDaemon } from './flow/OPEN_SETTING_WINDOW/launch-daemon'
 import { app } from 'electron'
 import { initDailyStatsNotification } from './flow/OPEN_SETTING_WINDOW/ipc/daily-stats-notification'
 
+// 在 app 准备就绪前配置 GPU 和兼容性选项
+// 解决某些 Windows 系统上白屏问题
+app.commandLine.appendSwitch('disable-gpu-sandbox')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+
+// 如果是 Windows 7 或某些有兼容性问题的系统，禁用 GPU 加速
+const disableGpu = process.env.DAGEGONG_DISABLE_GPU === '1'
+if (disableGpu) {
+  console.log('[App] GPU acceleration disabled by environment variable')
+  app.disableHardwareAcceleration()
+}
+
 const isUiDev = process.env.NODE_ENV === 'development'
 const enableLogToFile = process.env.DAGEGONG_ENABLE_LOG_TO_FILE === String(1)
 if (isUiDev || enableLogToFile) {
   overrideConsole()
 }
-console.log('NODE_ENV:', process.env.NODE_ENV)
+console.log('[App] ==========================================')
+console.log('[App] 打个工 启动中...')
+console.log('[App] ==========================================')
+console.log('[App] NODE_ENV:', process.env.NODE_ENV)
+console.log('[App] Electron version:', process.versions.electron)
+console.log('[App] Chrome version:', process.versions.chrome)
+console.log('[App] Platform:', process.platform)
+console.log('[App] Arch:', process.arch)
+console.log('[App] PID:', process.pid)
+console.log('[App] Exec Path:', process.execPath)
+console.log('[App] CWD:', process.cwd())
 
 // 捕获未处理的 EPIPE 错误
 process.on('uncaughtException', (err) => {
+  console.error('[App] Uncaught Exception:', err)
   if (err?.code === 'EPIPE' || err?.code === 'ERR_STREAM_DESTROYED') {
     return
   }
-  throw err
+  // 不要抛出，而是记录并优雅退出
+  process.exit(1)
+})
+
+// 捕获未处理的 Promise 拒绝
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[App] Unhandled Rejection at:', promise, 'reason:', reason)
 })
 
 console.log('argv:', process.argv)

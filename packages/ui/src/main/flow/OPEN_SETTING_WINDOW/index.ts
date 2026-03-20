@@ -8,18 +8,38 @@ import initPublicIpc from '../../utils/initPublicIpc'
 import { sendToDaemon, closeDaemonClient } from './connect-to-daemon'
 
 export function openSettingWindow() {
+  console.log('[OpenSettingWindow] Starting...')
+  
   // TODO: singleton lock; how can we check if there is another process should run as singleton with arguments?
-  if (!app.requestSingleInstanceLock()) {
-    // TODO: log
+  const gotTheLock = app.requestSingleInstanceLock()
+  console.log('[OpenSettingWindow] Single instance lock:', gotTheLock)
+  
+  if (!gotTheLock) {
+    console.log('[OpenSettingWindow] Another instance is running, exiting...')
     app.exit(0)
+    return
   }
 
+  console.log('[OpenSettingWindow] Waiting for app ready...')
   const whenReadyPromise = app.whenReady()
+  
+  // 处理第二个实例启动的情况
+  app.on('second-instance', () => {
+    console.log('[OpenSettingWindow] Second instance detected')
+    // 用户尝试打开第二个实例时，聚焦到第一个实例的窗口
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
 
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
   whenReadyPromise.then(async () => {
+    console.log('[OpenSettingWindow] App is ready')
+    
     // Set app user model id for windows
     electronApp.setAppUserModelId('com.electron')
 
@@ -30,7 +50,9 @@ export function openSettingWindow() {
       optimizer.watchWindowShortcuts(window)
     })
 
+    console.log('[OpenSettingWindow] Creating main window...')
     createMainWindow()
+    console.log('[OpenSettingWindow] Main window created')
 
     // IPC test
     ipcMain.on('ping', () => console.log('pong'))
@@ -74,22 +96,27 @@ export function openSettingWindow() {
   })
 
   whenReadyPromise.then(async () => {
-    await sendToDaemon(
-      {
-        type: 'ping'
-      },
-      {
-        needCallback: true
-      }
-    )
-    await sendToDaemon(
-      {
-        type: 'user-process-register'
-      },
-      {
-        needCallback: true
-      }
-    )
+    try {
+      await sendToDaemon(
+        {
+          type: 'ping'
+        },
+        {
+          needCallback: true
+        }
+      )
+      await sendToDaemon(
+        {
+          type: 'user-process-register'
+        },
+        {
+          needCallback: true
+        }
+      )
+    } catch (err) {
+      console.error('[App] Failed to communicate with daemon:', err)
+      // 即使守护进程通信失败，也不应该阻止窗口显示
+    }
   })
   app.on('window-all-closed', closeDaemonClient)
   app.on('before-quit', closeDaemonClient)

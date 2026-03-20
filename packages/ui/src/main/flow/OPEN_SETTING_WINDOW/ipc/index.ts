@@ -187,19 +187,40 @@ export default async function initIpc() {
       bossConfig.fieldsForUseCommonConfig = payload.fieldsForUseCommonConfig
     }
 
-    // auto run time settings
+    // auto run time settings for main auto chat feature
     // Use 'in' operator or typeof check instead of hasOwn for better reliability
     if ('autoRunTimeEnabled' in payload) {
       bossConfig.autoRunTimeEnabled = payload.autoRunTimeEnabled
     }
     if ('autoRunStartTime' in payload) {
       bossConfig.autoRunStartTime = payload.autoRunStartTime
+      console.log(`[Config] Saving autoRunStartTime: ${payload.autoRunStartTime}`)
     }
     if ('autoRunEndTime' in payload) {
       bossConfig.autoRunEndTime = payload.autoRunEndTime
     }
     if ('autoRunWeekdays' in payload) {
       bossConfig.autoRunWeekdays = payload.autoRunWeekdays
+    }
+    
+    // auto run time settings for auto reminder (nested in autoReminder)
+    if (payload.autoReminder) {
+      if (!bossConfig.autoReminder) {
+        bossConfig.autoReminder = {}
+      }
+      if ('autoRunTimeEnabled' in payload.autoReminder) {
+        bossConfig.autoReminder.autoRunTimeEnabled = payload.autoReminder.autoRunTimeEnabled
+      }
+      if ('autoRunStartTime' in payload.autoReminder) {
+        bossConfig.autoReminder.autoRunStartTime = payload.autoReminder.autoRunStartTime
+        console.log(`[Config] Saving autoReminder.autoRunStartTime: ${payload.autoReminder.autoRunStartTime}`)
+      }
+      if ('autoRunEndTime' in payload.autoReminder) {
+        bossConfig.autoReminder.autoRunEndTime = payload.autoReminder.autoRunEndTime
+      }
+      if ('autoRunWeekdays' in payload.autoReminder) {
+        bossConfig.autoReminder.autoRunWeekdays = payload.autoReminder.autoRunWeekdays
+      }
     }
     if ('greetingMessage' in payload) {
       bossConfig.greetingMessage = payload.greetingMessage
@@ -235,36 +256,56 @@ export default async function initIpc() {
     return await Promise.all(promiseArr)
   })
 
+  // 计算自动运行等待时间的辅助函数
+  function calculateAutoRunWaitMs(config: { autoRunTimeEnabled?: boolean, autoRunStartTime?: string, autoRunEndTime?: string, autoRunWeekdays?: number[] }): { shouldWait: boolean, waitMs: number, waitUntilTime?: string } {
+    if (!config.autoRunTimeEnabled) {
+      return { shouldWait: false, waitMs: 0 }
+    }
+    
+    const now = new Date()
+    const currentDay = now.getDay()
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    const allowedWeekdays = config.autoRunWeekdays || [1, 2, 3, 4, 5]
+    const startTime = config.autoRunStartTime || '10:00'
+    
+    // 检查今天是否在允许的运行日期内
+    if (!allowedWeekdays.includes(currentDay)) {
+      return { shouldWait: false, waitMs: 0 }
+    }
+    
+    // 如果当前时间早于启动时间，计算等待时间
+    if (currentTime < startTime) {
+      const [startHour, startMinute] = startTime.split(':').map(Number)
+      const targetTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMinute, 0)
+      const waitMs = targetTime.getTime() - now.getTime()
+      return { shouldWait: true, waitMs: Math.max(0, waitMs), waitUntilTime: startTime }
+    }
+    
+    return { shouldWait: false, waitMs: 0 }
+  }
+
   ipcMain.handle('run-geek-auto-start-chat-with-boss', async (ev) => {
     const mode = 'geekAutoStartWithBossMain'
     
     // 检查自动运行时间配置
     const bossConfig = readConfigFile('boss.json')
-    if (bossConfig.autoRunTimeEnabled) {
-      const now = new Date()
-      const currentDay = now.getDay() // 0=周日, 1=周一, ..., 6=周六
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-      
-      // 检查星期几
-      const allowedWeekdays = bossConfig.autoRunWeekdays || [1, 2, 3, 4, 5]
-      if (!allowedWeekdays.includes(currentDay)) {
-        const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-        const allowedWeekdayNames = allowedWeekdays.map(d => weekdayNames[d]).join('、')
-        return {
-          success: false,
-          error: `不在运行日期范围内。当前设置只允许在 ${allowedWeekdayNames} 运行。`
-        }
-      }
-      
-      // 检查时间段
-      const startTime = bossConfig.autoRunStartTime || '10:00'
-      const endTime = bossConfig.autoRunEndTime || '21:00'
-      if (currentTime < startTime || currentTime > endTime) {
-        return {
-          success: false,
-          error: `不在运行时间段内。当前设置只允许在 ${startTime} ~ ${endTime} 运行。`
-        }
-      }
+    console.log(`[Config] Read autoRunStartTime: ${bossConfig.autoRunStartTime}`)
+    console.log(`[Config] Read autoRunTimeEnabled: ${bossConfig.autoRunTimeEnabled}`)
+    const { shouldWait, waitMs, waitUntilTime } = calculateAutoRunWaitMs({
+      autoRunTimeEnabled: bossConfig.autoRunTimeEnabled,
+      autoRunStartTime: bossConfig.autoRunStartTime,
+      autoRunEndTime: bossConfig.autoRunEndTime,
+      autoRunWeekdays: bossConfig.autoRunWeekdays
+    })
+    
+    // 如果需要等待，向子进程传递等待时间
+    if (shouldWait && waitMs > 0) {
+      process.env.DAGEGONGD_AUTO_RUN_WAIT_MS = String(waitMs)
+      process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL = waitUntilTime
+      console.log(`[AutoRunTime] 任务将等待到 ${waitUntilTime} 才开始执行，等待时间: ${Math.round(waitMs / 1000 / 60)} 分钟`)
+    } else {
+      delete process.env.DAGEGONGD_AUTO_RUN_WAIT_MS
+      delete process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL
     }
     
     const { runRecordId, isAlreadyRunning } = await runCommon({ mode })
@@ -325,7 +366,17 @@ export default async function initIpc() {
         mainWindow?.webContents.send('worker-exited', message)
       }
     })
-    return { runRecordId }
+    
+    // 如果需要等待，发送通知给渲染进程
+    if (shouldWait && waitMs > 0) {
+      mainWindow?.webContents.send('auto-run-waiting', {
+        workerId: mode,
+        waitUntilTime,
+        waitMinutes: Math.round(waitMs / 1000 / 60)
+      })
+    }
+    
+    return { runRecordId, isWaiting: shouldWait && waitMs > 0, waitUntilTime }
   })
 
   ipcMain.handle('run-read-no-reply-auto-reminder', async () => {
@@ -334,31 +385,23 @@ export default async function initIpc() {
     // 检查自动运行时间配置
     const bossConfig = readConfigFile('boss.json')
     const autoReminderConfig = bossConfig.autoReminder || {}
-    if (autoReminderConfig.autoRunTimeEnabled) {
-      const now = new Date()
-      const currentDay = now.getDay() // 0=周日, 1=周一, ..., 6=周六
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-      
-      // 检查星期几
-      const allowedWeekdays = autoReminderConfig.autoRunWeekdays || [1, 2, 3, 4, 5]
-      if (!allowedWeekdays.includes(currentDay)) {
-        const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-        const allowedWeekdayNames = allowedWeekdays.map(d => weekdayNames[d]).join('、')
-        return {
-          success: false,
-          error: `不在运行日期范围内。当前设置只允许在 ${allowedWeekdayNames} 运行。`
-        }
-      }
-      
-      // 检查时间段
-      const startTime = autoReminderConfig.autoRunStartTime || '10:00'
-      const endTime = autoReminderConfig.autoRunEndTime || '21:00'
-      if (currentTime < startTime || currentTime > endTime) {
-        return {
-          success: false,
-          error: `不在运行时间段内。当前设置只允许在 ${startTime} ~ ${endTime} 运行。`
-        }
-      }
+    console.log(`[Config] Read autoReminder.autoRunStartTime: ${autoReminderConfig.autoRunStartTime}`)
+    console.log(`[Config] Read autoReminder.autoRunTimeEnabled: ${autoReminderConfig.autoRunTimeEnabled}`)
+    const { shouldWait, waitMs, waitUntilTime } = calculateAutoRunWaitMs({
+      autoRunTimeEnabled: autoReminderConfig.autoRunTimeEnabled,
+      autoRunStartTime: autoReminderConfig.autoRunStartTime,
+      autoRunEndTime: autoReminderConfig.autoRunEndTime,
+      autoRunWeekdays: autoReminderConfig.autoRunWeekdays
+    })
+    
+    // 如果需要等待，向子进程传递等待时间
+    if (shouldWait && waitMs > 0) {
+      process.env.DAGEGONGD_AUTO_RUN_WAIT_MS = String(waitMs)
+      process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL = waitUntilTime
+      console.log(`[AutoRunTime] 已读不回复任务将等待到 ${waitUntilTime} 才开始执行，等待时间: ${Math.round(waitMs / 1000 / 60)} 分钟`)
+    } else {
+      delete process.env.DAGEGONGD_AUTO_RUN_WAIT_MS
+      delete process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL
     }
     
     const { runRecordId, isAlreadyRunning } = await runCommon({ mode })
@@ -419,7 +462,17 @@ export default async function initIpc() {
         mainWindow?.webContents.send('worker-exited', message)
       }
     })
-    return { runRecordId }
+    
+    // 如果需要等待，发送通知给渲染进程
+    if (shouldWait && waitMs > 0) {
+      mainWindow?.webContents.send('auto-run-waiting', {
+        workerId: mode,
+        waitUntilTime,
+        waitMinutes: Math.round(waitMs / 1000 / 60)
+      })
+    }
+    
+    return { runRecordId, isWaiting: shouldWait && waitMs > 0, waitUntilTime }
   })
 
   ipcMain.handle('stop-geek-auto-start-chat-with-boss', async () => {

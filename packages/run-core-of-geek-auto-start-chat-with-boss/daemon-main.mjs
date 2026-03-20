@@ -28,7 +28,27 @@ function getNodePath() {
     .join(separator)
 }
 
+async function waitForAutoRunTime() {
+  const waitMs = Number(process.env.DAGEGONGD_AUTO_RUN_WAIT_MS)
+  const waitUntilTime = process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL
+  
+  if (waitMs && waitMs > 0) {
+    const waitMinutes = Math.round(waitMs / 1000 / 60)
+    console.log(`[AutoRunTime] 当前时间未到设定的运行时间，将等待到 ${waitUntilTime} 再开始执行`)
+    console.log(`[AutoRunTime] 预计等待时间: ${waitMinutes} 分钟`)
+    await sleep(waitMs)
+    console.log(`[AutoRunTime] 等待结束，开始执行任务`)
+  }
+}
+
 function runWithDaemon () {
+  // 首先检查是否需要等待到指定时间
+  waitForAutoRunTime().then(() => {
+    startChildProcess()
+  })
+}
+
+function startChildProcess() {
   console.log('[DAEMON] Starting child process...')
   console.log('[DAEMON] Script path:', path.join(__dirname, 'main.mjs'))
   

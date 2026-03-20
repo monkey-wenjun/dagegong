@@ -758,7 +758,25 @@ const rerunInterval = (() => {
 })()
 
 const runRecordId = minimist(process.argv.slice(2))['run-record-id'] ?? null
+
+// 检查是否需要等待到指定时间再运行
+async function waitForAutoRunTime() {
+  const waitMs = Number(process.env.DAGEGONGD_AUTO_RUN_WAIT_MS)
+  const waitUntilTime = process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL
+  
+  if (waitMs && waitMs > 0) {
+    const waitMinutes = Math.round(waitMs / 1000 / 60)
+    console.log(`[AutoRunTime] 当前时间未到设定的运行时间，将等待到 ${waitUntilTime} 再开始执行`)
+    console.log(`[AutoRunTime] 预计等待时间: ${waitMinutes} 分钟`)
+    await sleep(waitMs)
+    console.log(`[AutoRunTime] 等待结束，开始执行任务`)
+  }
+}
+
 export async function runEntry() {
+  // 先检查是否需要等待
+  await waitForAutoRunTime()
+  
   app.dock?.hide()
   await app.whenReady()
   app.on('window-all-closed', (e) => {

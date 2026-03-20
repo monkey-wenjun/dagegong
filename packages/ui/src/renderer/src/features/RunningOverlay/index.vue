@@ -19,8 +19,17 @@
         ></div>
       </div>
       <div class="dialog-main" w-full mt--20px>
+        <!-- 等待状态 - 自动运行时间未到 -->
+        <div v-if="isWaitingForAutoRunTime" class="waiting-status">
+          <h1 class="waiting-title">⏰ 等待中...</h1>
+          <p class="waiting-subtitle">已设置<b>自动运行时间</b></p>
+          <p class="waiting-info">预计开始时间：<b>{{ autoRunWaitUntilTime }}</b></p>
+          <p class="waiting-info">还需等待约：<b>{{ autoRunWaitMinutes }} 分钟</b></p>
+          <p class="waiting-hint">到达设定时间后将自动开始运行</p>
+        </div>
+        
         <!-- 检查步骤列表 - 仅在未完成或有错误时显示 -->
-        <div v-if="shouldShowSteps" class="steps-list">
+        <div v-else-if="shouldShowSteps" class="steps-list">
           <ul m0 pl0>
             <li
               v-for="(item, index) in stepsForRender"
@@ -73,6 +82,7 @@ import {
   RUNNING_STATUS_ENUM
 } from '../../../../common/enums/auto-start-chat'
 import { gtagRenderer } from '@renderer/utils/gtag'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps({
   workerId: {
@@ -130,6 +140,11 @@ const runningStatusTextMapByCode = {
 }
 
 const exitErrorMessage = ref('')
+
+// 自动运行时间等待状态
+const isWaitingForAutoRunTime = ref(false)
+const autoRunWaitUntilTime = ref('')
+const autoRunWaitMinutes = ref(0)
 
 const currentRunningStatus = ref(RUNNING_STATUS_ENUM.RUNNING)
 
@@ -231,6 +246,21 @@ watch(
 )
 
 const { ipcRenderer } = electron
+
+// 监听自动运行等待事件
+const handleAutoRunWaiting = (ev, data) => {
+  if (data.workerId === props.workerId) {
+    isWaitingForAutoRunTime.value = true
+    autoRunWaitUntilTime.value = data.waitUntilTime
+    autoRunWaitMinutes.value = data.waitMinutes
+    ElMessage.info({
+      message: `任务将在 ${data.waitUntilTime} 自动开始，预计等待 ${data.waitMinutes} 分钟`,
+      duration: 5000
+    })
+  }
+}
+ipcRenderer.on('auto-run-waiting', handleAutoRunWaiting)
+
 function messageHandler(ev, { data }) {
   if (
     data.type !== 'prerequisite-step-by-step-checkstep-by-step-check' ||
@@ -250,7 +280,10 @@ function messageHandler(ev, { data }) {
   }
 }
 const unListenMessage = ipcRenderer.on('worker-to-gui-message', messageHandler)
-onUnmounted(unListenMessage)
+onUnmounted(() => {
+  unListenMessage()
+  ipcRenderer.removeListener('auto-run-waiting', handleAutoRunWaiting)
+})
 
 const isDialogVisible = ref(false)
 const show = () => {
@@ -370,6 +403,40 @@ ipcRenderer.on('worker-exited', (ev, payload) => {
           font-size: 1.1rem;
           color: #666;
           margin: 0;
+        }
+      }
+      
+      // 等待状态样式
+      .waiting-status {
+        text-align: center;
+        padding: 30px 0;
+        
+        .waiting-title {
+          font-size: 2rem;
+          font-weight: 700;
+          color: #e6a23c;
+          margin: 0 0 16px 0;
+          letter-spacing: 1px;
+          animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .waiting-subtitle {
+          font-size: 1.1rem;
+          color: #666;
+          margin: 0 0 12px 0;
+        }
+        
+        .waiting-info {
+          font-size: 1rem;
+          color: #333;
+          margin: 8px 0;
+        }
+        
+        .waiting-hint {
+          font-size: 0.9rem;
+          color: #999;
+          margin: 16px 0 0 0;
+          font-style: italic;
         }
       }
       

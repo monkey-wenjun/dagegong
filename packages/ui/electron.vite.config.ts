@@ -44,6 +44,22 @@ const mainPlugins = [
         replacement: process.env.VITE_APP_GTAG_API_SECRET as string
       }
     ]
+  }),
+  // 阻止 TypeORM 动态导入可选依赖时报错
+  Replace({
+    delimiters: ['', ''],
+    sourcemap: true,
+    include: ['**/node_modules/typeorm/**/*.js'],
+    values: [
+      {
+        find: 'case "@sap/hana-client":\n                    return require("@sap/hana-client");',
+        replacement: 'case "@sap/hana-client":\n                    throw new Error("@sap/hana-client is not available");'
+      },
+      {
+        find: 'case "@sap/hana-client/extension/Stream":\n                    return require("@sap/hana-client/extension/Stream");',
+        replacement: 'case "@sap/hana-client/extension/Stream":\n                    throw new Error("@sap/hana-client/extension/Stream is not available");'
+      }
+    ]
   })
 ]
 const preloadPlugins = [externalizeDepsPlugin()]
@@ -74,6 +90,13 @@ if (process.env.NODE_ENV) {
 
 export default defineConfig({
   main: {
+    resolve: {
+      alias: {
+        // 阻止 TypeORM 动态导入可选依赖时报错
+        '@sap/hana-client': false,
+        '@sap/hana-client/extension/Stream': false
+      }
+    },
     build: {
       rollupOptions: {
         external: [

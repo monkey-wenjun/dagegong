@@ -962,19 +962,34 @@ async function setFilterCondition (selectedFilters) {
 }
 
 async function toRecommendPage (hooks) {
+  console.log('[DEBUG] toRecommendPage: Starting navigation to', recommendJobPageUrl)
+  
+  // Create userInfo promise with shorter timeout and better error handling
   let userInfoPromise = page.waitForResponse((response) => {
       if (response.url().startsWith('https://www.zhipin.com/wapi/zpuser/wap/getUserInfo.json')) {
+        console.log('[DEBUG] toRecommendPage: Captured getUserInfo.json request')
         return true
       }
       return false
-    }, { timeout: 120 * 1000 }).then((res) => {
+    }, { timeout: 30 * 1000 }).then((res) => {
+      console.log('[DEBUG] toRecommendPage: getUserInfo.json response received')
       return res.json()
+    }).catch((err) => {
+      console.log('[DEBUG] toRecommendPage: getUserInfo.json timeout or error:', err.message)
+      return null
     })
+  
+  console.log('[DEBUG] toRecommendPage: Navigating to page...')
   page.goto(recommendJobPageUrl, { timeout: 1 * 1000 }).catch(e => { void e })
   await sleep(3000)
+  
+  console.log('[DEBUG] toRecommendPage: Waiting for page ready state...')
   await page.waitForFunction(() => {
     return document.readyState === 'complete'
   }, { timeout: 120 * 1000 })
+  
+  console.log('[DEBUG] toRecommendPage: Current URL:', page.url())
+  
   if (
     page.url().startsWith('https://www.zhipin.com/web/common/403.html') ||
     page.url().startsWith('https://www.zhipin.com/web/common/error.html')
@@ -987,16 +1002,57 @@ async function toRecommendPage (hooks) {
   }, undefined, { recommendJobPageUrl })
 
   hooks.pageLoaded?.call()
+  console.log('[DEBUG] toRecommendPage: Page loaded, waiting for userInfo...')
 
   let userInfoResponse = await userInfoPromise
+  
+  // If userInfoPromise returned null (timeout), try to check login status from page
+  if (!userInfoResponse) {
+    console.log('[DEBUG] toRecommendPage: userInfoPromise timed out, checking page for login status...')
+    
+    // Check if we're on login page
+    const currentUrl = page.url()
+    if (currentUrl.includes('/login') || currentUrl.includes('/web/user/?ka=')) {
+      console.log('[DEBUG] toRecommendPage: Detected redirect to login page')
+      userInfoResponse = { code: 1, message: 'Redirected to login page' }
+    } else {
+      // Try to get user info from page localStorage or window object
+      try {
+        const pageUserInfo = await page.evaluate(() => {
+          // Try to find user info in window object or localStorage
+          const zpUserInfo = window.localStorage.getItem('zp_user_info')
+          if (zpUserInfo) {
+            return JSON.parse(zpUserInfo)
+          }
+          return null
+        })
+        
+        if (pageUserInfo && pageUserInfo.userId) {
+          console.log('[DEBUG] toRecommendPage: Found user info in localStorage')
+          userInfoResponse = { code: 0, zpData: pageUserInfo }
+        } else {
+          console.log('[DEBUG] toRecommendPage: No user info found, assuming not logged in')
+          userInfoResponse = { code: 1, message: 'No user info available' }
+        }
+      } catch (e) {
+        console.log('[DEBUG] toRecommendPage: Error checking page for user info:', e.message)
+        userInfoResponse = { code: 1, message: 'Failed to check login status' }
+      }
+    }
+  }
+  
+  console.log('[DEBUG] toRecommendPage: userInfoResponse code:', userInfoResponse?.code)
   await hooks.userInfoResponse?.promise(userInfoResponse)
+  
   if (userInfoResponse?.code !== 0) {
+    console.log('[DEBUG] toRecommendPage: Login status invalid, emitting LOGIN_STATUS_INVALID')
     autoStartChatEventBus.emit('LOGIN_STATUS_INVALID', {
       userInfoResponse
     })
     writeStorageFile('boss-cookies.json', [])
     throw new Error("LOGIN_STATUS_INVALID")
   } else {
+    console.log('[DEBUG] toRecommendPage: Login status valid')
     await storeStorage(page).catch(() => void 0)
   }
 
@@ -2310,11 +2366,24 @@ export async function mainLoop (hooks) {
 }
 
 export async function closeBrowserWindow () {
-  browser?.close()
   const browserProcess = browser?.process()
+  // 先发送关闭信号，不等待
   if (browserProcess) {
     try {
-      process.kill(browserProcess.pid)
+      browser?.close().catch(() => void 0)
+    }
+    catch {}
+    // 异步终止进程，不阻塞主流程
+    setTimeout(() => {
+      try {
+        process.kill(browserProcess.pid, 'SIGKILL')
+      }
+      catch {}
+    }, 100)
+  } else {
+    // 没有进程句柄时尝试关闭 browser
+    try {
+      browser?.close().catch(() => void 0)
     }
     catch {}
   }

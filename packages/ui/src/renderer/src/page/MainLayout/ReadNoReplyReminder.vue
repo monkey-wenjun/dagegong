@@ -806,10 +806,17 @@ const handleSubmit = async () => {
 
   try {
     runningOverlayRef.value?.show()
-    const { runRecordId: rrId } = await electron.ipcRenderer.invoke(
+    const result = await electron.ipcRenderer.invoke(
       'run-read-no-reply-auto-reminder'
     )
-    runRecordId.value = rrId
+    runRecordId.value = result.runRecordId
+    // 如果返回的是等待状态，显示提示
+    if (result?.isWaiting) {
+      ElMessage.info({
+        message: `任务将在 ${result.waitUntilTime} 自动开始`,
+        duration: 5000
+      })
+    }
   } catch (err) {
     if (err instanceof Error && err.message.includes('NEED_TO_CHECK_RUNTIME_DEPENDENCIES')) {
       gtagRenderer('rnrr_cannot_run_for_corrupt')
