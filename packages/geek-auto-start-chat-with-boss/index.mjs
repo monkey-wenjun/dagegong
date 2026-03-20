@@ -448,7 +448,7 @@ const GreetingMessageMode = {
   AI_GENERATED: 2  // 使用 AI 根据 JD 和简历自动生成
 }
 const greetingMessageConfig = {
-  mode: readConfigFile('boss.json').greetingMessageMode ?? GreetingMessageMode.DEFAULT,
+  mode: Number(readConfigFile('boss.json').greetingMessageMode ?? GreetingMessageMode.DEFAULT),
   customMessage: readConfigFile('boss.json').greetingMessage ?? '',
   customPrompt: readConfigFile('boss.json').greetingMessagePrompt ?? ''
 }
@@ -1945,6 +1945,19 @@ async function toRecommendPage (hooks) {
                   return null
                 })
                 hooks.logInfo?.(`[Chat] 弹窗内容: ${dialogText?.substring(0, 100) || '无法获取'}`)
+              }
+              
+              // 如果检测到聊天输入框，说明已经进入聊天页面，不抛出错误
+              const hasChatInputCheck = await page.$('.chat-conversation .message-controls .chat-input')
+              if (hasChatInputCheck) {
+                hooks.logInfo?.('[Chat] 响应读取失败但检测到聊天输入框，继续执行')
+                return {
+                  code: 0,
+                  message: 'OK (assumed from page state after error)',
+                  zpData: {
+                    bizCode: 0
+                  }
+                }
               }
               
               throw new Error('STARTUP_CHAT_ERROR_WITH_UNKNOWN_ERROR')
