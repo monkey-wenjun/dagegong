@@ -38,6 +38,13 @@ export const useRunningStepsStore = defineStore('runningSteps', () => {
   const stepsMap = ref<Map<string, any[]>>(new Map())
   const currentRunningStatusMap = ref<Map<string, number>>(new Map())
   const runRecordIdMap = ref<Map<string, number | null>>(new Map())
+  
+  // 等待状态存储（用于自动运行时间未到的情况）
+  const waitingStateMap = ref<Map<string, {
+    isWaiting: boolean
+    waitUntilTime: string
+    waitMinutes: number
+  }>>(new Map())
 
   function getSteps(workerId: string) {
     return stepsMap.value.get(workerId) || []
@@ -77,6 +84,24 @@ export const useRunningStepsStore = defineStore('runningSteps', () => {
     stepsMap.value.delete(workerId)
     currentRunningStatusMap.value.delete(workerId)
     runRecordIdMap.value.delete(workerId)
+    waitingStateMap.value.delete(workerId)
+  }
+  
+  // 等待状态相关方法
+  function getWaitingState(workerId: string) {
+    return waitingStateMap.value.get(workerId) || {
+      isWaiting: false,
+      waitUntilTime: '',
+      waitMinutes: 0
+    }
+  }
+  
+  function setWaitingState(workerId: string, state: { isWaiting: boolean; waitUntilTime: string; waitMinutes: number }) {
+    waitingStateMap.value.set(workerId, state)
+  }
+  
+  function clearWaitingState(workerId: string) {
+    waitingStateMap.value.delete(workerId)
   }
 
   return {
@@ -87,6 +112,9 @@ export const useRunningStepsStore = defineStore('runningSteps', () => {
     setRunningStatus,
     getRunRecordId,
     setRunRecordId,
-    clearWorkerState
+    clearWorkerState,
+    getWaitingState,
+    setWaitingState,
+    clearWaitingState
   }
 })

@@ -56,9 +56,11 @@ import { useRouter } from 'vue-router'
 import FlyingCompanyLogoList from '../../features/FlyingCompanyLogoList/index.vue'
 import { ElMessage } from 'element-plus';
 import { gtagRenderer } from '@renderer/utils/gtag'
+import { useRunningStepsStore } from '@renderer/store'
 
 const { ipcRenderer } = electron
 const router = useRouter()
+const runningStepsStore = useRunningStepsStore()
 
 const isStopping = ref(false)
 const hasError = ref(false)
@@ -113,6 +115,12 @@ const handleAutoRunWaiting = (_: any, data: any) => {
     isWaiting.value = true
     waitUntilTime.value = data.waitUntilTime
     waitMinutes.value = data.waitMinutes
+    // 保存等待状态到 store
+    runningStepsStore.setWaitingState('geekAutoStartWithBossMain', {
+      isWaiting: true,
+      waitUntilTime: data.waitUntilTime,
+      waitMinutes: data.waitMinutes
+    })
     ElMessage.info({
       message: `任务将在 ${data.waitUntilTime} 自动开始，预计等待 ${data.waitMinutes} 分钟`,
       duration: 5000
@@ -133,6 +141,14 @@ onUnmounted(() => {
 })
 
 const onMountedHandler = async () => {
+  // 先尝试从 store 恢复等待状态（页面切换时）
+  const savedWaitingState = runningStepsStore.getWaitingState('geekAutoStartWithBossMain')
+  if (savedWaitingState.isWaiting) {
+    isWaiting.value = true
+    waitUntilTime.value = savedWaitingState.waitUntilTime
+    waitMinutes.value = savedWaitingState.waitMinutes
+  }
+  
   try {
     const result = await electron.ipcRenderer.invoke('run-geek-auto-start-chat-with-boss')
     console.log('[RunningStatus] Task started:', result)
@@ -141,6 +157,12 @@ const onMountedHandler = async () => {
       isWaiting.value = true
       waitUntilTime.value = result.waitUntilTime
       waitMinutes.value = Math.round(result.waitMs / 1000 / 60)
+      // 保存到 store
+      runningStepsStore.setWaitingState('geekAutoStartWithBossMain', {
+        isWaiting: true,
+        waitUntilTime: result.waitUntilTime,
+        waitMinutes: Math.round(result.waitMs / 1000 / 60)
+      })
     }
   } catch (err) {
     console.error('[RunningStatus] Failed to start:', err)

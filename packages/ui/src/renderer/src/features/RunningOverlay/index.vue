@@ -223,6 +223,15 @@ watch(() => props.runRecordId, (newVal, oldVal) => {
 // 组件挂载时初始化
 onMounted(() => {
   initSteps()
+  // 从 store 恢复等待状态
+  if (props.workerId) {
+    const savedWaitingState = runningStepsStore.getWaitingState(props.workerId)
+    if (savedWaitingState.isWaiting) {
+      isWaitingForAutoRunTime.value = true
+      autoRunWaitUntilTime.value = savedWaitingState.waitUntilTime
+      autoRunWaitMinutes.value = savedWaitingState.waitMinutes
+    }
+  }
 })
 
 watch(
@@ -253,6 +262,12 @@ const handleAutoRunWaiting = (ev, data) => {
     isWaitingForAutoRunTime.value = true
     autoRunWaitUntilTime.value = data.waitUntilTime
     autoRunWaitMinutes.value = data.waitMinutes
+    // 保存等待状态到 store
+    runningStepsStore.setWaitingState(props.workerId, {
+      isWaiting: true,
+      waitUntilTime: data.waitUntilTime,
+      waitMinutes: data.waitMinutes
+    })
     ElMessage.info({
       message: `任务将在 ${data.waitUntilTime} 自动开始，预计等待 ${data.waitMinutes} 分钟`,
       duration: 5000
