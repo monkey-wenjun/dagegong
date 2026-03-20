@@ -6,8 +6,8 @@
 import { readConfigFile } from './runtime-file-utils.mjs'
 import { sleep } from '@dagegong/utils/sleep.mjs'
 
-// 新招呼标签页 API
-const GEEK_FILTER_BY_LABEL_API = 'https://www.zhipin.com/wapi/zprelation/friend/geekFilterByLabel'
+// 聊天好友列表 API
+const GEEK_FRIEND_LIST_API = 'https://www.zhipin.com/wapi/zprelation/friend/getGeekFriendList.json'
 // 简历列表 API
 const RESUME_LIST_API = 'https://www.zhipin.com/wapi/zpgeek/resume/attachment/checkbox.json'
 // 发送简历 API
@@ -16,15 +16,29 @@ const EXCHANGE_RESUME_API = 'https://www.zhipin.com/wapi/zpchat/exchange/request
 // 轮询间隔（毫秒）
 const POLL_INTERVAL_MS = 30 * 1000 // 30 秒
 
+// 消息关键词（BOSS 要简历时会说的关键词）
+const RESUME_KEYWORDS = ['简历', '发一下', '发份', '附件简历', '发简历', '简历发']
+
 /**
- * 获取新招呼列表
+ * 判断消息是否需要发送简历
+ * @param {string} message
+ * @returns {boolean}
+ */
+function isAskForResume(message) {
+  if (!message) return false
+  const lowerMsg = message.toLowerCase()
+  return RESUME_KEYWORDS.some(keyword => lowerMsg.includes(keyword))
+}
+
+/**
+ * 获取需要发送简历的聊天列表
  * @param {import('puppeteer').Page} page
- * @returns {Promise<Array<{securityId: string, encryptBossId: string, name: string}>>}
+ * @returns {Promise<Array<{securityId: string, encryptBossId: string, name: string, lastMsg: string}>>}
  */
 async function getNewGreetingList(page) {
   try {
     const response = await page.evaluate(async (apiUrl) => {
-      const res = await fetch(`${apiUrl}?labelId=1&name=${encodeURIComponent('新招呼')}`, {
+      const res = await fetch(apiUrl, {
         method: 'GET',
         headers: {
           'accept': 'application/json, text/plain, */*',
@@ -33,29 +47,38 @@ async function getNewGreetingList(page) {
         credentials: 'include'
       })
       return res.json()
-    }, GEEK_FILTER_BY_LABEL_API)
+    }, GEEK_FRIEND_LIST_API)
 
     if (response.code !== 0) {
-      console.log('[AutoSendResume] 获取新招呼列表失败:', response.message)
+      console.log('[AutoSendResume] 获取聊天列表失败:', response.message)
       return []
     }
 
     // 解析返回数据
-    const list = response.zpData?.resultList || []
-    console.log(`[AutoSendResume] 发现 ${list.length} 个新招呼`)
+    const list = response.zpData?.result || []
+    console.log(`[AutoSendResume] 获取到 ${list.length} 个聊天`)
+
+    // 筛选出 BOSS 索要简历的聊天
+    const needSendResumeList = list.filter(item => {
+      // 对方发的消息且包含索要简历的关键词
+      return item.lastMsg && isAskForResume(item.lastMsg)
+    })
     
-    return list.map(item => ({
+    console.log(`[AutoSendResume] 发现 ${needSendResumeList.length} 个需要发送简历的聊天`)
+    
+    return needSendResumeList.map(item => ({
       securityId: item.securityId,
       encryptBossId: item.encryptBossId,
       encryptJobId: item.encryptJobId,
       name: item.name,
       company: item.brandName,
       jobName: item.jobName,
+      lastMsg: item.lastMsg,
       // 用于去重的唯一标识
       uniqueId: `${item.encryptBossId}_${item.encryptJobId}`
     }))
   } catch (err) {
-    console.error('[AutoSendResume] 获取新招呼列表出错:', err)
+    console.error('[AutoSendResume] 获取聊天列表出错:', err)
     return []
   }
 }

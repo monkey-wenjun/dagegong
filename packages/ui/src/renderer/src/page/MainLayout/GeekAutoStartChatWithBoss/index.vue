@@ -267,8 +267,9 @@
                   <el-tooltip effect="light" placement="top">
                     <template #content>
                       <div style="max-width: 350px">
-                        <p>开启后，程序会自动检查 BOSS 的新招呼</p>
-                        <p style="margin-top: 4px">发现新招呼时自动发送你的简历给对方</p>
+                        <p>开启后，程序每 30 秒检查一次聊天列表</p>
+                        <p style="margin-top: 4px">检测到 BOSS 索要简历时自动发送</p>
+                        <p style="margin-top: 4px; color: #909399; font-size: 12px">触发关键词：简历、发一下、发份、附件简历、发简历、简历发</p>
                         <p style="margin-top: 4px; color: #f56c6c">注意：需要先在 BOSS 直聘上传简历</p>
                       </div>
                     </template>
@@ -279,7 +280,7 @@
                   </el-tooltip>
                 </div>
                 <div font-size-12px color-666 mb12px>
-                  当 BOSS 主动发起新招呼时，自动发送简历给对方
+                  当 BOSS 在聊天中索要简历时，自动发送简历给对方
                 </div>
                 <div>
                   <el-checkbox
