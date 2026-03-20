@@ -76,7 +76,19 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
-        external: []
+        external: [
+          // TypeORM 可选数据库驱动，标记为外部依赖以消除警告
+          '@google-cloud/spanner',
+          'mongodb',
+          'redis',
+          'ioredis',
+          'pg-native',
+          'sqlite3',
+          'better-sqlite3',
+          'oracledb',
+          'mysql2',
+          '@sap/hana-client'
+        ]
       },
       minify: process.env.NODE_ENV === 'development' ? undefined : 'terser'
     },
