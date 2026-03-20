@@ -19,7 +19,7 @@
             />
           </el-form-item>
 
-          <template v-if="formContent.dailyStatsNotificationEnabled">
+          <div v-show="formContent.dailyStatsNotificationEnabled" style="width: 100%;">
             <el-form-item label="通知类型">
               <el-radio-group v-model="formContent.dailyStatsNotificationType">
                 <el-radio-button label="feishu">飞书机器人</el-radio-button>
@@ -73,7 +73,7 @@
                 测试发送
               </el-button>
             </el-form-item>
-          </template>
+          </div>
         </el-form>
       </div>
     </div>
