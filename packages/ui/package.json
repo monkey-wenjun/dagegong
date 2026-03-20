@@ -1,6 +1,6 @@
 {
   "name": "dagegong-ui",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "BOSS 炸弹 - 自动开聊BOSS，助力每位打工人求职！",
   "main": "./out/main/index.js",
   "author": "dagegong",
