@@ -9,8 +9,24 @@
         <el-tag v-if="lastSyncTime" type="success" size="small">
           上次同步: {{ formatSyncTime(lastSyncTime) }}
         </el-tag>
+        <el-tooltip
+          v-if="autoSyncStatus.isEnabled && autoSyncStatus.nextSyncTime"
+          placement="bottom"
+          content="每5分钟自动同步一次"
+        >
+          <el-tag type="warning" size="small">
+            <template #icon><i class="i-mdi-timer-outline" /></template>
+            下次同步: {{ formatNextSyncTime(autoSyncStatus.nextSyncTime) }}
+          </el-tag>
+        </el-tooltip>
       </div>
-      <div flex gap8>
+      <div flex gap8 flex-items-center>
+        <el-switch
+          v-model="autoSyncEnabled"
+          active-text="自动同步"
+          inline-prompt
+          @change="handleAutoSyncChange"
+        />
         <el-button
           :loading="isSyncing"
           size="small"
@@ -198,8 +214,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElPagination, ElDrawer, ElTag, ElMessage, ElAvatar } from 'element-plus'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { ElTable, ElTableColumn, ElButton, ElPagination, ElDrawer, ElTag, ElMessage, ElAvatar, ElSwitch, ElTooltip } from 'element-plus'
 import { type VChatStartupLog } from '@geekgeekrun/sqlite-plugin/src/entity/VChatStartupLog'
 import { type VBossChatRelation } from '@geekgeekrun/sqlite-plugin/src/entity/VBossChatRelation'
 import { transformUtcDateToLocalDate } from '@geekgeekrun/utils/date.mjs'
@@ -233,6 +249,107 @@ const tableRef = ref<InstanceType<typeof ElTable>>()
 const isTableLoading = ref(false)
 const isSyncing = ref(false)
 const lastSyncTime = ref<Date | null>(null)
+
+// 自动同步状态
+interface AutoSyncStatus {
+  isEnabled: boolean
+  lastSyncTime: Date | null
+  lastSyncResult: {
+    success: boolean
+    syncedCount: number
+    error?: string
+  } | null
+  isRunning: boolean
+  nextSyncTime: Date | null
+}
+
+const autoSyncStatus = ref<AutoSyncStatus>({
+  isEnabled: false,
+  lastSyncTime: null,
+  lastSyncResult: null,
+  isRunning: false,
+  nextSyncTime: null
+})
+
+const autoSyncEnabled = computed({
+  get: () => autoSyncStatus.value.isEnabled,
+  set: (val) => {
+    autoSyncStatus.value.isEnabled = val
+  }
+})
+
+// 获取自动同步状态
+async function loadAutoSyncStatus() {
+  try {
+    const status = await electron.ipcRenderer.invoke('get-auto-sync-status')
+    autoSyncStatus.value = {
+      ...status,
+      lastSyncTime: status.lastSyncTime ? new Date(status.lastSyncTime) : null,
+      nextSyncTime: status.nextSyncTime ? new Date(status.nextSyncTime) : null
+    }
+    // 如果有上次同步时间，同步到 lastSyncTime
+    if (autoSyncStatus.value.lastSyncTime) {
+      lastSyncTime.value = autoSyncStatus.value.lastSyncTime
+    }
+  } catch (err) {
+    console.error('获取自动同步状态失败:', err)
+  }
+}
+
+// 处理自动同步开关变化
+async function handleAutoSyncChange(enabled: boolean) {
+  try {
+    const status = await electron.ipcRenderer.invoke('set-auto-sync-enabled', enabled)
+    autoSyncStatus.value = {
+      ...status,
+      lastSyncTime: status.lastSyncTime ? new Date(status.lastSyncTime) : null,
+      nextSyncTime: status.nextSyncTime ? new Date(status.nextSyncTime) : null
+    }
+    ElMessage.success(enabled ? '已开启自动同步，每5分钟同步一次' : '已关闭自动同步')
+  } catch (err) {
+    console.error('设置自动同步失败:', err)
+    ElMessage.error('设置失败')
+    // 恢复原状态
+    autoSyncEnabled.value = !enabled
+  }
+}
+
+// 格式化下次同步时间
+function formatNextSyncTime(date: Date | null): string {
+  if (!date) return '--:--'
+  const now = new Date()
+  const diff = Math.ceil((date.getTime() - now.getTime()) / 1000 / 60)
+  if (diff <= 0) return '即将同步'
+  if (diff < 60) return `${diff}分钟后`
+  return dayjs(date).format('HH:mm')
+}
+
+// 自动同步完成回调
+electron.ipcRenderer.on('auto-sync-completed', (_, data) => {
+  console.log('自动同步完成:', data)
+  lastSyncTime.value = new Date(data.syncTime)
+  autoSyncStatus.value.lastSyncTime = lastSyncTime.value
+  autoSyncStatus.value.lastSyncResult = {
+    success: true,
+    syncedCount: data.syncedCount
+  }
+  // 刷新列表
+  refresh()
+  ElMessage.success(`自动同步成功，共 ${data.syncedCount} 条记录`)
+})
+
+// 自动同步失败回调
+electron.ipcRenderer.on('auto-sync-failed', (_, data) => {
+  console.log('自动同步失败:', data)
+  autoSyncStatus.value.lastSyncResult = {
+    success: false,
+    syncedCount: 0,
+    error: data.error
+  }
+})
+
+// 定时器，每分钟刷新下次同步时间显示
+let nextSyncTimer: NodeJS.Timeout | null = null
 
 // 获取当前用户ID
 const getCurrentUserId = async () => {
@@ -456,10 +573,19 @@ const setTableMaxHeight = () =>
 let ro: ResizeObserver | null = null
 onMounted(() => {
   loadData()
+  loadAutoSyncStatus()
   setTableMaxHeight()
   ro = new ResizeObserver(() => setTableMaxHeight())
   if (tableContainerEl.value) {
     ro.observe(tableContainerEl.value)
+  }
+  // 启动下次同步时间刷新定时器
+  nextSyncTimer = setInterval(() => {
+    // 触发响应式更新
+    if (autoSyncStatus.value.nextSyncTime) {
+      autoSyncStatus.value.nextSyncTime = new Date(autoSyncStatus.value.nextSyncTime)
+    }
+  }, 60000) // 每分钟刷新一次
   }
   
   // 每次进入页面自动触发一次同步（只在BOSS沟通记录标签页）
@@ -471,6 +597,13 @@ onMounted(() => {
 onBeforeUnmount(() => {
   ro?.disconnect()
   ro = null
+  if (nextSyncTimer) {
+    clearInterval(nextSyncTimer)
+    nextSyncTimer = null
+  }
+  // 移除 IPC 监听
+  electron.ipcRenderer.removeAllListeners('auto-sync-completed')
+  electron.ipcRenderer.removeAllListeners('auto-sync-failed')
   // 离开页面时重置自动同步标志，下次进入时仍然会触发
   hasAutoSynced.value = false
 })
