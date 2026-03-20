@@ -111,6 +111,7 @@
           <draggable
             v-model="element.children"
             class="list-group"
+            item-key="keyword"
             :component-data="{
               tag: 'ul',
               type: 'transition-group',
