@@ -5,6 +5,7 @@
   "expectJobDescRegExpStr": "",
   "expectCompanies": [],
   "blockCompanyNameRegExpStr": "",
+  "globalBlockCompanyNameRegExpStr": "",
   "jobDetailRegExpMatchLogic": 1,
   "expectSalaryCalculateWay": 1,
   "expectSalaryLow": null,

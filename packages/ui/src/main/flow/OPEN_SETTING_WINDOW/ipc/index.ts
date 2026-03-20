@@ -149,7 +149,7 @@ export default function initIpc() {
       bossConfig.isSkipEmptyConditionForCombineRecommendJobFilter =
         payload.isSkipEmptyConditionForCombineRecommendJobFilter
     }
-    if (hasOwn(payload, 'jobSourceList')) {
+    if ('jobSourceList' in payload) {
       bossConfig.jobSourceList = payload.jobSourceList
     }
     if (hasOwn(payload, 'combineRecommendJobFilterType')) {
@@ -176,6 +176,30 @@ export default function initIpc() {
     }
     if (hasOwn(payload, 'fieldsForUseCommonConfig')) {
       bossConfig.fieldsForUseCommonConfig = payload.fieldsForUseCommonConfig
+    }
+
+    // auto run time settings
+    // Use 'in' operator or typeof check instead of hasOwn for better reliability
+    if ('autoRunTimeEnabled' in payload) {
+      bossConfig.autoRunTimeEnabled = payload.autoRunTimeEnabled
+    }
+    if ('autoRunStartTime' in payload) {
+      bossConfig.autoRunStartTime = payload.autoRunStartTime
+    }
+    if ('autoRunEndTime' in payload) {
+      bossConfig.autoRunEndTime = payload.autoRunEndTime
+    }
+    if ('autoRunWeekdays' in payload) {
+      bossConfig.autoRunWeekdays = payload.autoRunWeekdays
+    }
+    if ('greetingMessage' in payload) {
+      bossConfig.greetingMessage = payload.greetingMessage
+    }
+    if ('greetingMessageMode' in payload) {
+      bossConfig.greetingMessageMode = payload.greetingMessageMode
+    }
+    if ('greetingMessagePrompt' in payload) {
+      bossConfig.greetingMessagePrompt = payload.greetingMessagePrompt
     }
 
     promiseArr.push(writeConfigFile('boss.json', bossConfig))

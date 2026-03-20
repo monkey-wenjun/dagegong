@@ -197,6 +197,22 @@ export const blockCompanyNameRegExpTemplateList = [
   }
 ]
 
+// 全局公司黑名单模板
+export const globalBlockCompanyNameRegExpTemplateList = [
+  {
+    name: '没有黑名单',
+    value: ''
+  },
+  {
+    name: '996公司名单（部分知名）',
+    value: `字节|抖音|头条|量子|快手|小红书|希音|希安|奇安信|小米|美团|美餐|亚马逊|Amazon|Shopee|虾皮|腾讯|阿里|腾讯|网易|滴滴|掘金|华为|PDD|拼多多|寻梦|bilibili|哔哩哔哩|B站|b站|oppo|vivo|欣动`
+  },
+  {
+    name: '外包劳务公司',
+    value: `青钱|软通动力|南天|睿服|中电金信|佰钧成|云链|博彦|汉克时代|柯莱特|拓保|亿达信息|纬创|微创|微澜|诚迈科技|法本|兆尹|诚迈|联合永道|新致软件|宇信科技|华为|德科|FESCO|科锐|科之锐`
+  }
+]
+
 export function getHandlerForExpectCompanyTemplateClicked({ gtagRenderer, formContent }) {
   return function handleExpectCompanyTemplateClicked(item) {
     gtagRenderer('expect_company_tpl_clicked', {
@@ -223,6 +239,15 @@ export function getHandlerForBlockCompanyNameRegExpTemplateClicked({ gtagRendere
       name: item.name
     })
     formContent.value.blockCompanyNameRegExpStr = item.value
+  }
+}
+
+export function getHandlerForGlobalBlockCompanyNameRegExpTemplateClicked({ gtagRenderer, formContent }) {
+  return function handleGlobalBlockCompanyNameRegExpTemplateClicked(item) {
+    gtagRenderer('global_bcn_reg_exp_tpl_clicked', {
+      name: item.name
+    })
+    formContent.value.globalBlockCompanyNameRegExpStr = item.value
   }
 }
 
@@ -280,3 +305,22 @@ export const normalizeCommaSplittedStr = (str) => {
     .filter(Boolean)
     .join(',')
 }
+
+// 默认的 AI 打招呼消息生成 Prompt 模板
+export const DEFAULT_AI_GREETING_PROMPT = `你是一位专业的求职助手。请根据以下职位信息（JD）和我的简历，为我生成一句简洁、专业且个性化的打招呼消息。
+
+**要求：**
+1. 开头使用"您好"或"BOSS您好"等敬语
+2. 简要提及与职位相关的核心技能或经验（2-3点）
+3. 表达对职位的兴趣和应聘意向
+4. 结尾可包含"期待回复"或"希望能有机会合作"等话术
+5. 字数控制在 50-100 字
+6. 语气谦逊、专业，避免过度自信
+
+**职位信息（JD）：**
+{{JOB_DESCRIPTION}}
+
+**我的简历：**
+{{RESUME_CONTENT}}
+
+请仅回复生成的打招呼消息，不要包含任何解释或其他内容。`

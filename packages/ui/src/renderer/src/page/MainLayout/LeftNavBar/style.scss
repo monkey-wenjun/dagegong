@@ -1,6 +1,6 @@
 .group-item {
   .group-title {
-    color: #999;
+    color: var(--nav-text-secondary);
     font-size: 12px;
     padding: 0.25em 0;
   }
@@ -13,24 +13,35 @@
       box-sizing: border-box;
       padding-left: 1em;
       font-size: 16px;
-      color: #fff;
+      color: var(--nav-text);
       text-decoration: none;
       transition: all 0.2s ease;
+      border-radius: 9999px 0 0 9999px;
       
       &:hover {
-        color: #fff;
-        background-color: rgba(255, 255, 255, 0.15);
-        border-radius: 9999px 0 0 9999px;
+        color: var(--nav-text);
+        background-color: var(--nav-divider);
       }
       
       &.router-link-active {
-        background-color: rgba(255, 255, 255, 0.9);
+        background-color: var(--nav-text-secondary);
         font-weight: 700;
-        color: #333;
-        border-radius: 9999px 0 0 9999px;
+        color: var(--nav-bg) !important;
         position: relative;
-        box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.15);
+        box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.2);
       }
+    }
+  }
+}
+
+// 确保普通链接在暗色主题下也正确显示
+[data-theme="dark"] {
+  .group-item .link-list a {
+    color: var(--nav-text);
+    
+    &:hover {
+      color: var(--nav-text);
+      background-color: var(--nav-divider);
     }
   }
 }

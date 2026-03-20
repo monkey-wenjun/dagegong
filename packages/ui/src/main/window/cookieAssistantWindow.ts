@@ -102,6 +102,10 @@ export function createCookieAssistantWindow(
             cookieAssistantWindow?.webContents.send(data.type, data)
             break
           }
+          case 'BOSS_ZHIPIN_LOGIN_DATA_COLLECTED': {
+            cookieAssistantWindow?.webContents.send(data.type, data)
+            break
+          }
           default: {
             return
           }

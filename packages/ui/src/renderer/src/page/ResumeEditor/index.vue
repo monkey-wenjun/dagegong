@@ -500,7 +500,7 @@ const handleImportPdf = async () => {
 
 .markdown-preview {
   padding: 20px;
-  background-color: #fff;
+  background-color: var(--el-bg-color);
   border-radius: 4px;
   line-height: 1.8;
   

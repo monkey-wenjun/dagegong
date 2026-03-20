@@ -14,10 +14,7 @@ import {
   AUTO_CHAT_ERROR_EXIT_CODE
 } from './enums.mjs'
 
-import SqlitePluginModule from '@geekgeekrun/sqlite-plugin'
-const {
-  default: SqlitePlugin
-} = SqlitePluginModule
+import SqlitePlugin from './sqlite-plugin-compat.mjs'
 
 const rerunInterval = (() => {
   let v = Number(process.env.MAIN_BOSSGEEKGO_RERUN_INTERVAL)
@@ -41,10 +38,16 @@ const initPlugins = (hooks) => {
 }
 
 const main = async () => {
+  console.log('[MAIN] ================================')
+  console.log('[MAIN] main() started')
+  console.log('[MAIN] Node version:', process.version)
+  console.log('[MAIN] ================================')
+  console.log('[MAIN] Checking cookies...')
   if (!bossCookies?.length) {
-    console.error('There is no cookies. You can save a copy with EditThisCookie extension.')
+    console.error('[MAIN] There is no cookies. You can save a copy with EditThisCookie extension.')
     process.exit(AUTO_CHAT_ERROR_EXIT_CODE.COOKIE_INVALID)
   }
+  console.log('[MAIN] Cookies found:', bossCookies.length, 'items')
   const hooks = {
     daemonInitialized: new AsyncSeriesHook(),
     puppeteerLaunched: new SyncHook(['browser']),

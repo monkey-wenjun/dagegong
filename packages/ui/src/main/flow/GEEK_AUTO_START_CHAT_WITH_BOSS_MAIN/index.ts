@@ -50,8 +50,11 @@ const initPlugins = (hooks) => {
 
 const runRecordId = minimist(process.argv.slice(2))['run-record-id'] ?? null
 const runAutoChat = async () => {
+  console.log('[DEBUG] runAutoChat started')
   app.dock?.hide()
+  console.log('[DEBUG] Getting browser executable...')
   let puppeteerExecutable = await getLastUsedAndAvailableBrowser()
+  console.log('[DEBUG] Browser executable:', puppeteerExecutable)
   if (!puppeteerExecutable) {
     try {
       await configWithBrowserAssistant({ autoFind: true })
@@ -92,21 +95,32 @@ const runAutoChat = async () => {
     }
   })
   process.env.PUPPETEER_EXECUTABLE_PATH = puppeteerExecutable.executablePath
+  console.log('[DEBUG] PUPPETEER_EXECUTABLE_PATH set to:', puppeteerExecutable.executablePath)
   
   // 读取浏览器配置
+  console.log('[DEBUG] Reading browser config...')
   const browserConfig = await getBrowserConfig()
+  console.log('[DEBUG] Browser config:', browserConfig)
   if (browserConfig.headless) {
     process.env.GEEKGEEKRUN_BROWSER_HEADLESS = '1'
+    console.log('[DEBUG] Headless mode enabled')
   }
   
+  console.log('[DEBUG] Importing geek-auto-start-chat-with-boss module...')
   const { initPuppeteer, mainLoop, closeBrowserWindow, autoStartChatEventBus } = await import(
     '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
   )
+  console.log('[DEBUG] Module imported successfully')
+  
   process.on('disconnect', () => {
+    console.log('[DEBUG] Process disconnect event received')
     closeBrowserWindow()
     app.exit()
   })
+  
+  console.log('[DEBUG] Calling initPuppeteer...')
   await initPuppeteer()
+  console.log('[DEBUG] initPuppeteer completed')
 
   const hooks = {
     puppeteerLaunched: new SyncHook(['browser']),
@@ -218,9 +232,12 @@ const runAutoChat = async () => {
   autoStartChatEventBus.once('LOGIN_STATUS_INVALID', () => {
   })
 
+  console.log('[DEBUG] Entering main loop...')
   while (true) {
     try {
+      console.log('[DEBUG] Calling mainLoop...')
       await mainLoop(hooks)
+      console.log('[DEBUG] mainLoop completed')
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('LOGIN_STATUS_INVALID')) {

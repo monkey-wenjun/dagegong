@@ -66,6 +66,9 @@ export default async function gtag<T extends string>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   params: Record<string, any> = {}
 ) {
+  // 禁用 Google Analytics 以避免网络超时问题
+  return Promise.resolve()
+  
   params = {
     ...getCommonParams(),
     ...params

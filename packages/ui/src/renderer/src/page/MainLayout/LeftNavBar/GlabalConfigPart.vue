@@ -43,8 +43,6 @@
         </div>
       </RouterLink>
     </div>
-    
-
   </div>
 </template>
 

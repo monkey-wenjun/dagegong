@@ -10,6 +10,7 @@
         <RunDataRecordPart />
       </div>
       <div class="pt-16px pb-16px flex-0 font-size-12px">
+        <ThemeSwitcher />
         <div v-if="updateStore.availableNewRelease" mb16px>
           <div
             :style="{
@@ -62,6 +63,7 @@ import { useUpdateStore, useTaskManagerStore } from '../../store/index'
 import BossPart from './LeftNavBar/BossPart.vue'
 import GlobalConfigPart from './LeftNavBar/GlabalConfigPart.vue'
 import RunDataRecordPart from './LeftNavBar/RunDataRecordPart.vue'
+import ThemeSwitcher from '../../components/ThemeSwitcher.vue'
 
 useRouter()
 
@@ -89,14 +91,17 @@ void taskManagerStore
 
 <style lang="scss" scoped>
 .aside-nav {
-  background-color: #1a1a1a;
-  color: #ffffff;
+  background-color: var(--nav-bg);
+  color: var(--nav-text);
+  // 确保导航栏在遮罩层之上
+  position: relative;
+  z-index: 1001;
   .nav-list {
     hr.group-divider {
       width: 100%;
       border: 0 solid;
       height: 1px;
-      background-color: #444;
+      background-color: var(--nav-divider);
       margin-top: 4px;
       margin-bottom: 4px;
       margin-right: 0;

@@ -58,5 +58,17 @@ export const launchBossZhipinLoginPageWithPreloadExtension = async () => {
       }) + '\r\n'
     )
   })
+  
+  // 监听完整的登录数据（包含 cookies + localStorage + sessionStorage）
+  loginEventBus.once('login-data-collected', (loginData) => {
+    pipeWriteRegardlessError(
+      pipe,
+      JSON.stringify({
+        type: 'BOSS_ZHIPIN_LOGIN_DATA_COLLECTED',
+        ...loginData
+      }) + '\r\n'
+    )
+  })
+  
   main()
 }

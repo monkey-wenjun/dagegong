@@ -43,7 +43,10 @@
         </div>
         <div flex justify-between items-center w-full>
           <div>
-            {{ runningStatusTextMapByCode[currentRunningStatus] }}
+            <div>{{ runningStatusTextMapByCode[currentRunningStatus] }}</div>
+            <div v-if="exitErrorMessage" style="color: #f56c6c; font-size: 12px; margin-top: 8px;">
+              错误: {{ exitErrorMessage }}
+            </div>
           </div>
           <div>
             <slot name="op-buttons" :current-running-status="currentRunningStatus" />
@@ -96,8 +99,10 @@ const stepsForRender = computed(() => {
 const runningStatusTextMapByCode = {
   [RUNNING_STATUS_ENUM.RUNNING]: '正在运行中',
   [RUNNING_STATUS_ENUM.NORMAL_EXITED]: '程序已正常退出',
-  [RUNNING_STATUS_ENUM.ERROR_EXITED]: '程序异常退出'
+  [RUNNING_STATUS_ENUM.ERROR_EXITED]: '程序异常退出（请检查控制台日志）'
 }
+
+const exitErrorMessage = ref('')
 
 const currentRunningStatus = ref(RUNNING_STATUS_ENUM.RUNNING)
 
@@ -238,7 +243,7 @@ defineExpose({
   hide
 })
 ipcRenderer.on('worker-exited', (ev, payload) => {
-  const { workerId, code } = payload
+  const { workerId, code, error } = payload
   if (
     workerId !== props.workerId
     // || runRecordId !== props.runRecordId
@@ -247,6 +252,7 @@ ipcRenderer.on('worker-exited', (ev, payload) => {
   }
   if (code !== AUTO_CHAT_ERROR_EXIT_CODE.NORMAL) {
     currentRunningStatus.value = RUNNING_STATUS_ENUM.ERROR_EXITED
+    exitErrorMessage.value = error || `退出码: ${code}`
     gtagRenderer('running_overlay_error_exited', {
       exitCode: code,
       workerId: props.workerId
@@ -268,8 +274,7 @@ ipcRenderer.on('worker-exited', (ev, payload) => {
 <style lang="scss">
 .el-overlay.running-overlay__modal {
   position: absolute;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   backdrop-filter: blur(12px);
   background-color: rgba(255, 255, 255, 0.7);
 

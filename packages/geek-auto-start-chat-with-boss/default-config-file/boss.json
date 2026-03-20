@@ -40,5 +40,8 @@
   "sageTimeOpTimes": 100,
   "sageTimePauseMinute": 15,
   "blockCompanyNameRegExpStr": "",
-  "fieldsForUseCommonConfig": {}
+  "fieldsForUseCommonConfig": {},
+  "greetingMessage": "",
+  "greetingMessageMode": 0,
+  "greetingMessagePrompt": ""
 }

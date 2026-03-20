@@ -2,7 +2,7 @@
   <div class="h-screen of-hidden flex flex-col flex-items-center flex-justify-between">
     <div flex-1 of-hidden w-full>
       <el-form ref="formRef" :model="formData" :rules="rules" flex flex-col of-hidden h-full>
-        <div style="background-color: #f6f6f6" flex-0>
+        <div class="section-bg-primary" flex-0>
           <el-form-item
             class="w-90%"
             label="浏览器可执行文件路径"
@@ -29,7 +29,7 @@
           </el-form-item>
         </div>
         <!-- 浏览器运行配置 -->
-        <div style="background-color: #f0f0f0" flex-0 pt20px pb20px>
+        <div class="section-bg-secondary" flex-0 pt20px pb20px>
           <div class="w-90%" ml-auto mr-auto>
             <div font-weight-bold mb10px>浏览器运行配置</div>
             <div flex flex-items-center gap-10px>
@@ -43,7 +43,7 @@
                 <el-icon><QuestionFilled /></el-icon>
               </el-tooltip>
             </div>
-            <div class="mt-8px text-#666 text-12px">
+            <div class="mt-8px text-secondary text-12px">
               <span v-if="browserRuntimeConfig.headless" color-orange>
                 已启用无头模式。浏览器将在后台运行，不会显示界面。
               </span>
@@ -200,7 +200,7 @@
         </div>
       </el-form>
     </div>
-    <div class="pb10px pt10px w-full flex-0" style="background-color: #f8f8f8">
+    <div class="pb10px pt10px w-full flex-0 section-bg-tertiary">
       <div
         :style="{
           display: 'flex',
@@ -448,16 +448,33 @@ a:link,
 a:visited,
 a:hover,
 a:active {
-  color: #409eff;
+  color: var(--primary-color, #409eff);
+}
+
+.section-bg-primary {
+  background-color: var(--bg-secondary, #f6f6f6);
+}
+
+.section-bg-secondary {
+  background-color: var(--bg-tertiary, #f0f0f0);
+}
+
+.section-bg-tertiary {
+  background-color: var(--bg-secondary, #f8f8f8);
+}
+
+.text-secondary {
+  color: var(--text-secondary, #666);
 }
 
 .faq-main {
   .faq-item {
     summary {
       padding: 4px 0;
+      color: var(--text-primary);
     }
     .faq-answer {
-      color: #666;
+      color: var(--text-secondary, #666);
       margin-left: 12px;
       ul {
         margin-top: 0;

@@ -5,7 +5,7 @@ import gtag from '../utils/gtag'
 import { NewReleaseInfo } from '../../common/types/update'
 
 export const currentOsPlatform = os.platform()
-const RELEASE_LIST_URL = `https://api.github.com/repos/geekgeekrun/geekgeekrun/releases`
+const RELEASE_LIST_URL = `https://api.github.com/repos/monkey-wenjun/dagegong/releases`
 
 export interface GitHubReleaseItem {
   tag_name: string

@@ -445,6 +445,9 @@ function handleViewJobSnapshotButtonClick(record: VChatStartupLog) {
   drawVisibleModelValue.value = true
 }
 
+// 是否已经自动同步过
+const hasAutoSynced = ref(false)
+
 // 表格高度自适应
 const tableMaxHeight = ref<number | undefined>(undefined)
 const tableContainerEl = ref<HTMLElement>()
@@ -458,10 +461,18 @@ onMounted(() => {
   if (tableContainerEl.value) {
     ro.observe(tableContainerEl.value)
   }
+  
+  // 每次进入页面自动触发一次同步（只在BOSS沟通记录标签页）
+  if (!hasAutoSynced.value && activeTab.value === 'boss') {
+    hasAutoSynced.value = true
+    handleSync()
+  }
 })
 onBeforeUnmount(() => {
   ro?.disconnect()
   ro = null
+  // 离开页面时重置自动同步标志，下次进入时仍然会触发
+  hasAutoSynced.value = false
 })
 </script>
 

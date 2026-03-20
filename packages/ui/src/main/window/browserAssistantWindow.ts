@@ -37,7 +37,8 @@ export function createBrowserAssistantWindow(
     icon: path.join(__dirname, '../../build/icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      webSecurity: false
     },
     ...opt
   })

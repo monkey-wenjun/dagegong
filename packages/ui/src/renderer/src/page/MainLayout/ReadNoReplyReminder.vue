@@ -52,6 +52,11 @@
                 <div>当前不期望投递公司正则：{{ blockCompanyNameRegExpStrForRender?.trim() }}</div>
               </div>
             </template>
+            <!-- 全局黑名单提示 -->
+            <div v-if="globalBlockCompanyNameRegExpStrForRender?.trim()" ml1.5em mt8px color-orange>
+              <div>全局黑名单已开启：{{ globalBlockCompanyNameRegExpStrForRender }}</div>
+              <div font-size-12px>注：全局黑名单中的公司将被完全屏蔽，无法进行任何沟通</div>
+            </div>
           </div>
         </el-form-item>
         <el-form-item label="开场白话术">
@@ -346,7 +351,7 @@
                 }"
               >
                 <div flex items-center gap-16px mb12px>
-                  <span>运行时间段：</span>
+                  <span style="white-space: nowrap; flex-shrink: 0">运行时间段：</span>
                   <el-time-select
                     v-model="formContent.autoReminder.autoRunStartTime"
                     :disabled="!formContent.autoReminder.autoRunTimeEnabled"
@@ -368,7 +373,7 @@
                   />
                 </div>
                 <div flex items-center gap-16px>
-                  <span>运行星期：</span>
+                  <span style="white-space: nowrap; flex-shrink: 0">运行星期：</span>
                   <el-checkbox-group 
                     v-model="formContent.autoReminder.autoRunWeekdays"
                     :disabled="!formContent.autoReminder.autoRunTimeEnabled"
@@ -556,6 +561,11 @@ const blockCompanyNameRegExpStrForRender = computed(() => {
   return !fieldsForUseCommonConfig.value.blockCompanyNameRegExpStr
     ? blockCompanyNameRegExpStr.value
     : commonJobConditionConfig.value.blockCompanyNameRegExpStr
+})
+
+// 全局公司黑名单
+const globalBlockCompanyNameRegExpStrForRender = computed(() => {
+  return commonJobConditionConfig.value.globalBlockCompanyNameRegExpStr ?? ''
 })
 
 const resumeContent = ref(null)
@@ -936,8 +946,13 @@ const defaultConstantOpenContent = computed(() => {
     }
   }
   .running-overlay__wrap {
-    position: absolute;
-    inset: 0;
+    position: fixed;
+    top: 0;
+    left: 200px; // 导航栏宽度
+    right: 0;
+    bottom: 0;
+    // 确保遮罩层覆盖整个视口，不受滚动影响
+    z-index: 1000;
   }
 }
 </style>

@@ -130,6 +130,19 @@ export const getAnyAvailablePuppeteerExecutable = async ({
   return null
 }
 
+function isValidBrowserPath(executablePath: string): boolean {
+  // 排除 Electron
+  const lowerPath = executablePath.toLowerCase()
+  if (lowerPath.includes('electron') && !lowerPath.includes('chrom')) {
+    return false
+  }
+  // 确保是 Chrome/Chromium/Edge
+  if (!lowerPath.includes('chrome') && !lowerPath.includes('chromium') && !lowerPath.includes('msedge')) {
+    return false
+  }
+  return true
+}
+
 export async function findAndLocateUserInstalledChromiumExecutableSync(): Promise<BrowserInfo> {
   const exceptChromiumMainVersion = Number(EXPECT_CHROMIUM_BUILD_ID.split('.')[0])
   const findChrome: typeof import('find-chrome-bin').findChrome = (await import('find-chrome-bin'))
@@ -140,6 +153,13 @@ export async function findAndLocateUserInstalledChromiumExecutableSync(): Promis
   if (!targetBrowser?.executablePath) {
     throw new Error('NO_EXPECT_CHROMIUM_FOUND')
   }
+  
+  // 检查是否是有效的浏览器路径（排除 Electron）
+  if (!isValidBrowserPath(targetBrowser.executablePath)) {
+    console.log(`[Browser Check] 排除无效浏览器: ${targetBrowser.executablePath}`)
+    throw new Error('NO_EXPECT_CHROMIUM_FOUND')
+  }
+  
   return {
     executablePath: targetBrowser.executablePath,
     browser: targetBrowser.browser

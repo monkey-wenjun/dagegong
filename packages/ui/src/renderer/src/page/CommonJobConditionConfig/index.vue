@@ -1,16 +1,12 @@
 <template>
-  <div class="common-job-condition-config" flex flex-col h-full min-h-full>
-    <div flex-1 of-auto>
+  <div class="common-job-condition-config">
+    <div class="scroll-container">
       <el-form
         ref="formRef"
         :model="formContent"
         :rules="formRules"
         inline-message
-        w-800px
-        pt-30px
-        pb-30px
-        ml-auto
-        mr-auto
+        class="form-wrap"
       >
         <div mb20px>求职全局设置选项</div>
         <el-form-item prop="expectCompanies" mb0>
@@ -58,7 +54,7 @@
             "
           />
         </el-form-item>
-        <div class="h-1px" style="background-color: #f0f0f0" mt16px mb8px />
+        <div class="h-1px divider-line" mt16px mb8px />
         <div
           ref="blockCompanyNameRegExpSectionEl"
           font-size-14px
@@ -117,7 +113,62 @@
             />
           </el-form-item>
         </div>
-        <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
+        <div class="h-1px divider-line" mt16px mb8px />
+        <div
+          ref="globalBlockCompanyNameRegExpSectionEl"
+          font-size-14px
+          flex
+          :style="{
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            width: '100%',
+            lineHeight: '1.25em'
+          }"
+        >
+          <div mb6px>
+            <b color-red>全局公司黑名单</b>正则<br /><span font-size-12px
+              ><b color-orange>最高优先级</b>，不区分大小写；输入框留空表示不筛选<br />用于全局屏蔽一些公司（如996公司），无论自动开聊还是已读不回复聊，遇到这类公司都不会进行沟通</span
+            >
+          </div>
+          <el-dropdown @command="handleGlobalBlockCompanyNameRegExpTemplateClicked">
+            <el-button size="small"
+              >黑名单模板 <el-icon class="el-icon--right"><arrow-down /></el-icon
+            ></el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="item in globalBlockCompanyNameRegExpTemplateList"
+                  :key="item.name"
+                  :command="item"
+                  >{{ item.name }}</el-dropdown-item
+                >
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+        <div
+          class="block-company-filter-wrap"
+          :style="{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '10px'
+          }"
+        >
+          <el-form-item prop="globalBlockCompanyNameRegExpStr" mb0 w-full>
+            <el-input
+              v-model="formContent.globalBlockCompanyNameRegExpStr"
+              :autosize="{ minRows: 4 }"
+              max-h-8lh
+              type="textarea"
+              placeholder="置空表示“没有全局黑名单”"
+              @blur="
+                formContent.globalBlockCompanyNameRegExpStr =
+                  formContent.globalBlockCompanyNameRegExpStr?.trim() ?? ''
+              "
+            />
+          </el-form-item>
+        </div>
+        <div class="h-1px divider-line" mt16px mb16px />
         <div mt16px>
           <div font-size-14px mb8px>工作地</div>
           <div
@@ -191,7 +242,7 @@
             </el-form-item>
           </div>
         </div>
-        <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
+        <div class="h-1px divider-line" mt16px mb16px />
         <div mt16px>
           <div font-size-14px mb8px>
             薪资（仅支持按月计算薪资的职位；非按月计算薪资职位（例如兼职职位、实习职位）将直接跳过）
@@ -323,7 +374,7 @@
                               v-for="(text, i) in ['月薪下限', '月薪上限', '']"
                               :key="i"
                               :style="{
-                                borderBottom: '2px solid #f0f0f0'
+                                borderBottom: '2px solid var(--border-secondary)'
                               }"
                             >
                               {{ text }}
@@ -351,7 +402,7 @@
                             <td>{{ m }}薪</td>
                           </tr>
                         </table>
-                        <div v-if="index !== 1" class="w-2px flex-self-stretch" style="background-color: #f0f0f0"></div>
+                        <div v-if="index !== 1" class="w-2px flex-self-stretch divider-line"></div>
                       </template>
                     </div>
                   </div>
@@ -360,7 +411,7 @@
             </div>
           </div>
         </div>
-        <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
+        <div class="h-1px divider-line" mt16px mb16px />
         <div>
           <div
             flex
@@ -418,10 +469,10 @@
                 </el-select>
               </el-form-item>
               <div
+                class="divider-line"
                 :style="{
                   width: '100%',
                   height: '1px',
-                  backgroundColor: '#f0f0f0',
                   marginTop: '0.5lh'
                 }"
               />
@@ -586,7 +637,7 @@
         </div>
       </el-form>
     </div>
-    <div class="pb10px pt10px" style="background-color: #f8f8f8">
+    <div class="pb10px pt10px form-footer-bar">
       <div
         :style="{
           display: 'flex',
@@ -616,7 +667,9 @@ import {
   ensureSalaryRangeCorrect,
   expectCompanyTemplateList,
   blockCompanyNameRegExpTemplateList,
+  globalBlockCompanyNameRegExpTemplateList,
   getHandlerForBlockCompanyNameRegExpTemplateClicked,
+  getHandlerForGlobalBlockCompanyNameRegExpTemplateClicked,
   getHandlerForExpectCompanyTemplateClicked,
   getHandlerForExpectJobFilterTemplateClicked,
   getRuleOfExpectJobNameRegExpStr,
@@ -648,11 +701,13 @@ const formContent = ref({
   expectSalaryCalculateWay: SalaryCalculateWay.ANNUAL_PACKAGE,
   expectSalaryHigh: null,
   expectSalaryLow: null,
-  blockCompanyNameRegExpStr: ''
+  blockCompanyNameRegExpStr: '',
+  globalBlockCompanyNameRegExpStr: '' // 全局公司黑名单
 })
 
 const jobDetailRegExpSectionEl = ref<HTMLDivElement>()
 const blockCompanyNameRegExpSectionEl = ref<HTMLDivElement>()
+const globalBlockCompanyNameRegExpSectionEl = ref<HTMLDivElement>()
 const formRules = computed(() => ({
   expectJobNameRegExpStr: {
     trigger: 'blur',
@@ -669,11 +724,21 @@ const formRules = computed(() => ({
   blockCompanyNameRegExpStr: {
     trigger: 'blur',
     validator: getRuleOfBlockCompanyNameRegExpStr({ gtagRenderer, blockCompanyNameRegExpSectionEl })
+  },
+  globalBlockCompanyNameRegExpStr: {
+    trigger: 'blur',
+    validator: getRuleOfBlockCompanyNameRegExpStr({ gtagRenderer, globalBlockCompanyNameRegExpSectionEl })
   }
 }))
 
 const handleBlockCompanyNameRegExpTemplateClicked =
   getHandlerForBlockCompanyNameRegExpTemplateClicked({
+    gtagRenderer,
+    formContent
+  })
+
+const handleGlobalBlockCompanyNameRegExpTemplateClicked =
+  getHandlerForGlobalBlockCompanyNameRegExpTemplateClicked({
     gtagRenderer,
     formContent
   })
@@ -752,8 +817,39 @@ ipcRenderer.invoke('fetch-config-file-content').then((res) => {
 })
 </script>
 
-<style lang="scss">
-.common-job-condition-config .el-form-item__error.el-form-item__error--inline {
+<style lang="scss" scoped>
+.common-job-condition-config {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+
+  .scroll-container {
+    flex: 1;
+    overflow: auto;
+    width: 100%;
+  }
+
+  .form-wrap {
+    max-width: 800px;
+    width: 100%;
+    padding: 30px 20px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.el-form-item__error.el-form-item__error--inline {
   margin-left: 0;
+}
+
+.form-footer-bar {
+  background-color: var(--bg-secondary, #f8f8f8);
+  border-top: 1px solid var(--border-secondary);
+}
+
+.divider-line {
+  background-color: var(--border-secondary, #f0f0f0);
 }
 </style>

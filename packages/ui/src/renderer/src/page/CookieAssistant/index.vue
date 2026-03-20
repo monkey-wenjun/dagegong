@@ -162,6 +162,8 @@ const formRules = {
 
 const hasUserMutateInput = ref(false)
 const collectedCookie = ref()
+const collectedLoginData = ref()
+
 const handleCookieCollected = (_, payload) => {
   loginCookieWaitingStatus.value = LOGIN_COOKIE_WAITING_STATUS.COOKIE_COLLECTED
   collectedCookie.value = payload.cookies
@@ -172,12 +174,75 @@ const handleCookieCollected = (_, payload) => {
     gtagRenderer('cookie_collected_after_changed_input')
   }
 }
+
 const fillCollectedCookie = () => {
   if (loginCookieWaitingStatus.value !== LOGIN_COOKIE_WAITING_STATUS.COOKIE_COLLECTED) {
     return
   }
   formContent.value.collectedCookies = JSON.stringify(collectedCookie.value, null, 2)
   hasUserMutateInput.value = false
+}
+
+// 全自动处理登录数据收集
+const handleLoginDataCollected = async (_, payload) => {
+  console.log('[CookieAssistant] 收到登录数据:', payload)
+  loginCookieWaitingStatus.value = LOGIN_COOKIE_WAITING_STATUS.COOKIE_COLLECTED
+  collectedLoginData.value = payload
+  
+  // 自动填充到表单
+  if (payload.cookies) {
+    formContent.value.collectedCookies = JSON.stringify(payload.cookies, null, 2)
+  }
+  
+  gtagRenderer('login_data_collected_auto_filled')
+  
+  // 延迟一下确保数据写入文件，然后自动保存并关闭
+  setTimeout(async () => {
+    try {
+      // 验证表单
+      await formRef.value!.validate()
+      
+      // 保存 cookies
+      if (payload.cookies) {
+        await electron.ipcRenderer.invoke('write-storage-file', {
+          fileName: 'boss-cookies.json',
+          data: JSON.stringify(payload.cookies)
+        })
+      }
+      
+      // 保存 localStorage
+      if (payload.localStorage) {
+        await electron.ipcRenderer.invoke('write-storage-file', {
+          fileName: 'boss-local-storage.json',
+          data: JSON.stringify(payload.localStorage)
+        })
+      }
+      
+      // 保存 sessionStorage（可选）
+      if (payload.sessionStorage) {
+        await electron.ipcRenderer.invoke('write-storage-file', {
+          fileName: 'boss-session-storage.json',
+          data: JSON.stringify(payload.sessionStorage)
+        })
+      }
+      
+      ElMessage.success('BOSS直聘登录信息已自动保存（包含 Cookies 和 LocalStorage）')
+      gtagRenderer('login_data_auto_saved')
+      
+      // 通知主进程
+      window.electron.ipcRenderer.send('cookie-saved')
+      
+      // 自动关闭窗口
+      setTimeout(() => {
+        window.close()
+      }, 1500)
+      
+    } catch (err) {
+      console.error('[CookieAssistant] 自动保存失败:', err)
+      ElMessage.error('自动保存失败，请手动点击确定按钮保存')
+      gtagRenderer('login_data_auto_save_failed', { error: err.message })
+    }
+  }, 1000)
 }
 
 const handleClickLaunchLogin = () => {
@@ -222,6 +287,7 @@ onMounted(() => {
 })
 onMounted(async () => {
   electron.ipcRenderer.once('BOSS_ZHIPIN_COOKIE_COLLECTED', handleCookieCollected)
+  electron.ipcRenderer.once('BOSS_ZHIPIN_LOGIN_DATA_COLLECTED', handleLoginDataCollected)
   electron.ipcRenderer.on('BOSS_ZHIPIN_LOGIN_PAGE_CLOSED', handleBossZhipinLoginPageClosed)
 
   const cookieFileContent = await electron.ipcRenderer.invoke('read-storage-file', {
@@ -235,6 +301,7 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   electron.ipcRenderer.removeListener('BOSS_ZHIPIN_COOKIE_COLLECTED', handleCookieCollected)
+  electron.ipcRenderer.removeListener('BOSS_ZHIPIN_LOGIN_DATA_COLLECTED', handleLoginDataCollected)
   electron.ipcRenderer.removeListener(
     'BOSS_ZHIPIN_LOGIN_PAGE_CLOSED',
     handleBossZhipinLoginPageClosed

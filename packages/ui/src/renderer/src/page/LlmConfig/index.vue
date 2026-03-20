@@ -218,7 +218,7 @@
               <div
                 v-if="index !== formContent.length - 1"
                 class="mt6px mb20px h1px"
-                style="background-color: #dcdcdc"
+                style="background-color: var(--border-secondary)"
               />
             </div>
           </div>
@@ -552,7 +552,8 @@ const openExternalLink = (url) => {
     }
   }
   footer {
-    background-color: #f0f0f0;
+    background-color: var(--bg-secondary, #f0f0f0);
+    border-top: 1px solid var(--border-secondary);
   }
 }
 </style>

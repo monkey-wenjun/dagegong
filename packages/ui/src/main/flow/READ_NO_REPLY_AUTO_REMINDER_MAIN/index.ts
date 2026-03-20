@@ -91,6 +91,26 @@ const onlyRemindBossWithoutBlockCompanyName =
   readConfigFile('boss.json').autoReminder?.onlyRemindBossWithoutBlockCompanyName ??
   !!blockCompanyNameRegExp
 
+// 全局公司黑名单（最高优先级）
+const globalBlockCompanyNameRegExpStr = commonJobConditionConfig?.globalBlockCompanyNameRegExpStr ?? ''
+const globalBlockCompanyNameRegExp = (() => {
+  if (!globalBlockCompanyNameRegExpStr?.trim()) {
+    return null
+  }
+  try {
+    return new RegExp(globalBlockCompanyNameRegExpStr, 'im')
+  } catch {
+    return null
+  }
+})()
+// 检查公司是否在全局黑名单中
+const isCompanyInGlobalBlockList = (companyName?: string): boolean => {
+  if (!globalBlockCompanyNameRegExp || !companyName) {
+    return false
+  }
+  return globalBlockCompanyNameRegExp.test(companyName.toLowerCase())
+}
+
 const openContentSource = readConfigFile('boss.json').autoReminder?.openContentSource ?? OPEN_CONTENT_SOURCE.CONSTANT_CONTENT
 const constantOpenContent = (() => {
   let constantOpenContent = readConfigFile('boss.json').autoReminder?.constantOpenContent ?? ''
@@ -547,6 +567,8 @@ const mainLoop = async () => {
     const toCheckItemAtIndex = friendListData.findIndex((it, index) => {
       return (
         index >= cursorToContinueFind &&
+        // 全局黑名单检查（最高优先级）
+        !isCompanyInGlobalBlockList(it.brandName) &&
         (onlyRemindBossWithoutBlockCompanyName && blockCompanyNameRegExp
           ? !blockCompanyNameRegExp.test(it.brandName)
           : true) &&

@@ -10,6 +10,7 @@ import path from 'node:path';
 import JSON5 from 'json5'
 import { EventEmitter } from 'node:events'
 import { setDomainLocalStorage } from '@geekgeekrun/utils/puppeteer/local-storage.mjs'
+import { completes } from '@geekgeekrun/utils/gpt-request.mjs'
 
 import { readConfigFile, writeStorageFile, ensureConfigFileExist, readStorageFile, ensureStorageFileExist } from './runtime-file-utils.mjs'
 import {
@@ -18,9 +19,9 @@ import {
   checkAnyCombineBossRecommendFilterHasCondition,
   formatStaticCombineFilters,
 } from './combineCalculator.mjs'
-import { default as jobFilterConditions } from './internal-config/job-filter-conditions-20241002.json'
-import { default as rawIndustryFilterExemption } from './internal-config/job-filter-industry-filter-exemption-20241002.json'
-import { ChatStartupFrom } from '@geekgeekrun/sqlite-plugin/dist/entity/ChatStartupLog'
+import { default as jobFilterConditions } from './internal-config/job-filter-conditions-20241002.json' with { type: 'json' }
+import { default as rawIndustryFilterExemption } from './internal-config/job-filter-industry-filter-exemption-20241002.json' with { type: 'json' }
+import { ChatStartupFrom } from './sqlite-plugin-compat.mjs'
 import {
   MarkAsNotSuitReason,
   MarkAsNotSuitOp,
@@ -29,14 +30,14 @@ import {
   JobDetailRegExpMatchLogic,
   JobSource,
   CombineRecommendJobFilterType
-} from '@geekgeekrun/sqlite-plugin/dist/enums'
+} from './sqlite-plugin-compat.mjs'
 import {
   activeDescList,
   RECOMMEND_JOB_ENTRY_SELECTOR,
   USER_SET_EXPECT_JOB_ENTRIES_SELECTOR,
   SEARCH_BOX_SELECTOR,
 } from './constant.mjs'
-import { parseSalary } from "@geekgeekrun/sqlite-plugin/dist/utils/parser"
+import { parseSalary } from './sqlite-plugin-compat.mjs'
 import { waitForSageTimeOrJustContinue } from './sage-time.mjs'
 import cityGroupData from './cityGroup.mjs'
 import { hasIntersection } from '@geekgeekrun/utils/number.mjs';
@@ -94,7 +95,9 @@ let StealthPlugin
 let LaodengPlugin
 let AnonymizeUaPlugin
 export async function initPuppeteer () {
+  console.log('[DEBUG] initPuppeteer started')
   // production
+  console.log('[DEBUG] Importing puppeteer modules...')
   const importResult = await Promise.all(
     [
       import('puppeteer-extra'),
@@ -103,13 +106,16 @@ export async function initPuppeteer () {
       import('puppeteer-extra-plugin-anonymize-ua')
     ]
   )
+  console.log('[DEBUG] Puppeteer modules imported')
   puppeteer = importResult[0].default
   StealthPlugin = importResult[1].default
   LaodengPlugin = importResult[2].default
   AnonymizeUaPlugin = importResult[3].default
+  console.log('[DEBUG] Setting up puppeteer plugins...')
   puppeteer.use(StealthPlugin())
   puppeteer.use(LaodengPlugin())
   puppeteer.use(AnonymizeUaPlugin({ makeWindows: false }))
+  console.log('[DEBUG] initPuppeteer completed')
   return {
     puppeteer,
     StealthPlugin,
@@ -414,6 +420,39 @@ const blockCompanyNameRegExp = (() => {
 })()
 const blockCompanyNameRegMatchStrategy = readConfigFile('boss.json').blockCompanyNameRegMatchStrategy ?? MarkAsNotSuitOp.NO_OP
 
+// 全局公司黑名单（最高优先级，无条件屏蔽）
+const globalBlockCompanyNameRegExpStr = commonJobConditionConfig.globalBlockCompanyNameRegExpStr ?? ''
+const globalBlockCompanyNameRegExp = (() => {
+  if (!globalBlockCompanyNameRegExpStr?.trim()) {
+    return null
+  }
+  try {
+    return new RegExp(globalBlockCompanyNameRegExpStr, 'im')
+  }
+  catch {
+    return null
+  }
+})()
+// 检查公司是否在全局黑名单中
+const isCompanyInGlobalBlockList = (companyName) => {
+  if (!globalBlockCompanyNameRegExp || !companyName) {
+    return false
+  }
+  return globalBlockCompanyNameRegExp.test(companyName.toLowerCase())
+}
+
+// 打招呼消息配置
+const GreetingMessageMode = {
+  DEFAULT: 0,      // 使用 BOSS 默认问候语
+  CUSTOM: 1,       // 使用固定自定义消息
+  AI_GENERATED: 2  // 使用 AI 根据 JD 和简历自动生成
+}
+const greetingMessageConfig = {
+  mode: readConfigFile('boss.json').greetingMessageMode ?? GreetingMessageMode.DEFAULT,
+  customMessage: readConfigFile('boss.json').greetingMessage ?? '',
+  customPrompt: readConfigFile('boss.json').greetingMessagePrompt ?? ''
+}
+
 /**
  * @type { import('puppeteer').Browser }
  */
@@ -426,6 +465,119 @@ let page
 const blockBossNotNewChat = new Set()
 const blockBossNotActive = new Set()
 const blockJobNotSuit = new Set()
+
+// 默认的 AI 打招呼消息生成 Prompt
+const DEFAULT_GREETING_PROMPT = `你是一位专业的求职助手。请根据以下职位信息（JD）和我的简历，为我生成一句简洁、专业且个性化的打招呼消息。
+
+**要求：**
+1. 开头使用"您好"或"BOSS您好"等敬语
+2. 简要提及与职位相关的核心技能或经验（2-3点）
+3. 表达对职位的兴趣和应聘意向
+4. 结尾可包含"期待回复"或"希望能有机会合作"等话术
+5. 字数控制在 50-100 字
+6. 语气谦逊、专业，避免过度自信
+
+**职位信息（JD）：**
+{{JOB_DESCRIPTION}}
+
+**我的简历：**
+{{RESUME_CONTENT}}
+
+请仅回复生成的打招呼消息，不要包含任何解释或其他内容。`
+
+/**
+ * 使用 AI 根据 JD 和简历生成打招呼消息
+ * @param {Object} jobData - 职位数据
+ * @param {Object} resumeData - 简历数据
+ * @returns {Promise<string|null>} - 生成的消息或 null
+ */
+async function generateGreetingMessageWithAI(jobData, resumeData) {
+  try {
+    // 读取 LLM 配置
+    const llmConfigList = readConfigFile('llm.json')
+    if (!Array.isArray(llmConfigList) || llmConfigList.length === 0) {
+      console.log('[AI Greeting] 未找到 LLM 配置，跳过 AI 生成')
+      return null
+    }
+    
+    // 使用第一个启用的模型
+    const llmConfig = llmConfigList.find(it => it.enabled) || llmConfigList[0]
+    if (!llmConfig) {
+      console.log('[AI Greeting] 未找到可用的 LLM 配置，跳过 AI 生成')
+      return null
+    }
+    
+    // 准备简历内容
+    let resumeContent = ''
+    if (resumeData) {
+      resumeContent = JSON.stringify(resumeData, null, 2)
+    } else {
+      // 尝试从配置文件读取
+      const resumeList = readConfigFile('resumes.json')
+      if (Array.isArray(resumeList) && resumeList.length > 0) {
+        resumeContent = JSON.stringify(resumeList[0], null, 2)
+      }
+    }
+    
+    if (!resumeContent) {
+      console.log('[AI Greeting] 未找到简历内容，跳过 AI 生成')
+      return null
+    }
+    
+    // 准备 JD 内容
+    const jobDesc = jobData?.jobInfo?.postDescription || jobData?.postDescription || ''
+    const jobName = jobData?.jobInfo?.jobName || jobData?.jobName || ''
+    const jobType = jobData?.jobInfo?.positionName || jobData?.positionName || ''
+    const companyName = jobData?.brandName || jobData?.jobInfo?.brandName || ''
+    
+    const jdContent = `职位名称：${jobName}
+职位类型：${jobType}
+公司名称：${companyName}
+职位描述：${jobDesc}`
+    
+    // 使用自定义 prompt 或默认 prompt
+    const promptTemplate = greetingMessageConfig.customPrompt?.trim() || DEFAULT_GREETING_PROMPT
+    const prompt = promptTemplate
+      .replace(/{{JOB_DESCRIPTION}}/g, jdContent)
+      .replace(/{{RESUME_CONTENT}}/g, resumeContent)
+    
+    console.log('[AI Greeting] 正在生成打招呼消息...')
+    
+    // 调用 AI
+    const chatList = [
+      {
+        role: 'system',
+        content: prompt
+      },
+      {
+        role: 'user',
+        content: '请根据上述职位信息和简历，生成一句专业的打招呼消息。'
+      }
+    ]
+    
+    const completion = await completes(
+      {
+        baseURL: llmConfig.providerCompleteApiUrl,
+        apiKey: llmConfig.providerApiSecret,
+        model: llmConfig.model
+      },
+      chatList
+    )
+    
+    const generatedText = completion?.choices?.[0]?.message?.content?.trim()
+    
+    if (!generatedText) {
+      console.log('[AI Greeting] AI 返回内容为空')
+      return null
+    }
+    
+    console.log('[AI Greeting] 生成成功:', generatedText.substring(0, 50) + '...')
+    return generatedText
+  } catch (err) {
+    console.error('[AI Greeting] AI 生成失败:', err.message)
+    return null
+  }
+}
 
 async function markJobAsNotSuitInRecommendPage (reasonCode) {
   /**
@@ -1183,6 +1335,9 @@ async function toRecommendPage (hooks) {
                             MarkAsNotSuitOp.MARK_AS_NOT_SUIT_ON_BOSS,
                             MarkAsNotSuitOp.MARK_AS_NOT_SUIT_ON_LOCAL
                           ].includes(blockCompanyNameRegMatchStrategy)
+                      ) || (
+                        // 全局黑名单检查（最高优先级，直接跳过）
+                        isCompanyInGlobalBlockList(it.brandName)
                       )
                     )
                 })
@@ -1529,6 +1684,20 @@ async function toRecommendPage (hooks) {
                     }
                   }
 
+                  // 首先检查全局黑名单（最高优先级，直接跳过不沟通）
+                  if (isCompanyInGlobalBlockList(selectedJobData.brandName)) {
+                    console.log(`[GlobalBlockList] 公司 ${selectedJobData.brandName} 在全局黑名单中，跳过此职位`)
+                    await hooks.jobSkipped.promise(
+                      targetJobData,
+                      {
+                        skipReason: 'global_block_company',
+                        companyName: selectedJobData.brandName,
+                        jobSource: JobSource[computedSourceList[currentSourceIndex]?.type]
+                      }
+                    )
+                    continue
+                  }
+
                   if (
                     !!blockCompanyNameRegExp && blockCompanyNameRegExp.test(selectedJobData.brandName ?? '')
                   ) {
@@ -1731,6 +1900,59 @@ async function toRecommendPage (hooks) {
             const closeDialogButtonProxy = await page.$('.greet-boss-dialog .greet-boss-footer .cancel-btn')
             await closeDialogButtonProxy.click()
             await sleepWithRandomDelay(2000)
+            
+            // 根据模式发送打招呼消息
+            let messageToSend = null
+            
+            switch (greetingMessageConfig.mode) {
+              case GreetingMessageMode.CUSTOM:
+                // 使用固定自定义消息
+                messageToSend = greetingMessageConfig.customMessage?.trim() || null
+                if (messageToSend) {
+                  hooks.logInfo?.('[Chat] 准备发送固定自定义打招呼消息...')
+                }
+                break
+                
+              case GreetingMessageMode.AI_GENERATED:
+                // 使用 AI 根据 JD 和简历生成消息
+                hooks.logInfo?.('[Chat] 准备使用 AI 生成打招呼消息...')
+                messageToSend = await generateGreetingMessageWithAI(targetJobData, null)
+                if (messageToSend) {
+                  hooks.logInfo?.('[Chat] AI 生成消息成功')
+                } else {
+                  hooks.logInfo?.('[Chat] AI 生成消息失败，跳过发送')
+                }
+                break
+                
+              case GreetingMessageMode.DEFAULT:
+              default:
+                // 使用 BOSS 默认问候语，不发送自定义消息
+                hooks.logInfo?.('[Chat] 使用 BOSS 默认问候语，不发送自定义消息')
+                break
+            }
+            
+            // 发送消息
+            if (messageToSend) {
+              try {
+                const chatInputSelector = '.chat-conversation .message-controls .chat-input'
+                const chatInputHandle = await page.$(chatInputSelector)
+                if (chatInputHandle) {
+                  await chatInputHandle.click()
+                  await sleep(500)
+                  await chatInputHandle.type(messageToSend, { delay: 50 })
+                  await sleep(1000)
+                  const sendButtonSelector = '.chat-conversation .message-controls .chat-op .btn-send:not(.disabled)'
+                  const sendButton = await page.$(sendButtonSelector)
+                  if (sendButton) {
+                    await sendButton.click()
+                    hooks.logInfo?.('[Chat] 打招呼消息已发送')
+                  }
+                }
+              } catch (sendErr) {
+                console.warn('发送打招呼消息失败:', sendErr.message)
+                hooks.logError?.(`[Chat] 发送打招呼消息失败: ${sendErr.message}`)
+              }
+            }
           }
           const handleAddFriendResponse = async (res) => {
             // Parse remaining chat count from response
@@ -1856,21 +2078,26 @@ async function toRecommendPage (hooks) {
 }
 
 export async function mainLoop (hooks) {
+  console.log('[DEBUG] mainLoop started')
   // Reset daily chat count at the start of each session (new day assumed)
   dailyRemainingChatCount = null
   hooks.logInfo?.('[DailyLimit] 每日沟通次数限制已重置（新会话开始）')
   console.log('[DailyLimit] 每日沟通次数限制已重置（新会话开始）')
   
   if (!puppeteer) {
+    console.log('[DEBUG] Puppeteer not initialized, calling initPuppeteer...')
     await initPuppeteer()
+    console.log('[DEBUG] initPuppeteer done')
   }
   try {
     // 从环境变量读取无头模式配置
     const headlessMode = process.env.GEEKGEEKRUN_BROWSER_HEADLESS === '1'
+    console.log('[DEBUG] Headless mode:', headlessMode)
     if (headlessMode) {
       console.log('[Browser] 以无头模式启动浏览器')
     }
     
+    console.log('[DEBUG] Launching browser with executable path:', process.env.PUPPETEER_EXECUTABLE_PATH)
     browser = await puppeteer.launch({
       headless: headlessMode ? 'new' : false,
       ignoreHTTPSErrors: true,
@@ -1914,8 +2141,10 @@ export async function mainLoop (hooks) {
         '--disable-setuid-sandbox'
       ]
     })
+    console.log('[DEBUG] Browser launched successfully')
     hooks.puppeteerLaunched?.call(browser)
     page = (await browser.pages())[0]
+    console.log('[DEBUG] Got first page')
     hooks.pageGotten?.call(page)
     
     // 监听浏览器断开连接

@@ -146,7 +146,7 @@
                   }"
                 >
                   <div flex items-center gap-16px mb12px>
-                    <span>运行时间段：</span>
+                    <span style="white-space: nowrap; flex-shrink: 0">运行时间段：</span>
                     <el-time-select
                       v-model="formContent.autoRunStartTime"
                       :disabled="!formContent.autoRunTimeEnabled"
@@ -168,7 +168,7 @@
                     />
                   </div>
                   <div flex items-center gap-16px>
-                    <span>运行星期：</span>
+                    <span style="white-space: nowrap; flex-shrink: 0">运行星期：</span>
                     <el-checkbox-group 
                       v-model="formContent.autoRunWeekdays"
                       :disabled="!formContent.autoRunTimeEnabled"
@@ -186,6 +186,76 @@
                 </div>
               </div>
             </div>
+          </el-card>
+          <el-card class="config-section">
+            <el-form-item mb0>
+              <div w-full>
+                <div font-size-16px mb8px>自定义打招呼消息</div>
+                <div font-size-12px color-666 mb12px>
+                  配置后，点击"立即沟通"时会自动发送此消息
+                </div>
+                
+                <!-- 模式选择 -->
+                <div mb16px>
+                  <el-radio-group v-model="formContent.greetingMessageMode">
+                    <el-radio :label="0">使用 BOSS 默认问候语</el-radio>
+                    <el-radio :label="1">使用固定自定义消息</el-radio>
+                    <el-radio :label="2">使用 AI 根据 JD 和简历自动生成</el-radio>
+                  </el-radio-group>
+                </div>
+                
+                <!-- 固定自定义消息 -->
+                <div v-if="formContent.greetingMessageMode === 1" mt12px>
+                  <div font-size-14px mb8px>固定消息内容</div>
+                  <el-input
+                    v-model="formContent.greetingMessage"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="例如：BOSS 你好，我从事互联网相关行业10余年,期间做过运维、技术支持、开发相关工作，这是我的在线简历 https://www.awen.me/resume，希望能与贵司合作"
+                  />
+                </div>
+                
+                <!-- AI 生成配置 -->
+                <div v-if="formContent.greetingMessageMode === 2" mt12px>
+                  <div font-size-14px mb8px>
+                    AI Prompt 模板（可选，留空使用默认模板）
+                    <el-tooltip effect="light" placement="top">
+                      <template #content>
+                        <div style="max-width: 400px">
+                          <p>可用的占位符：</p>
+                          <p>{{JOB_DESCRIPTION}} - 职位描述（JD）</p>
+                          <p>{{RESUME_CONTENT}} - 简历内容</p>
+                          <p style="margin-top: 8px">留空将使用默认模板生成打招呼消息</p>
+                        </div>
+                      </template>
+                      <el-button type="text" font-size-12px>
+                        <QuestionFilled w-1em h-1em mr2px />
+                        查看可用变量
+                      </el-button>
+                    </el-tooltip>
+                  </div>
+                  <el-input
+                    v-model="formContent.greetingMessagePrompt"
+                    type="textarea"
+                    :rows="5"
+                    placeholder="留空使用默认模板。默认模板会根据职位信息和简历生成简洁专业的打招呼消息。"
+                  />
+                  <div flex justify-between align-center mt8px>
+                    <div font-size-12px color-666>
+                      需要先在"LLM 大模型配置"中配置 API 才能使用 AI 生成功能
+                    </div>
+                    <el-button 
+                      type="primary" 
+                      link 
+                      size="small"
+                      @click="formContent.greetingMessagePrompt = DEFAULT_AI_GREETING_PROMPT"
+                    >
+                      恢复默认模板
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </el-form-item>
           </el-card>
           <el-card class="config-section">
             <el-form-item class="job-source-form-item" prop="__jobSourceList">
@@ -583,6 +653,22 @@
                     >
                   </el-select>
                 </el-form-item>
+              </div>
+            </div>
+            <!-- 全局公司黑名单提示 -->
+            <div 
+              v-if="commonJobConditionConfig.globalBlockCompanyNameRegExpStr?.trim()" 
+              mt12px 
+              p12px 
+              class="global-block-company-notice"
+              rounded
+            >
+              <div flex items-center gap-8px mb4px>
+                <el-tag type="danger" size="small">全局黑名单已开启</el-tag>
+                <span font-size-12px class="global-block-company-text">以下公司将被完全屏蔽，不会进行任何沟通：</span>
+              </div>
+              <div font-size-12px style="word-break: break-all; color: var(--text-secondary);">
+                {{ commonJobConditionConfig.globalBlockCompanyNameRegExpStr }}
               </div>
             </div>
             <div class="h-1px" style="background-color: #f0f0f0" mt16px mb16px />
@@ -1759,7 +1845,7 @@
           </el-card>
         </el-form>
       </div>
-      <div class="pb10px pt10px" style="background-color: #f8f8f8">
+      <div class="pb10px pt10px form-footer-bar">
         <div
           :style="{
             display: 'flex',
@@ -1861,7 +1947,8 @@ import {
   getRuleOfExpectJobTypeRegExpStr,
   jobDetailRegExpMatchLogicOptions,
   getHandlerForExpectSalaryCalculateWayChanged,
-  normalizeCommaSplittedStr
+  normalizeCommaSplittedStr,
+  DEFAULT_AI_GREETING_PROMPT
 } from './common'
 const { ipcRenderer } = window.electron
 const gtagRenderer = (name, params?: object) => {
@@ -1921,7 +2008,11 @@ const formContent = ref({
   autoRunTimeEnabled: false,
   autoRunStartTime: '10:00',
   autoRunEndTime: '21:00',
-  autoRunWeekdays: [1, 2, 3, 4, 5] // 周一到周五
+  autoRunWeekdays: [1, 2, 3, 4, 5], // 周一到周五
+  // 打招呼消息配置
+  greetingMessage: '',
+  greetingMessageMode: 0,
+  greetingMessagePrompt: DEFAULT_AI_GREETING_PROMPT
 })
 
 const anyCombineBossRecommendFilterHasCondition = computed(() => {
@@ -2079,12 +2170,24 @@ electron.ipcRenderer.invoke('fetch-config-file-content').then((res) => {
     parseFloat(res.config['boss.json'].sageTimePauseMinute) < 0
       ? 15
       : parseFloat(res.config['boss.json'].sageTimePauseMinute)
+
+  // auto run time settings
+  formContent.value.autoRunTimeEnabled = res.config['boss.json'].autoRunTimeEnabled ?? false
+  formContent.value.autoRunStartTime = res.config['boss.json'].autoRunStartTime ?? '10:00'
+  formContent.value.autoRunEndTime = res.config['boss.json'].autoRunEndTime ?? '21:00'
+  formContent.value.autoRunWeekdays = res.config['boss.json'].autoRunWeekdays ?? [1, 2, 3, 4, 5]
   formContent.value.blockCompanyNameRegExpStr =
     res.config['boss.json'].blockCompanyNameRegExpStr?.trim() ?? ''
   formContent.value.blockCompanyNameRegMatchStrategy =
     res.config['boss.json'].blockCompanyNameRegMatchStrategy ?? MarkAsNotSuitOp.NO_OP
   formContent.value.fieldsForUseCommonConfig =
     res.config['boss.json']?.fieldsForUseCommonConfig ?? {}
+  // 打招呼消息配置
+  formContent.value.greetingMessage = res.config['boss.json']?.greetingMessage ?? ''
+  formContent.value.greetingMessageMode = res.config['boss.json']?.greetingMessageMode ?? 0
+  // 如果配置中没有 prompt 或为空，使用默认模板
+  const savedPrompt = res.config['boss.json']?.greetingMessagePrompt
+  formContent.value.greetingMessagePrompt = savedPrompt?.trim() ? savedPrompt : DEFAULT_AI_GREETING_PROMPT
 
   commonJobConditionConfig.value = {
     expectJobNameRegExpStr:
@@ -2101,6 +2204,8 @@ electron.ipcRenderer.invoke('fetch-config-file-content').then((res) => {
     ),
     blockCompanyNameRegExpStr:
       res.config['common-job-condition-config.json']?.blockCompanyNameRegExpStr ?? '',
+    globalBlockCompanyNameRegExpStr:
+      res.config['common-job-condition-config.json']?.globalBlockCompanyNameRegExpStr ?? '',
     expectSalaryCalculateWay:
       res.config['common-job-condition-config.json']?.expectSalaryCalculateWay ??
       SalaryCalculateWay.MONTH_SALARY,
@@ -2658,7 +2763,7 @@ const fillCommonConfigField = (field) => {
     margin-bottom: 0;
     .job-source-drag-orderer {
       margin-top: 10px;
-      background-color: #fff;
+      background-color: var(--el-bg-color);
       padding: 20px;
       border: 1px solid var(--el-card-border-color);
       border-radius: 4px;
@@ -2677,7 +2782,26 @@ const fillCommonConfigField = (field) => {
 }
 
 .running-overlay__wrap {
-  position: absolute;
-  inset: 0;
+  position: fixed;
+  top: 0;
+  left: 200px; // 导航栏宽度
+  right: 0;
+  bottom: 0;
+  // 确保遮罩层覆盖整个视口，不受滚动影响
+  z-index: 1000;
+}
+
+.global-block-company-notice {
+  background-color: var(--el-color-danger-light-9, #fff5f5);
+  border: 1px solid var(--el-color-danger-light-5, #ffa8a8);
+}
+
+.global-block-company-text {
+  color: var(--el-color-danger);
+}
+
+.form-footer-bar {
+  background-color: var(--bg-secondary, #f8f8f8);
+  border-top: 1px solid var(--border-secondary);
 }
 </style>
