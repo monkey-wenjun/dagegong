@@ -89,7 +89,7 @@ const routes: Array<RouteRecordRaw> = [
         path: 'ReadNoReplyReminder',
         component: () => import('@renderer/page/MainLayout/ReadNoReplyReminder.vue'),
         meta: {
-          title: '已读不回自动复聊'
+          title: 'AI自动复聊'
         }
       },
       {
@@ -182,7 +182,7 @@ const routes: Array<RouteRecordRaw> = [
             '@renderer/page/GeekAutoStartChatWithBoss/RunningStatusForReadNoReplyReminder.vue'
           ),
         meta: {
-          title: '已读不回自动复聊 正在为你开聊BOSS'
+          title: 'AI自动复聊 正在为你开聊BOSS'
         }
       }
     ]

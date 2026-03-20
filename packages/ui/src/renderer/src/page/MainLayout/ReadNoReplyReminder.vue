@@ -394,6 +394,7 @@
         </el-form-item>
         <el-form-item class="last-form-item" flex>
           <el-button type="primary" @click="handleSubmit">开始提醒</el-button>
+          <el-button @click="handleSaveConfig">保存配置</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -738,6 +739,24 @@ const checkAndShowRunningStatus = async () => {
 onMounted(() => {
   checkAndShowRunningStatus()
 })
+
+// 保存配置
+const handleSaveConfig = async () => {
+  try {
+    await formRef.value!.validate()
+    await electron.ipcRenderer.invoke('save-config-file-from-ui', JSON.stringify(formContent.value))
+    ElMessage.success({
+      message: '配置保存成功',
+      duration: 1500
+    })
+    gtagRenderer('config_saved')
+  } catch (error) {
+    ElMessage.error({
+      message: '保存失败：' + (error?.message || '未知错误'),
+      duration: 3000
+    })
+  }
+}
 
 const handleSubmit = async () => {
   gtagRenderer('run_read_no_reply_reminder_clicked', {

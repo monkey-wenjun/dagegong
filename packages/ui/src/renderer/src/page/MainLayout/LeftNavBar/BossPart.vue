@@ -52,7 +52,7 @@
         </el-tooltip>
       </RouterLink>
       <RouterLink to="./ReadNoReplyReminder">
-        已读不回自动复聊
+        AI自动复聊
         <el-tooltip
           placement="right"
           :enterable="false"
@@ -62,7 +62,7 @@
             <div w-480px>
               <div>
                 BOSS不明原因已读不回？简历就是投不出去？<br />
-                已读不回自动复聊，提醒一下已读不回的 BOSS，助力把握每次机会
+                AI自动复聊，提醒一下已读不回的 BOSS，助力把握每次机会
               </div>
               <br />
               <div>匹配逻辑</div>
