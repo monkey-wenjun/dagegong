@@ -32,7 +32,7 @@ interface NotificationPayload {
 /**
  * 获取当天的沟通统计
  */
-async function getTodayStats(): Promise<{ resumeCount: number; bossCount: number }> {
+export async function getTodayStats(): Promise<{ resumeCount: number; bossCount: number }> {
   try {
     const db = await initDb(getPublicDbFilePath()) as DataSource
     
@@ -239,7 +239,7 @@ export async function setupDailyStatsNotification(config: DailyStatsConfig): Pro
  */
 export async function initDailyStatsNotification(): Promise<void> {
   try {
-    const config = await readConfigFile('common-job-condition-config.json')
+    const config = await readConfigFile('daily-stats-notification.json')
     if (config) {
       await setupDailyStatsNotification(config as DailyStatsConfig)
     }

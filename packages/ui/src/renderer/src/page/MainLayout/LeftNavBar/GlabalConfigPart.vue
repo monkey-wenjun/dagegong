@@ -42,6 +42,25 @@
           <TopRight w-1em h-1em mr10px />
         </div>
       </RouterLink>
+      <RouterLink to="/main-layout/daily-stats-notification">
+        每日统计通知
+        <div>
+          <el-tooltip
+            placement="right"
+            :enterable="false"
+            @show="gtagRenderer('tooltip_show_for_daily_stats')"
+          >
+            <template #content>
+              <div class="font-size-12px">
+                配置飞书/钉钉机器人<br />
+                定时推送当日沟通统计
+              </div>
+            </template>
+            <QuestionFilled w-1em h-1em mr10px />
+          </el-tooltip>
+          <TopRight w-1em h-1em mr10px />
+        </div>
+      </RouterLink>
     </div>
   </div>
 </template>

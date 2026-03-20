@@ -142,6 +142,13 @@ const routes: Array<RouteRecordRaw> = [
         }
       },
       {
+        path: 'daily-stats-notification',
+        component: () => import('@renderer/page/DailyStatsNotificationConfig/index.vue'),
+        meta: {
+          title: '每日统计通知'
+        }
+      },
+      {
         path: 'common-job-condition',
         component: () => import('@renderer/page/CommonJobConditionConfig/index.vue'),
         meta: {

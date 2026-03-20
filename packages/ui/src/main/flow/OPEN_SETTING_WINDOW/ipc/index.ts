@@ -832,12 +832,23 @@ export default async function initIpc() {
     app.exit(0)
   })
 
-  // 保存全局求职条件配置（包含通知设置）
-  ipcMain.handle('save-common-job-condition-config', async (_, config) => {
-    await writeConfigFile('common-job-condition-config.json', config)
+  // 保存每日统计通知配置
+  ipcMain.handle('save-daily-stats-notification-config', async (_, config) => {
+    await writeConfigFile('daily-stats-notification.json', config)
     // 重启或更新定时通知任务
     await setupDailyStatsNotification(config)
     return { success: true }
+  })
+
+  // 获取每日统计通知配置
+  ipcMain.handle('get-daily-stats-notification-config', async () => {
+    return await readConfigFile('daily-stats-notification.json')
+  })
+
+  // 获取今日统计预览
+  ipcMain.handle('get-today-stats-preview', async () => {
+    const { getTodayStats } = await import('./daily-stats-notification')
+    return await getTodayStats()
   })
 
   // 测试每日统计通知
