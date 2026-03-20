@@ -1,11 +1,9 @@
 <template>
   <div class="daily-stats-notification-config">
     <div class="scroll-container">
-      <div class="form-wrap" style="background: var(--bg-primary); min-height: 500px;">
-        <div mb20px font-size-18px font-bold>每日统计通知设置</div>
-        <div font-size-14px color-#666 mb20px>
-          配置每日沟通统计的定时推送通知，支持飞书、钉钉机器人
-        </div>
+      <div class="form-wrap">
+        <h2>每日统计通知设置</h2>
+        <p class="desc">配置每日沟通统计的定时推送通知，支持飞书、钉钉机器人</p>
         
         <el-form
           ref="formRef"
@@ -13,15 +11,7 @@
           label-position="top"
           class="notification-form"
         >
-          <el-form-item>
-            <template #label>
-              <div flex items-center gap-8px>
-                <span>启用通知</span>
-                <el-tooltip content="开启后将在指定时间自动推送当日沟通统计" placement="right">
-                  <el-icon><QuestionFilled /></el-icon>
-                </el-tooltip>
-              </div>
-            </template>
+          <el-form-item label="启用通知">
             <el-switch
               v-model="formContent.dailyStatsNotificationEnabled"
               active-text="开启"
@@ -32,42 +22,16 @@
           <template v-if="formContent.dailyStatsNotificationEnabled">
             <el-form-item label="通知类型">
               <el-radio-group v-model="formContent.dailyStatsNotificationType">
-                <el-radio-button label="feishu">
-                  <div flex items-center gap-4px>
-                    <i class="i-mdi-chat-processing" />
-                    飞书机器人
-                  </div>
-                </el-radio-button>
-                <el-radio-button label="dingtalk">
-                  <div flex items-center gap-4px>
-                    <i class="i-mdi-chat" />
-                    钉钉机器人
-                  </div>
-                </el-radio-button>
+                <el-radio-button label="feishu">飞书机器人</el-radio-button>
+                <el-radio-button label="dingtalk">钉钉机器人</el-radio-button>
               </el-radio-group>
             </el-form-item>
 
-            <el-form-item>
-              <template #label>
-                <div flex items-center gap-8px>
-                  <span>Webhook 地址</span>
-                  <el-tooltip placement="right">
-                    <template #content>
-                      <div w-300px>
-                        <p>飞书：在群设置中添加自定义机器人，复制 Webhook 地址</p>
-                        <p mt-8px>钉钉：在群设置中添加机器人，复制 Webhook 地址</p>
-                      </div>
-                    </template>
-                    <el-icon><QuestionFilled /></el-icon>
-                  </el-tooltip>
-                </div>
-              </template>
+            <el-form-item label="Webhook 地址">
               <el-input
                 v-model="formContent.dailyStatsWebhookUrl"
                 :placeholder="webhookPlaceholder"
                 clearable
-                show-word-limit
-                maxlength="500"
               />
             </el-form-item>
 
@@ -82,38 +46,18 @@
                 placeholder="选择推送时间"
                 style="width: 200px"
               />
-              <div font-size-12px color-#999 mt-8px>
-                每天将按照设定时间自动推送当日统计数据
-              </div>
             </el-form-item>
 
-            <el-form-item>
-              <template #label>
-                <div flex items-center gap-8px>
-                  <span>消息模板</span>
-                  <el-tooltip placement="right">
-                    <template #content>
-                      <div w-300px>
-                        <p>可用变量：</p>
-                        <ul mt-4px>
-                          <li><code>{resumeCount}</code> - 今日投递简历数</li>
-                          <li><code>{bossCount}</code> - 今日沟通BOSS数</li>
-                        </ul>
-                      </div>
-                    </template>
-                    <el-icon><QuestionFilled /></el-icon>
-                  </el-tooltip>
-                </div>
-              </template>
+            <el-form-item label="消息模板">
               <el-input
                 v-model="formContent.dailyStatsTemplate"
                 type="textarea"
                 :autosize="{ minRows: 3, maxRows: 5 }"
                 placeholder="请输入消息模板"
-                show-word-limit
                 maxlength="200"
+                show-word-limit
               />
-              <div font-size-12px color-#999 mt-8px>
+              <div class="preview-text">
                 预览：{{ previewMessage }}
               </div>
             </el-form-item>
@@ -126,46 +70,16 @@
                 :loading="testingNotification"
                 :disabled="!formContent.dailyStatsWebhookUrl"
               >
-                <template #icon>
-                  <i class="i-mdi-send" />
-                </template>
                 测试发送
               </el-button>
-            </el-form-item>
-
-            <el-divider />
-
-            <el-form-item label="今日统计预览">
-              <div class="stats-preview" flex gap-20px>
-                <div class="stat-card" flex-1 text-center p-16px bg-#f5f7fa border-rd-8px>
-                  <div font-size-28px font-bold color-primary>{{ todayStats.resumeCount }}</div>
-                  <div font-size-12px color-#666 mt-4px>今日投递简历</div>
-                </div>
-                <div class="stat-card" flex-1 text-center p-16px bg-#f5f7fa border-rd-8px>
-                  <div font-size-28px font-bold color-primary>{{ todayStats.bossCount }}</div>
-                  <div font-size-12px color-#666 mt-4px>今日沟通BOSS</div>
-                </div>
-              </div>
-              <div font-size-12px color-#999 mt-8px>
-                数据仅供参考，实际推送时将使用最新统计数据
-              </div>
             </el-form-item>
           </template>
         </el-form>
       </div>
     </div>
     
-    <div class="pb10px pt10px form-footer-bar">
-      <div
-        :style="{
-          display: 'flex',
-          justifyContent: 'end',
-          maxWidth: '800px',
-          margin: '0 auto',
-          paddingLeft: '20px',
-          paddingRight: 'calc(20px + 16px)'
-        }"
-      >
+    <div class="form-footer-bar">
+      <div class="footer-content">
         <el-button @click="handleCancel">取消</el-button>
         <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
       </div>
@@ -176,7 +90,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { QuestionFilled } from '@element-plus/icons-vue'
 import { gtagRenderer as baseGtagRenderer } from '@renderer/utils/gtag'
 
 const { ipcRenderer } = window.electron
@@ -196,12 +109,6 @@ const formContent = ref({
   dailyStatsTemplate: '您今日已投递简历{{resumeCount}}份，与{{bossCount}}位BOSS进行沟通'
 })
 
-// 今日统计（预览用）
-const todayStats = ref({
-  resumeCount: 0,
-  bossCount: 0
-})
-
 const formRef = ref()
 const saving = ref(false)
 const testingNotification = ref(false)
@@ -217,8 +124,8 @@ const webhookPlaceholder = computed(() => {
 const previewMessage = computed(() => {
   const template = formContent.value.dailyStatsTemplate || '您今日已投递简历{{resumeCount}}份，与{{bossCount}}位BOSS进行沟通'
   return template
-    .replace(/\{\{resumeCount\}\}/g, String(todayStats.value.resumeCount || 5))
-    .replace(/\{\{bossCount\}\}/g, String(todayStats.value.bossCount || 3))
+    .replace(/\{\{resumeCount\}\}/g, '5')
+    .replace(/\{\{bossCount\}\}/g, '3')
 })
 
 // 测试通知
@@ -283,10 +190,9 @@ async function handleSave() {
   }
 }
 
-// 加载配置和今日统计
+// 加载配置
 onMounted(async () => {
   try {
-    // 加载配置
     const config = await ipcRenderer.invoke('get-daily-stats-notification-config')
     if (config) {
       Object.keys(formContent.value).forEach((key) => {
@@ -294,12 +200,6 @@ onMounted(async () => {
           formContent.value[key] = config[key]
         }
       })
-    }
-    
-    // 加载今日统计预览
-    const stats = await ipcRenderer.invoke('get-today-stats-preview')
-    if (stats) {
-      todayStats.value = stats
     }
   } catch (err) {
     console.error('Failed to load config:', err)
@@ -312,7 +212,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  min-height: 100vh;
   width: 100%;
   background-color: var(--bg-primary, #fff);
 
@@ -328,24 +227,26 @@ onMounted(async () => {
     padding: 30px 20px;
     margin-left: auto;
     margin-right: auto;
+    background: var(--bg-primary);
+    min-height: 500px;
   }
 
-  .notification-form {
-    :deep(.el-form-item__label) {
-      font-weight: 500;
-      padding-bottom: 8px;
-    }
+  h2 {
+    margin: 0 0 10px 0;
+    font-size: 18px;
+    font-weight: bold;
   }
 
-  .stats-preview {
-    .stat-card {
-      transition: all 0.3s ease;
-      
-      &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      }
-    }
+  .desc {
+    color: #666;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+
+  .preview-text {
+    font-size: 12px;
+    color: #999;
+    margin-top: 8px;
   }
 }
 
@@ -353,11 +254,15 @@ onMounted(async () => {
   flex: 0;
   background-color: var(--bg-secondary, #f8f8f8);
   border-top: 1px solid var(--border-secondary);
-}
+  padding: 10px 0;
 
-:deep(.el-radio-button__inner) {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  .footer-content {
+    display: flex;
+    justify-content: flex-end;
+    max-width: 800px;
+    margin: 0 auto;
+    padding-left: 20px;
+    padding-right: 36px;
+  }
 }
 </style>
