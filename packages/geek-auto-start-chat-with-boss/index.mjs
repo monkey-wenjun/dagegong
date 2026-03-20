@@ -1861,6 +1861,8 @@ async function toRecommendPage (hooks) {
             hooks.logInfo?.('[Chat] 等待打招呼响应...')
             let responseReceived = false
             let addFriendResponse
+            let retryCount = 0
+            const maxRetries = 3
             
             // 循环等待，直到获取非 preflight 请求的有效响应
             while (true) {
@@ -1893,22 +1895,58 @@ async function toRecommendPage (hooks) {
               break
             }
             
-            hooks.logInfo?.(`[Chat] 响应状态: ${addFriendResponse.status()}`)
-            // 处理可能的响应体读取失败
+            hooks.logInfo?.(`[Chat] 响应状态: ${addFriendResponse.status()}, 请求方法: ${addFriendResponse.request().method()}`)
+            
+            // 尝试读取响应体
             try {
-              const res = await addFriendResponse.json()
+              const responseText = await addFriendResponse.text()
+              hooks.logInfo?.(`[Chat] 响应文本长度: ${responseText?.length ?? 0}`)
+              
+              if (!responseText || responseText.trim() === '') {
+                throw new Error('响应体为空')
+              }
+              
+              const res = JSON.parse(responseText)
               hooks.logInfo?.(`[Chat] 响应数据: code=${res.code}, message=${res.message || '无'}`)
               return res
             } catch (parseErr) {
-              // 如果读取响应体失败，直接抛出错误让外层重启
-              console.warn('读取打招呼响应失败:', parseErr.message)
-              hooks.logError?.(`[Chat] 读取打招呼响应失败: ${parseErr.message}`)
-              // 尝试获取响应文本以便诊断
-              try {
-                const text = await addFriendResponse.text()
-                console.warn('响应内容:', text)
-                hooks.logError?.(`[Chat] 响应内容: ${text.substring(0, 200)}`)
-              } catch (e) {}
+              console.warn('[Chat] 读取响应失败:', parseErr.message)
+              hooks.logError?.(`[Chat] 读取响应失败: ${parseErr.message}`)
+              
+              // 如果无法读取响应，等待一下让页面状态更新，然后检查是否有聊天对话框
+              // 这通常意味着请求实际成功了，只是 Puppeteer 无法读取响应体
+              hooks.logInfo?.('[Chat] 响应读取失败，等待页面状态更新...')
+              await sleep(2000)
+              
+              // 检查是否进入了聊天页面（有聊天输入框）
+              const hasChatInput = await page.$('.chat-conversation .message-controls .chat-input')
+              if (hasChatInput) {
+                hooks.logInfo?.('[Chat] 检测到聊天输入框，假设打招呼成功')
+                // 返回一个模拟的成功响应
+                return {
+                  code: 0,
+                  message: 'OK (assumed from page state)',
+                  zpData: {
+                    bizCode: 0
+                  }
+                }
+              }
+              
+              // 检查是否有错误弹窗
+              const errorDialog = await page.$('.greet-boss-dialog, .chat-block-dialog, .el-message-box')
+              if (errorDialog) {
+                hooks.logInfo?.('[Chat] 检测到弹窗，可能需要处理')
+                // 尝试获取弹窗内容
+                const dialogText = await page.evaluate(() => {
+                  const dialogs = document.querySelectorAll('.greet-boss-dialog, .chat-block-dialog, .el-message-box')
+                  for (const d of dialogs) {
+                    if (d.offsetParent !== null) return d.textContent
+                  }
+                  return null
+                })
+                hooks.logInfo?.(`[Chat] 弹窗内容: ${dialogText?.substring(0, 100) || '无法获取'}`)
+              }
+              
               throw new Error('STARTUP_CHAT_ERROR_WITH_UNKNOWN_ERROR')
             }
           }
