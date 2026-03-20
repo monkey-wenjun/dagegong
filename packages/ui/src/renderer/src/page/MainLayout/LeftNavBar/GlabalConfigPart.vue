@@ -5,7 +5,7 @@
       <RouterLink to="/main-layout/common-job-condition">
         求职全局设置选项
       </RouterLink>
-      <a href="javascript:void(0)" @click="handleClickBrowserAssistant">
+      <a href="#" @click.prevent="handleClickBrowserAssistant">
         配置浏览器助手<TopRight w-1em h-1em mr10px />
       </a>
       <RouterLink to="/main-layout/llm-config">

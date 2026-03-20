@@ -7,7 +7,7 @@
     <div ml1em mt1em line-height-normal>
       如果您了解如何获取Cookie、了解有效的Cookie格式，可以直接在下方输入框中进行编辑。由于手动编辑较为麻烦，建议您打开已登录过BOSS直聘的浏览器，使用<a
         class="color-blue! decoration-none"
-        href="javascript:void(0)"
+        href="#"
         @click.prevent="handleEditThisCookieExtensionStoreLinkClick"
       >
         EditThisCookie 扩展程序 </a

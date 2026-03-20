@@ -1576,7 +1576,7 @@
                           </div>
                           <div>
                             关于误伤/误投的排查，<a
-                              href="javascript:;"
+                              href="#"
                               style="color: var(--el-color-primary)"
                               @click.prevent="handleHowToFillDetailFilterClick"
                               >请参阅这个链接</a

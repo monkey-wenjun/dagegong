@@ -35,7 +35,7 @@
                 :style="{
                   color: 'var(--el-color-primary)'
                 }"
-                href="javascript:void(0)"
+                href="#"
                 @click.prevent="
                   () => {
                     gtagRenderer('chat_completion_intro_doc_link_clicked')
@@ -50,7 +50,7 @@
                 :style="{
                   color: 'var(--el-color-primary)'
                 }"
-                href="javascript:void(0)"
+                href="#"
                 @click.prevent="
                   () => {
                     gtagRenderer('openai_sdk_intro_doc_link_clicked')

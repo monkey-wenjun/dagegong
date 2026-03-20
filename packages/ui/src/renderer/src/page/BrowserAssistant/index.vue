@@ -65,7 +65,7 @@
                     <li>
                       方案一：通过本程序下载 Google Chrome for Testing
                       {{ EXPECT_CHROMIUM_BUILD_ID }} -
-                      <a href="javascript:;" @click="handleClickLaunchBrowserDownloader">点击此处</a
+                      <a href="#" @click="handleClickLaunchBrowserDownloader">点击此处</a
                       >即可下载；这个浏览器仅供本程序使用，不会影响到当前 Google Chrome
                       安装。本程序开发过程中主要是使用这个浏览器测试的，<span color-orange
                         >可以保证兼容性</span
@@ -76,10 +76,10 @@
                     </li>
                     <li>
                       方案二：手动安装 Google Chrome 最新版本 -
-                      <a href="javascript:;" @click="handleOpenChromeDownloadPage">点击此处</a>打开
+                      <a href="#" @click="handleOpenChromeDownloadPage">点击此处</a>打开
                       Google Chrome
                       官方网站，找到浏览器下载页面来下载安装程序。下载完毕后，执行安装程序。安装完成后，点击上方<a
-                        href="javascript:;"
+                        href="#"
                         :loading="isAutoDetectLoading"
                         @click="autoDetectPuppeteerExecutable"
                         >自动检测</a
@@ -89,7 +89,7 @@
                         color-orange
                         >浏览器升级后某些功能不兼容导致本程序不能正确运行</span
                       >的问题。如果您确实遇到不能正常运行的问题，请<a
-                        href="javascript:;"
+                        href="#"
                         @click="handleFeedbackClick"
                         >提交 Issue</a
                       >来反馈，同时请再尝试方案一。
