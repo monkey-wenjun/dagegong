@@ -19,7 +19,7 @@ export function openSettingWindow() {
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
-  whenReadyPromise.then(() => {
+  whenReadyPromise.then(async () => {
     // Set app user model id for windows
     electronApp.setAppUserModelId('com.electron')
 
@@ -35,7 +35,7 @@ export function openSettingWindow() {
     // IPC test
     ipcMain.on('ping', () => console.log('pong'))
     initPublicIpc()
-    initIpc()
+    await initIpc()
 
     // 初始化后台自动同步服务（每5分钟同步一次BOSS沟通记录）
     import('../../features/auto-sync-boss-chat-relations').then(({ initAutoSyncOnAppStart }) => {

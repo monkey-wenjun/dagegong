@@ -639,6 +639,76 @@
             </div>
           </div>
         </div>
+        <div class="h-1px divider-line" mt16px mb16px />
+        <div>
+          <div font-size-14px mb8px>每日统计通知</div>
+          <div
+            :style="{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }"
+          >
+            <el-form-item mb0>
+              <el-switch
+                v-model="formContent.dailyStatsNotificationEnabled"
+                active-text="开启每日统计通知"
+                inactive-text="关闭"
+              />
+            </el-form-item>
+            <template v-if="formContent.dailyStatsNotificationEnabled">
+              <el-form-item mb0>
+                <div font-size-12px mb4px>通知类型</div>
+                <el-radio-group v-model="formContent.dailyStatsNotificationType">
+                  <el-radio label="feishu">飞书机器人</el-radio>
+                  <el-radio label="dingtalk">钉钉机器人</el-radio>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item mb0>
+                <div font-size-12px mb4px>
+                  Webhook 地址
+                  <el-tooltip content="飞书或钉钉群机器人的 Webhook 地址" placement="top">
+                    <el-icon><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+                <el-input
+                  v-model="formContent.dailyStatsWebhookUrl"
+                  placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxx 或 https://oapi.dingtalk.com/robot/send?access_token=xxx"
+                  clearable
+                />
+              </el-form-item>
+              <el-form-item mb0>
+                <div font-size-12px mb4px>推送时间</div>
+                <el-time-select
+                  v-model="formContent.dailyStatsPushTime"
+                  :picker-options="{
+                    start: '18:00',
+                    step: '00:30',
+                    end: '23:30'
+                  }"
+                  placeholder="选择推送时间"
+                />
+              </el-form-item>
+              <el-form-item mb0>
+                <div font-size-12px mb4px>推送内容模板</div>
+                <el-input
+                  v-model="formContent.dailyStatsTemplate"
+                  type="textarea"
+                  :autosize="{ minRows: 2 }"
+                  placeholder="您今日已投递简历{{resumeCount}}份，与{{bossCount}}位BOSS进行沟通"
+                />
+                <div font-size-12px color-#999 mt4px>
+                  可用变量：{{resumeCount}} = 投递简历数, {{bossCount}} = 沟通BOSS数
+                </div>
+              </el-form-item>
+              <el-form-item mb0>
+                <el-button size="small" @click="testNotification" :loading="testingNotification">
+                  测试发送
+                </el-button>
+              </el-form-item>
+            </template>
+          </div>
+        </div>
       </el-form>
     </div>
     <div class="pb10px pt10px form-footer-bar">
@@ -706,7 +776,13 @@ const formContent = ref({
   expectSalaryHigh: null,
   expectSalaryLow: null,
   blockCompanyNameRegExpStr: '',
-  globalBlockCompanyNameRegExpStr: '' // 全局公司黑名单
+  globalBlockCompanyNameRegExpStr: '', // 全局公司黑名单
+  // 每日统计通知配置
+  dailyStatsNotificationEnabled: false,
+  dailyStatsNotificationType: 'feishu',
+  dailyStatsWebhookUrl: '',
+  dailyStatsPushTime: '20:00',
+  dailyStatsTemplate: '您今日已投递简历{{resumeCount}}份，与{{bossCount}}位BOSS进行沟通'
 })
 
 const jobDetailRegExpSectionEl = ref<HTMLDivElement>()
@@ -772,6 +848,32 @@ const handleExpectSalaryCalculateWayChanged = getHandlerForExpectSalaryCalculate
 
 function handleCancel() {
   window.history.back()
+}
+
+// 测试通知
+const testingNotification = ref(false)
+async function testNotification() {
+  if (!formContent.value.dailyStatsWebhookUrl) {
+    ElMessage.warning('请先填写 Webhook 地址')
+    return
+  }
+  testingNotification.value = true
+  try {
+    const result = await ipcRenderer.invoke('test-daily-stats-notification', {
+      type: formContent.value.dailyStatsNotificationType,
+      webhookUrl: formContent.value.dailyStatsWebhookUrl,
+      template: formContent.value.dailyStatsTemplate
+    })
+    if (result.success) {
+      ElMessage.success('测试消息发送成功')
+    } else {
+      ElMessage.error('发送失败：' + result.error)
+    }
+  } catch (error) {
+    ElMessage.error('发送失败：' + (error?.message || '未知错误'))
+  } finally {
+    testingNotification.value = false
+  }
 }
 
 const formRef = ref()

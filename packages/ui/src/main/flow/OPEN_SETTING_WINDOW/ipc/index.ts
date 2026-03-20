@@ -60,8 +60,16 @@ import {
 import { getLastUsedAndAvailableBrowser } from '../../DOWNLOAD_DEPENDENCIES/utils/browser-history'
 import { waitForCommonJobConditionDone } from '../../../features/common-job-condition'
 import { ensureConfigFileExist } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { 
+  setupDailyStatsNotification, 
+  sendDailyStatsNotification,
+  initDailyStatsNotification 
+} from './daily-stats-notification'
 
-export default function initIpc() {
+export default async function initIpc() {
+  // 初始化每日统计通知
+  await initDailyStatsNotification()
+  
   ipcMain.handle('save-config-file-from-ui', async (ev, payload) => {
     payload = JSON.parse(payload)
     ensureConfigFileExist()
@@ -822,6 +830,31 @@ export default function initIpc() {
 
   ipcMain.handle('exit-app-immediately', () => {
     app.exit(0)
+  })
+
+  // 保存全局求职条件配置（包含通知设置）
+  ipcMain.handle('save-common-job-condition-config', async (_, config) => {
+    await writeConfigFile('common-job-condition-config.json', config)
+    // 重启或更新定时通知任务
+    await setupDailyStatsNotification(config)
+    return { success: true }
+  })
+
+  // 测试每日统计通知
+  ipcMain.handle('test-daily-stats-notification', async (_, { type, webhookUrl, template }) => {
+    try {
+      await sendDailyStatsNotification({
+        type,
+        webhookUrl,
+        resumeCount: 5,
+        bossCount: 3,
+        template
+      })
+      return { success: true }
+    } catch (error) {
+      console.error('Test notification error:', error)
+      return { success: false, error: error.message }
+    }
   })
 }
 
