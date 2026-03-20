@@ -1,7 +1,7 @@
 <template>
   <div class="daily-stats-notification-config">
     <div class="scroll-container">
-      <div class="form-wrap">
+      <div class="form-wrap" style="background: var(--bg-primary); min-height: 500px;">
         <div mb20px font-size-18px font-bold>每日统计通知设置</div>
         <div font-size-14px color-#666 mb20px>
           配置每日沟通统计的定时推送通知，支持飞书、钉钉机器人
@@ -311,9 +311,10 @@ onMounted(async () => {
 .daily-stats-notification-config {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 100%;
+  height: 100vh;
+  min-height: 100vh;
   width: 100%;
+  background-color: var(--bg-primary, #fff);
 
   .scroll-container {
     flex: 1;
