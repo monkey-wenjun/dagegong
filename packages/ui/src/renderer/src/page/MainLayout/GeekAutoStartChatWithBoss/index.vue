@@ -2097,6 +2097,15 @@ electron.ipcRenderer.invoke('fetch-config-file-content').then((res) => {
   formContent.value.expectJobNameRegExpStr = res.config['boss.json'].expectJobNameRegExpStr?.trim()
   formContent.value.expectJobTypeRegExpStr = res.config['boss.json'].expectJobTypeRegExpStr?.trim()
   formContent.value.expectJobDescRegExpStr = res.config['boss.json'].expectJobDescRegExpStr?.trim()
+  
+  // 调试日志：检查职位过滤配置
+  console.log('[Config Load] Job filter config:', {
+    expectJobTypeRegExpStr: formContent.value.expectJobTypeRegExpStr,
+    expectJobNameRegExpStr: formContent.value.expectJobNameRegExpStr,
+    jobDetailRegExpMatchLogic: formContent.value.jobDetailRegExpMatchLogic,
+    useCommonConfig: formContent.value.fieldsForUseCommonConfig?.jobDetail,
+    commonConfigJobType: res.config['common-job-condition-config.json']?.expectJobTypeRegExpStr
+  })
 
   formContent.value.jobNotMatchStrategy = strategyOptionWhenCurrentJobNotMatch
     .map((it) => it.value)
@@ -2351,6 +2360,29 @@ const handleSubmit = async () => {
     })
     console.log(err)
     return
+  }
+  
+  // 检查职位过滤配置
+  const effectiveJobTypeRegExp = formContent.value.fieldsForUseCommonConfig?.jobDetail
+    ? commonJobConditionConfig.value.expectJobTypeRegExpStr
+    : formContent.value.expectJobTypeRegExpStr
+  
+  if (!effectiveJobTypeRegExp?.trim()) {
+    try {
+      await ElMessageBox.confirm(
+        '您没有设置职位类型正则，这会导致所有类型的职位都被投递（包括客户成功、销售等不相关职位）。\n\n建议设置职位类型正则，例如：\\bJava\\b|后端开发|软件开发\n\n是否继续运行？',
+        '职位过滤未配置',
+        {
+          confirmButtonText: '继续运行',
+          cancelButtonText: '去配置',
+          type: 'warning'
+        }
+      )
+    } catch {
+      // 用户选择取消，滚动到职位详情过滤区域
+      jobDetailRegExpSectionEl.value?.scrollIntoView({ behavior: 'smooth' })
+      return
+    }
   }
   const clonedFormContent = JSON.parse(JSON.stringify(formContent.value))
   clonedFormContent.jobSourceList = formatJobSourceFormValueToConfig(
