@@ -19,8 +19,8 @@
         ></div>
       </div>
       <div class="dialog-main" w-full mt--20px>
-        <!-- v-if="stepsForRender.some(it => ['todo', 'pending', 'rejected'].includes(it.status))" -->
-        <div>
+        <!-- 检查步骤列表 - 仅在未完成或有错误时显示 -->
+        <div v-if="shouldShowSteps" class="steps-list">
           <ul m0 pl0>
             <li
               v-for="(item, index) in stepsForRender"
@@ -41,9 +41,16 @@
             </li>
           </ul>
         </div>
-        <div flex justify-between items-center w-full>
+        
+        <!-- 运行中状态 - 简洁大标题 -->
+        <div v-else-if="isRunning" class="running-status">
+          <h1 class="running-title">AI正在帮您与BOSS沟通...</h1>
+          <p class="running-subtitle">💬 正在为你投递简历、与BOSS开聊</p>
+        </div>
+        
+        <div flex justify-between items-center w-full mt16px>
           <div>
-            <div>{{ runningStatusTextMapByCode[currentRunningStatus] }}</div>
+            <div v-if="!isRunning">{{ runningStatusTextMapByCode[currentRunningStatus] }}</div>
             <div v-if="exitErrorMessage" style="color: #f56c6c; font-size: 12px; margin-top: 8px;">
               错误: {{ exitErrorMessage }}
             </div>
@@ -94,6 +101,26 @@ const stepsForRender = computed(() => {
     clonedSteps[lastFulfilledIndex + 1].status = 'pending'
   }
   return clonedSteps
+})
+
+// 是否正在运行中（所有检查都通过）
+const isRunning = computed(() => {
+  return currentRunningStatus.value === RUNNING_STATUS_ENUM.RUNNING
+})
+
+// 是否应该显示检查步骤列表
+const shouldShowSteps = computed(() => {
+  // 如果有未完成的步骤或错误，显示列表
+  const hasTodo = stepsForRender.value.some((it) => it.status === 'todo')
+  const hasPending = stepsForRender.value.some((it) => it.status === 'pending')
+  const hasRejected = stepsForRender.value.some((it) => it.status === 'rejected')
+  
+  // 如果有错误，显示列表
+  if (hasRejected) return true
+  // 如果有待处理或未完成的步骤，显示列表
+  if (hasTodo || hasPending) return true
+  // 其他情况（全部完成且正在运行），不显示列表
+  return false
 })
 
 const runningStatusTextMapByCode = {
@@ -317,6 +344,35 @@ ipcRenderer.on('worker-exited', (ev, payload) => {
       padding: var(--el-dialog-padding-primary);
       //border-radius: 0 0 20px 20px;
       border-radius: 20px;
+      
+      .running-status {
+        text-align: center;
+        padding: 30px 0;
+        
+        .running-title {
+          font-size: 2.2rem;
+          font-weight: 700;
+          color: var(--primary-color, #00b2b2);
+          margin: 0 0 16px 0;
+          letter-spacing: 1px;
+          animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .running-subtitle {
+          font-size: 1.1rem;
+          color: #666;
+          margin: 0;
+        }
+      }
+      
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.7;
+        }
+      }
     }
   }
 }
