@@ -8,6 +8,8 @@ import { sleep } from '@dagegong/utils/sleep.mjs'
 
 // 聊天好友列表 API
 const GEEK_FRIEND_LIST_API = 'https://www.zhipin.com/wapi/zprelation/friend/getGeekFriendList.json'
+// 聊天关系列表 API（用于获取 friendIds）
+const GEEK_CHAT_RELATION_API = 'https://www.zhipin.com/wapi/zprelation/friend/getGeekChatRelation'
 // 简历列表 API
 const RESUME_LIST_API = 'https://www.zhipin.com/wapi/zpgeek/resume/attachment/checkbox.json'
 // 发送简历 API
@@ -31,11 +33,11 @@ function isAskForResume(message) {
 }
 
 /**
- * 获取需要发送简历的聊天列表
+ * 获取聊天关系列表（用于获取 friendIds）
  * @param {import('puppeteer').Page} page
- * @returns {Promise<Array<{securityId: string, encryptBossId: string, name: string, lastMsg: string}>>}
+ * @returns {Promise<Array<number>>}
  */
-async function getNewGreetingList(page) {
+async function getChatRelationList(page) {
   try {
     const response = await page.evaluate(async (apiUrl) => {
       const res = await fetch(apiUrl, {
@@ -47,7 +49,54 @@ async function getNewGreetingList(page) {
         credentials: 'include'
       })
       return res.json()
-    }, GEEK_FRIEND_LIST_API)
+    }, GEEK_CHAT_RELATION_API)
+
+    if (response.code !== 0) {
+      console.log('[AutoSendResume] 获取聊天关系列表失败:', response.message)
+      return []
+    }
+
+    // 解析返回数据 - 返回的是 friendId 列表
+    const friendIds = response.zpData?.friendIdList || []
+    console.log(`[AutoSendResume] 获取到 ${friendIds.length} 个聊天关系`)
+    return friendIds
+  } catch (err) {
+    console.error('[AutoSendResume] 获取聊天关系列表出错:', err)
+    return []
+  }
+}
+
+/**
+ * 获取需要发送简历的聊天列表
+ * @param {import('puppeteer').Page} page
+ * @returns {Promise<Array<{securityId: string, encryptBossId: string, name: string, lastMsg: string}>>}
+ */
+async function getNewGreetingList(page) {
+  try {
+    // 1. 先获取 friendIds
+    const friendIds = await getChatRelationList(page)
+    if (friendIds.length === 0) {
+      console.log('[AutoSendResume] 没有聊天关系，跳过')
+      return []
+    }
+
+    // 2. 调用 getGeekFriendList.json 获取详细信息
+    const response = await page.evaluate(async (apiUrl, friendIds) => {
+      const params = new URLSearchParams()
+      params.append('friendIds', friendIds.join(','))
+      
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json, text/plain, */*',
+          'content-type': 'application/x-www-form-urlencoded',
+          'x-requested-with': 'XMLHttpRequest'
+        },
+        credentials: 'include',
+        body: params.toString()
+      })
+      return res.json()
+    }, GEEK_FRIEND_LIST_API, friendIds)
 
     if (response.code !== 0) {
       console.log('[AutoSendResume] 获取聊天列表失败:', response.message)
@@ -56,7 +105,7 @@ async function getNewGreetingList(page) {
 
     // 解析返回数据
     const list = response.zpData?.result || []
-    console.log(`[AutoSendResume] 获取到 ${list.length} 个聊天`)
+    console.log(`[AutoSendResume] 获取到 ${list.length} 个聊天详情`)
 
     // 筛选出 BOSS 索要简历的聊天
     const needSendResumeList = list.filter(item => {
