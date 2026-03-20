@@ -1860,28 +1860,47 @@ async function toRecommendPage (hooks) {
           const waitAddFriendResponse = async () => {
             hooks.logInfo?.('[Chat] 等待打招呼响应...')
             let responseReceived = false
-            const addFriendResponse = await page.waitForResponse(
-              response => {
-                const url = response.url()
-                if (url.startsWith('https://www.zhipin.com/wapi/zpgeek/friend/add.json')) {
-                  hooks.logInfo?.(`[Chat] 收到 add.json 响应: ${url.substring(0, 100)}...`)
-                  if (url.includes(`jobId=${targetJobData.jobInfo.encryptId}`)) {
-                    responseReceived = true
-                    return true
+            let addFriendResponse
+            
+            // 循环等待，直到获取非 preflight 请求的有效响应
+            while (true) {
+              addFriendResponse = await page.waitForResponse(
+                response => {
+                  const url = response.url()
+                  if (url.startsWith('https://www.zhipin.com/wapi/zpgeek/friend/add.json')) {
+                    // 排除 preflight 请求 (OPTIONS 方法没有响应体)
+                    if (response.request().method() === 'OPTIONS') {
+                      hooks.logInfo?.(`[Chat] 跳过 preflight 请求: ${url.substring(0, 80)}...`)
+                      return false
+                    }
+                    hooks.logInfo?.(`[Chat] 收到 add.json 响应: ${url.substring(0, 100)}...`)
+                    if (url.includes(`jobId=${targetJobData.jobInfo.encryptId}`)) {
+                      responseReceived = true
+                      return true
+                    }
                   }
-                }
-                return false
-              },
-              { timeout: 10000 }
-            );
+                  return false
+                },
+                { timeout: 10000 }
+              );
+              
+              // 如果是 preflight 请求，继续等待下一个响应
+              if (addFriendResponse.request().method() === 'OPTIONS') {
+                hooks.logInfo?.('[Chat] 检测到 preflight 请求，继续等待实际响应...')
+                continue
+              }
+              
+              break
+            }
+            
             hooks.logInfo?.(`[Chat] 响应状态: ${addFriendResponse.status()}`)
-            // 处理可能的 preflight 请求或响应体读取失败
+            // 处理可能的响应体读取失败
             try {
               const res = await addFriendResponse.json()
               hooks.logInfo?.(`[Chat] 响应数据: code=${res.code}, message=${res.message || '无'}`)
               return res
             } catch (parseErr) {
-              // 如果读取响应体失败（可能是 preflight 或响应已过期），直接抛出错误让外层重启
+              // 如果读取响应体失败，直接抛出错误让外层重启
               console.warn('读取打招呼响应失败:', parseErr.message)
               hooks.logError?.(`[Chat] 读取打招呼响应失败: ${parseErr.message}`)
               // 尝试获取响应文本以便诊断
