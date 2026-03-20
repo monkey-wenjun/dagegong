@@ -2,7 +2,7 @@
   <div class="daily-stats-notification-config">
     <div class="scroll-container">
       <div class="form-wrap">
-        <h2>每日统计通知设置</h2>
+        <h2>配置通知</h2>
         <p class="desc">配置每日沟通统计的定时推送通知，支持飞书、钉钉机器人</p>
         
         <el-form
@@ -175,10 +175,6 @@ async function handleSave() {
       duration: 1500
     })
     gtagRenderer('config_saved')
-    
-    setTimeout(() => {
-      window.history.back()
-    }, 500)
   } catch (error) {
     ElMessage.error({
       message: '保存失败：' + (error?.message || '未知错误'),

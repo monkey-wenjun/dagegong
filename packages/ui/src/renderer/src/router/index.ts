@@ -145,7 +145,7 @@ const routes: Array<RouteRecordRaw> = [
         path: 'daily-stats-notification',
         component: () => import('@renderer/page/DailyStatsNotificationConfig/index.vue'),
         meta: {
-          title: '每日统计通知'
+          title: '配置通知'
         }
       },
       {

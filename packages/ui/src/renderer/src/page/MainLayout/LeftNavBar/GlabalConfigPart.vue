@@ -39,11 +39,10 @@
             </template>
             <QuestionFilled w-1em h-1em mr10px />
           </el-tooltip>
-          <TopRight w-1em h-1em mr10px />
         </div>
       </RouterLink>
       <RouterLink to="/main-layout/daily-stats-notification">
-        每日统计通知
+        配置通知
         <div>
           <el-tooltip
             placement="right"
@@ -58,7 +57,6 @@
             </template>
             <QuestionFilled w-1em h-1em mr10px />
           </el-tooltip>
-          <TopRight w-1em h-1em mr10px />
         </div>
       </RouterLink>
     </div>
@@ -68,7 +66,7 @@
 <script lang="ts" setup>
 import { gtagRenderer } from '@renderer/utils/gtag'
 import { ElMessage } from 'element-plus'
-import { TopRight, QuestionFilled } from '@element-plus/icons-vue'
+import { QuestionFilled } from '@element-plus/icons-vue'
 
 const handleClickBrowserAssistant = async () => {
   gtagRenderer('browser_setting_clicked')
