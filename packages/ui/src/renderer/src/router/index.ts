@@ -172,7 +172,7 @@ const routes: Array<RouteRecordRaw> = [
         path: 'runningStatus',
         component: () => import('@renderer/page/GeekAutoStartChatWithBoss/RunningStatus.vue'),
         meta: {
-          title: 'AI沟通 正在为你开聊BOSS'}
+          title: 'AI沟通 正在为你开聊BOSS'
         }
       },
       {
