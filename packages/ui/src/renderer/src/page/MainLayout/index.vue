@@ -50,7 +50,7 @@
       </div>
     </div>
     <div class="router-view-wrap of-auto">
-      <RouterView />
+      <RouterView :key="$route.fullPath" />
     </div>
   </div>
 </template>
