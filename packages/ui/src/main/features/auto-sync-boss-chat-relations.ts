@@ -67,7 +67,7 @@ async function doSync(): Promise<void> {
     syncStatus.lastSyncResult = {
       success: false,
       syncedCount: 0,
-      error: 'AI沟通任务运行中'}
+      error: 'AI沟通任务运行中'
     }
     return
   }
