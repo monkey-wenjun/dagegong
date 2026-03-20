@@ -330,6 +330,15 @@ let {
   expectJobTypeRegExpStr,
   expectJobDescRegExpStr,
 } = !fieldsForUseCommonConfig.jobDetail ? readConfigFile('boss.json') : commonJobConditionConfig
+
+// 调试日志：显示职位过滤配置来源和值
+console.log('[JobFilter Config] Source:', !fieldsForUseCommonConfig.jobDetail ? 'boss.json' : 'common-job-condition-config.json')
+console.log('[JobFilter Config] fieldsForUseCommonConfig.jobDetail:', fieldsForUseCommonConfig.jobDetail)
+console.log('[JobFilter Config] expectJobTypeRegExpStr:', expectJobTypeRegExpStr)
+console.log('[JobFilter Config] expectJobNameRegExpStr:', expectJobNameRegExpStr)
+console.log('[JobFilter Config] expectJobDescRegExpStr:', expectJobDescRegExpStr)
+console.log('[JobFilter Config] jobDetailRegExpMatchLogic:', jobDetailRegExpMatchLogic)
+
 if (
   !fieldsForUseCommonConfig.jobDetail &&
   expectJobRegExpStr &&
@@ -340,6 +349,7 @@ if (
   expectJobNameRegExpStr = expectJobRegExpStr
   expectJobTypeRegExpStr = expectJobRegExpStr
   expectJobDescRegExpStr = expectJobRegExpStr
+  console.log('[JobFilter Config] Fallback to legacy expectJobRegExpStr:', expectJobRegExpStr)
 }
 
 if (
@@ -350,6 +360,7 @@ if (
   ].map(it => Boolean(it?.trim())).every(it => !it)
 ) {
   jobDetailRegExpMatchLogic = JobDetailRegExpMatchLogic.EVERY
+  console.warn('[JobFilter Config] WARNING: All job detail regexp are empty! All jobs will be matched.')
 }
 
 let {
@@ -725,7 +736,7 @@ async function markJobAsNotSuitInRecommendPage (reasonCode) {
 export function testIfJobTitleOrDescriptionSuit (jobInfo, matchLogic) {
   let isJobNameSuit = matchLogic === JobDetailRegExpMatchLogic.SOME ? false : true
   try {
-    if (expectJobNameRegExpStr.trim()) {
+    if (expectJobNameRegExpStr?.trim()) {
       const regExp = new RegExp(expectJobNameRegExpStr, 'im')
       isJobNameSuit = regExp.test(jobInfo.jobName?.replace(/\n/g, '') ?? '')
     }
@@ -733,7 +744,7 @@ export function testIfJobTitleOrDescriptionSuit (jobInfo, matchLogic) {
   }
   let isJobTypeSuit = matchLogic === JobDetailRegExpMatchLogic.SOME ? false : true
   try {
-    if (expectJobTypeRegExpStr.trim()) {
+    if (expectJobTypeRegExpStr?.trim()) {
       const regExp = new RegExp(expectJobTypeRegExpStr, 'im')
       isJobTypeSuit = regExp.test(jobInfo.positionName?.replace(/\n/g, '') ?? '')
     }
@@ -741,18 +752,23 @@ export function testIfJobTitleOrDescriptionSuit (jobInfo, matchLogic) {
   }
   let isJobDescSuit = matchLogic === JobDetailRegExpMatchLogic.SOME ? false : true
   try {
-    if (expectJobDescRegExpStr.trim()) {
+    if (expectJobDescRegExpStr?.trim()) {
       const regExp = new RegExp(expectJobDescRegExpStr, 'im')
       isJobDescSuit = regExp.test(jobInfo.postDescription?.replace(/\n/g, '') ?? '')
     }
   } catch {
   }
-  if (matchLogic === JobDetailRegExpMatchLogic.SOME) {
-    return isJobNameSuit || isJobTypeSuit || isJobDescSuit
-  }
-  else {
-    return isJobNameSuit && isJobTypeSuit && isJobDescSuit
-  }
+  
+  const result = matchLogic === JobDetailRegExpMatchLogic.SOME 
+    ? (isJobNameSuit || isJobTypeSuit || isJobDescSuit)
+    : (isJobNameSuit && isJobTypeSuit && isJobDescSuit)
+  
+  // 调试日志：显示匹配详情
+  console.log(`[JobFilter Match] jobName: ${jobInfo.jobName}, positionName: ${jobInfo.positionName}`)
+  console.log(`[JobFilter Match] regexp - name: ${expectJobNameRegExpStr}, type: ${expectJobTypeRegExpStr}, desc: ${expectJobDescRegExpStr}`)
+  console.log(`[JobFilter Match] result - name: ${isJobNameSuit}, type: ${isJobTypeSuit}, desc: ${isJobDescSuit}, final: ${result}`)
+  
+  return result
 }
 
 async function setFilterCondition (selectedFilters) {
