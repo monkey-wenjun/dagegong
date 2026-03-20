@@ -1,5 +1,5 @@
 {
-  "name": "@geekgeekrun/pm",
+  "name": "@dagegong/pm",
   "version": "0.0.1",
   "description": "Electron多进程架构",
   "main": "main.js",

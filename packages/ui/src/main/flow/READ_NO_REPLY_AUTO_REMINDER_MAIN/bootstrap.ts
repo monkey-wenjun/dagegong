@@ -1,9 +1,9 @@
 import { Browser } from 'puppeteer'
-import { initPuppeteer } from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
+import { initPuppeteer } from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 import { pageMapByName } from './index'
 
-import { readStorageFile } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { setDomainLocalStorage } from '@geekgeekrun/utils/puppeteer/local-storage.mjs'
+import { readStorageFile } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { setDomainLocalStorage } from '@dagegong/utils/puppeteer/local-storage.mjs'
 
 const localStoragePageUrl = `https://www.zhipin.com/desktop/`
 const bossChatUiUrl = `https://www.zhipin.com/web/geek/chat`
@@ -12,7 +12,7 @@ export async function bootstrap() {
   const { puppeteer } = await initPuppeteer()
 
   // 从环境变量读取无头模式配置
-  const headlessMode = process.env.GEEKGEEKRUN_BROWSER_HEADLESS === '1'
+  const headlessMode = process.env.DAGEGONG_BROWSER_HEADLESS === '1'
   if (headlessMode) {
     console.log('[Browser] 以无头模式启动浏览器')
   }

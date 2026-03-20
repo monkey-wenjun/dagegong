@@ -657,7 +657,7 @@
 
 <script setup lang="tsx">
 import { gtagRenderer as baseGtagRenderer } from '@renderer/utils/gtag'
-import { JobDetailRegExpMatchLogic, SalaryCalculateWay } from '@geekgeekrun/sqlite-plugin/src/enums'
+import { JobDetailRegExpMatchLogic, SalaryCalculateWay } from '@dagegong/sqlite-plugin/src/enums'
 import CityChooser from '../MainLayout/GeekAutoStartChatWithBoss/components/CityChooser.vue'
 import { QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
 
@@ -757,7 +757,7 @@ function handleHowToFillDetailFilterClick() {
   gtagRenderer('click_linux_do_how_to_fill_df')
   electron.ipcRenderer.send(
     'open-external-link',
-    'https://linux.do/t/topic/640626/74?u=geekgeekrun'
+    'https://linux.do/t/topic/640626/74?u=dagegong'
   )
 }
 

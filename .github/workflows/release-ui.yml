@@ -51,7 +51,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: binary-geekgeekrun-ui-windows-x64-${{ github.sha }}
+        name: binary-dagegong-ui-windows-x64-${{ github.sha }}
         path: |
           ${{ github.workspace }}/packages/ui/dist/*.exe
         overwrite: true
@@ -91,7 +91,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: binary-geekgeekrun-ui-macos-${{ matrix.platform.arch }}-${{ github.sha }}
+        name: binary-dagegong-ui-macos-${{ matrix.platform.arch }}-${{ github.sha }}
         path: |
           ${{ github.workspace }}/packages/ui/dist/*.dmg
         overwrite: true
@@ -124,7 +124,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: binary-geekgeekrun-ui-linux-x64-${{ github.sha }}
+        name: binary-dagegong-ui-linux-x64-${{ github.sha }}
         path: |
           ${{ github.workspace }}/packages/ui/dist/*.deb
           ${{ github.workspace }}/packages/ui/dist/*.rpm
@@ -142,19 +142,19 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          path: geekgeekrun-ui@${{ github.sha }}
-          pattern: binary-geekgeekrun-ui-*
+          path: dagegong-ui@${{ github.sha }}
+          pattern: binary-dagegong-ui-*
           merge-multiple: true
 
       - name: Display structure of downloaded files
-        run: ls -llR geekgeekrun-ui@${{ github.sha }}
+        run: ls -llR dagegong-ui@${{ github.sha }}
 
       - name: Create release for public
         uses: ncipollo/release-action@v1
         with:
           prerelease: true
           allowUpdates: true
-          artifacts: geekgeekrun-ui@${{ github.sha }}/*
+          artifacts: dagegong-ui@${{ github.sha }}/*
           tag: ${{ github.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
           body: TODO New Release.

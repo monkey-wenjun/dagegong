@@ -182,7 +182,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue'
-import { sleep } from '@geekgeekrun/utils/sleep.mjs'
+import { sleep } from '@dagegong/utils/sleep.mjs'
 import { ElMessage } from 'element-plus'
 import { gtagRenderer } from '@renderer/utils/gtag'
 import {

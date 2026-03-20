@@ -1,11 +1,11 @@
 {
-  "name": "@geekgeekrun/puppeteer-extra-plugin-laodeng",
+  "name": "@dagegong/puppeteer-extra-plugin-laodeng",
   "version": "0.0.1",
   "description": "laodeng",
   "main": "./index.js",
-  "author": "geekgeekrun",
-  "productName": "GeekGeekRun",
-  "homepage": "https://github.com/geekgeekrun",
+  "author": "dagegong",
+  "productName": "Dagegong",
+  "homepage": "https://github.com/dagegong",
   "scripts": {},
   "dependencies": {
     "puppeteer-extra": "^3.3.6",

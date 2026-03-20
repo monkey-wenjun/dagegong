@@ -1,16 +1,16 @@
 import {
   sleep,
   sleepWithRandomDelay
-} from '@geekgeekrun/utils/sleep.mjs'
+} from '@dagegong/utils/sleep.mjs'
 
 import fs from 'node:fs'
 import os from 'node:os'
-import { get__dirname } from '@geekgeekrun/utils/legacy-path.mjs';
+import { get__dirname } from '@dagegong/utils/legacy-path.mjs';
 import path from 'node:path';
 import JSON5 from 'json5'
 import { EventEmitter } from 'node:events'
-import { setDomainLocalStorage } from '@geekgeekrun/utils/puppeteer/local-storage.mjs'
-import { completes } from '@geekgeekrun/utils/gpt-request.mjs'
+import { setDomainLocalStorage } from '@dagegong/utils/puppeteer/local-storage.mjs'
+import { completes } from '@dagegong/utils/gpt-request.mjs'
 
 import { readConfigFile, writeStorageFile, ensureConfigFileExist, readStorageFile, ensureStorageFileExist } from './runtime-file-utils.mjs'
 import {
@@ -40,7 +40,7 @@ import {
 import { parseSalary } from './sqlite-plugin-compat.mjs'
 import { waitForSageTimeOrJustContinue } from './sage-time.mjs'
 import cityGroupData from './cityGroup.mjs'
-import { hasIntersection } from '@geekgeekrun/utils/number.mjs';
+import { hasIntersection } from '@dagegong/utils/number.mjs';
 const flattedCityList = []
 
 // Track daily remaining chat count (null = unknown, 0 = reached limit)
@@ -102,7 +102,7 @@ export async function initPuppeteer () {
     [
       import('puppeteer-extra'),
       import('puppeteer-extra-plugin-stealth'),
-      import('@geekgeekrun/puppeteer-extra-plugin-laodeng'),
+      import('@dagegong/puppeteer-extra-plugin-laodeng'),
       import('puppeteer-extra-plugin-anonymize-ua')
     ]
   )
@@ -2181,7 +2181,7 @@ export async function mainLoop (hooks) {
   }
   try {
     // 从环境变量读取无头模式配置
-    const headlessMode = process.env.GEEKGEEKRUN_BROWSER_HEADLESS === '1'
+    const headlessMode = process.env.DAGEGONG_BROWSER_HEADLESS === '1'
     console.log('[DEBUG] Headless mode:', headlessMode)
     if (headlessMode) {
       console.log('[Browser] 以无头模式启动浏览器')

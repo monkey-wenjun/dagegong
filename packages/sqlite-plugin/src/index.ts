@@ -270,3 +270,9 @@ export { CompanyInfo } from './entity/CompanyInfo'
 export { UserInfo } from './entity/UserInfo'
 export { BossChatRelation } from './entity/BossChatRelation'
 export { VBossChatRelation } from './entity/VBossChatRelation'
+
+// Export handlers
+export {
+  saveBossChatRelationList,
+  getBossChatRelationList
+} from './handlers'

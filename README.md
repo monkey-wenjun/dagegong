@@ -6,11 +6,11 @@
 
 ## 📌 项目声明
 
-**本项目基于 [geekgeekrun/geekgeekrun](https://github.com/geekgeekrun/geekgeekrun) 进行二次开发。**
+**本项目基于 [dagegong/dagegong](https://github.com/dagegong/dagegong) 进行二次开发。**
 
 原项目是一个开源的 BOSS 直聘自动化工具，感谢原作者的贡献。本项目在此基础上进行了部分定制和优化。
 
-- 🔗 原项目地址：https://github.com/geekgeekrun/geekgeekrun
+- 🔗 原项目地址：https://github.com/geekgeekrun/geekgeekrun 
 - 📝 原项目作者：[@geekgeekrun](https://github.com/geekgeekrun)
 
 ---
@@ -67,9 +67,9 @@ BOSS 已读不回？自动提醒功能帮你把握机会：
 
 访问 [Releases](https://github.com/monkey-wenjun/dagegong/releases) 页面下载最新版本：
 
-- **Windows**: `geekgeekrun-ui_x.x.x_x64_setup.exe`
-- **macOS**: `geekgeekrun-ui_x.x.x.dmg`
-- **Linux**: `geekgeekrun-ui_x.x.x.AppImage`
+- **Windows**: `dagegong-ui_x.x.x_x64_setup.exe`
+- **macOS**: `dagegong-ui_x.x.x.dmg`
+- **Linux**: `dagegong-ui_x.x.x.AppImage`
 
 ### 开发环境
 
@@ -155,7 +155,7 @@ dagegong/
 
 ## 📄 许可证
 
-[ISC](LICENSE) © geekgeekrun
+[ISC](LICENSE) © dagegong
 
 ## 👨‍💻 作者
 

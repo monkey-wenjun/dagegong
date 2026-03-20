@@ -4,7 +4,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
-import { readStorageFile } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { readStorageFile } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 
 // 同步状态
 interface SyncStatus {

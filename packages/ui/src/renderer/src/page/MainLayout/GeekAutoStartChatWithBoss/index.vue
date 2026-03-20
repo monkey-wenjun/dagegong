@@ -1908,12 +1908,12 @@ import { QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import AnyCombineBossRecommendFilter from '@renderer/features/AnyCombineBossRecommendFilter/index.vue'
 import StaticCombineBossRecommendFilter from '@renderer/features/StaticCombineBossRecommendFilter/index.vue'
-import { activeDescList } from '@geekgeekrun/geek-auto-start-chat-with-boss/constant.mjs'
+import { activeDescList } from '@dagegong/geek-auto-start-chat-with-boss/constant.mjs'
 import {
   calculateTotalCombinations,
   checkAnyCombineBossRecommendFilterHasCondition,
   formatStaticCombineFilters
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/combineCalculator.mjs'
+} from '@dagegong/geek-auto-start-chat-with-boss/combineCalculator.mjs'
 import { gtagRenderer as baseGtagRenderer } from '@renderer/utils/gtag'
 import {
   CombineRecommendJobFilterType,
@@ -1921,11 +1921,11 @@ import {
   StrategyScopeOptionWhenMarkJobNotMatch,
   SalaryCalculateWay,
   JobDetailRegExpMatchLogic
-} from '@geekgeekrun/sqlite-plugin/src/enums'
+} from '@dagegong/sqlite-plugin/src/enums'
 import { debounce } from 'lodash'
 import mittBus from '../../../utils/mitt'
 import CityChooser from './components/CityChooser.vue'
-import conditions from '@geekgeekrun/geek-auto-start-chat-with-boss/internal-config/job-filter-conditions-20241002.json'
+import conditions from '@dagegong/geek-auto-start-chat-with-boss/internal-config/job-filter-conditions-20241002.json'
 import JobSourceDragOrderer from '../../../features/JobSourceDragOrderer/index.vue'
 import expectJobFilterTemplateList from './expectJobFilterTemplateList'
 import RunningOverlay from '@renderer/features/RunningOverlay/index.vue'
@@ -2520,7 +2520,7 @@ function handleHowToFillDetailFilterClick() {
   gtagRenderer('click_linux_do_how_to_fill_df')
   electron.ipcRenderer.send(
     'open-external-link',
-    'https://linux.do/t/topic/640626/74?u=geekgeekrun'
+    'https://linux.do/t/topic/640626/74?u=dagegong'
   )
 }
 

@@ -1,15 +1,15 @@
-import DingtalkPlugin from '@geekgeekrun/dingtalk-plugin/index.mjs'
-import { mainLoop, closeBrowserWindow } from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
+import DingtalkPlugin from '@dagegong/dingtalk-plugin/index.mjs'
+import { mainLoop, closeBrowserWindow } from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 import {
   SyncHook,
   AsyncSeriesHook
 } from 'tapable'
 import fs from 'node:fs'
 import path from 'node:path'
-import { get__dirname } from '@geekgeekrun/utils/legacy-path.mjs';
+import { get__dirname } from '@dagegong/utils/legacy-path.mjs';
 import JSON5 from 'json5'
-import { readConfigFile, readStorageFile, getPublicDbFilePath } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { sleep } from '@geekgeekrun/utils/sleep.mjs'
+import { readConfigFile, readStorageFile, getPublicDbFilePath } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { sleep } from '@dagegong/utils/sleep.mjs'
 import {
   AUTO_CHAT_ERROR_EXIT_CODE
 } from './enums.mjs'

@@ -5,7 +5,7 @@ import { launchDaemon } from './flow/OPEN_SETTING_WINDOW/launch-daemon'
 import { app } from 'electron'
 
 const isUiDev = process.env.NODE_ENV === 'development'
-const enableLogToFile = process.env.GEEKGEEKRUN_ENABLE_LOG_TO_FILE === String(1)
+const enableLogToFile = process.env.DAGEGONG_ENABLE_LOG_TO_FILE === String(1)
 if (isUiDev || enableLogToFile) {
   overrideConsole()
 }
@@ -83,7 +83,7 @@ const runMode = commandlineArgs['mode']
       break
     }
     default: {
-      globalThis.GEEKGEEKRUN_PROCESS_ROLE = 'ui'
+      globalThis.DAGEGONG_PROCESS_ROLE = 'ui'
       await launchDaemon()
       const { openSettingWindow } = await import('./flow/OPEN_SETTING_WINDOW/index')
       openSettingWindow()

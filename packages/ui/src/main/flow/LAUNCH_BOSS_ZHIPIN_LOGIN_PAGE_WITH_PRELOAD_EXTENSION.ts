@@ -2,7 +2,7 @@ import { app, dialog } from 'electron'
 import {
   main,
   loginEventBus
-} from '@geekgeekrun/launch-bosszhipin-login-page-with-preload-extension'
+} from '@dagegong/launch-bosszhipin-login-page-with-preload-extension'
 import { pipeWriteRegardlessError } from './utils/pipe'
 import fs from 'node:fs'
 import { getLastUsedAndAvailableBrowser } from './DOWNLOAD_DEPENDENCIES/utils/browser-history'
@@ -40,7 +40,7 @@ export const launchBossZhipinLoginPageWithPreloadExtension = async () => {
     })
     app.exit(1)
   }
-  const { initPuppeteer } = await import('@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs')
+  const { initPuppeteer } = await import('@dagegong/geek-auto-start-chat-with-boss/index.mjs')
   try {
     await initPuppeteer()
   } catch (err) {

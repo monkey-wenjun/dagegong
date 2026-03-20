@@ -1,4 +1,4 @@
-import { sleep } from '@geekgeekrun/utils/sleep.mjs'
+import { sleep } from '@dagegong/utils/sleep.mjs'
 
 export default function attachListenerForKillSelfOnParentExited() {
   // #region period check is parent process existed

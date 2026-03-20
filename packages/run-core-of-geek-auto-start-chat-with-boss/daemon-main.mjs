@@ -1,6 +1,6 @@
 import path from 'node:path'
 import * as url from 'url'
-import { sleep } from '@geekgeekrun/utils/sleep.mjs';
+import { sleep } from '@dagegong/utils/sleep.mjs';
 import childProcess from 'node:child_process';
 import { AUTO_CHAT_ERROR_EXIT_CODE } from './enums.mjs'
 

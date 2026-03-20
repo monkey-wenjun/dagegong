@@ -1,16 +1,16 @@
-import DingtalkPlugin from '@geekgeekrun/dingtalk-plugin/index.mjs'
+import DingtalkPlugin from '@dagegong/dingtalk-plugin/index.mjs'
 import { app, dialog } from 'electron'
 import { SyncHook, AsyncSeriesHook } from 'tapable'
 import {
   readConfigFile,
   getPublicDbFilePath
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+} from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 // import { pipeWriteRegardlessError } from '../utils/pipe'
-import { sleep } from '@geekgeekrun/utils/sleep.mjs'
+import { sleep } from '@dagegong/utils/sleep.mjs'
 import { AUTO_CHAT_ERROR_EXIT_CODE } from '../../../common/enums/auto-start-chat'
 import attachListenerForKillSelfOnParentExited from '../../utils/attachListenerForKillSelfOnParentExited'
 import minimist from 'minimist'
-import SqlitePluginModule from '@geekgeekrun/sqlite-plugin'
+import SqlitePluginModule from '@dagegong/sqlite-plugin'
 import gtag from '../../utils/gtag'
 import GtagPlugin from '../../utils/gtag/GtagPlugin'
 import { connectToDaemon, sendToDaemon } from '../OPEN_SETTING_WINDOW/connect-to-daemon'
@@ -102,13 +102,13 @@ const runAutoChat = async () => {
   const browserConfig = await getBrowserConfig()
   console.log('[DEBUG] Browser config:', browserConfig)
   if (browserConfig.headless) {
-    process.env.GEEKGEEKRUN_BROWSER_HEADLESS = '1'
+    process.env.DAGEGONG_BROWSER_HEADLESS = '1'
     console.log('[DEBUG] Headless mode enabled')
   }
   
   console.log('[DEBUG] Importing geek-auto-start-chat-with-boss module...')
   const { initPuppeteer, mainLoop, closeBrowserWindow, autoStartChatEventBus } = await import(
-    '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
+    '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
   )
   console.log('[DEBUG] Module imported successfully')
   

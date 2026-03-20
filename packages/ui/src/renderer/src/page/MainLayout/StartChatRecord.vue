@@ -217,9 +217,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElPagination, ElDrawer, ElTag, ElMessage, ElAvatar, ElSwitch, ElTooltip } from 'element-plus'
-import { type VChatStartupLog } from '@geekgeekrun/sqlite-plugin/src/entity/VChatStartupLog'
-import { type VBossChatRelation } from '@geekgeekrun/sqlite-plugin/src/entity/VBossChatRelation'
-import { transformUtcDateToLocalDate } from '@geekgeekrun/utils/date.mjs'
+import { type VChatStartupLog } from '@dagegong/sqlite-plugin/src/entity/VChatStartupLog'
+import { type VBossChatRelation } from '@dagegong/sqlite-plugin/src/entity/VBossChatRelation'
+import { transformUtcDateToLocalDate } from '@dagegong/utils/date.mjs'
 import { PageReq, PagedRes } from '../../../../common/types/pagination'
 import JobInfoSnapshot from '../../features/JobInfoSnapshot/index.vue'
 import { gtagRenderer } from '@renderer/utils/gtag'

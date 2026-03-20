@@ -22,7 +22,7 @@ export async function connectToDaemon() {
   daemonClient = new net.Socket()
   let isConnected = false
   await new Promise((resolve, reject) => {
-    const ipcSocketName = process.env.GEEKGEEKRUND_PIPE_NAME
+    const ipcSocketName = process.env.DAGEGONGD_PIPE_NAME
     const ipcSocketPath = getSocketPath(ipcSocketName)
     daemonClient.connect(ipcSocketPath, 'localhost', () => {
       isConnected = true

@@ -1,5 +1,5 @@
 {
-  "name": "geekgeekrun",
+  "name": "dagegong",
   "private": true,
   "version": "1.0.0",
   "description": "geek-auto-start-chat-with-boss",
@@ -8,10 +8,10 @@
   "scripts": {
     "start": "node ./packages/run-core-of-geek-auto-start-chat-with-boss/daemon-main.mjs"
   },
-  "author": "geekgeekrun",
+  "author": "dagegong",
   "license": "ISC",
   "dependencies": {
-    "@geekgeekrun/puppeteer-extra-plugin-laodeng": "workspace:*",
+    "@dagegong/puppeteer-extra-plugin-laodeng": "workspace:*",
     "cheerio": "1.0.0-rc.12",
     "dayjs": "^1.11.10",
     "json5": "^2.2.3",
@@ -30,7 +30,7 @@
     "node": "20.16.0"
   },
   "engines": {
-    "pnpm": ">=8.15.9 <9.0.0"
+    "pnpm": ">=8.15.9"
   },
   "pnpm": {
     "patchedDependencies": {

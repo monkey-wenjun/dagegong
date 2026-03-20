@@ -1,6 +1,9 @@
 import buildInfo from '../../../common/build-info.json'
 import os from 'node:os'
 
+// 从 git tag 获取的版本号（构建时注入）
+const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : buildInfo.version
+
 type LowercaseLetter =
   | 'a'
   | 'b'
@@ -54,7 +57,7 @@ type ValidString<S extends string> =
 
 function getCommonParams() {
   return {
-    app_version: buildInfo.version,
+    app_version: appVersion,
     app_build_hash: buildInfo.buildHash,
     os_info: `${os.type()} | ${os.release()} | ${os.arch()}`,
     t: Number(new Date())

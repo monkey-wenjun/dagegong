@@ -6,7 +6,7 @@ import packageJson from './package.json' with { type: 'json' }
 
 const isUiDev = process.env.NODE_ENV === 'development'
 
-export const runtimeFolderPath = path.join(os.homedir(), '.geekgeekrun')
+export const runtimeFolderPath = path.join(os.homedir(), '.dagegong')
 
 const extensionDir = path.join(
   runtimeFolderPath,
@@ -32,19 +32,19 @@ async function getEditThisCookieZipPath () {
   return editThisCookieZipPath
 }
 
-const APP_GEEKGEEKRUN_EDIT_VERSION = 1
+const APP_DAGEGONG_EDIT_VERSION = 1
 export async function ensureEditThisCookie () {
   let isNeedExtractEditThisCookie = false
-  const GEEKGEEKRUN_EDIT_VERSION_FILE_PATH = path.join(editThisCookieExtensionPath, 'GEEKGEEKRUN_EDIT_VERSION')
-  let geekgeekrunEditVersion
+  const DAGEGONG_EDIT_VERSION_FILE_PATH = path.join(editThisCookieExtensionPath, 'DAGEGONG_EDIT_VERSION')
+  let dagegongEditVersion
   try {
-    const fileContent = fs.readFileSync(GEEKGEEKRUN_EDIT_VERSION_FILE_PATH, { encoding: 'utf-8' })
-    geekgeekrunEditVersion = Number(fileContent) || 0
+    const fileContent = fs.readFileSync(DAGEGONG_EDIT_VERSION_FILE_PATH, { encoding: 'utf-8' })
+    dagegongEditVersion = Number(fileContent) || 0
   }
   catch (err) {
-    geekgeekrunEditVersion = 0
+    dagegongEditVersion = 0
   }
-  if (geekgeekrunEditVersion < APP_GEEKGEEKRUN_EDIT_VERSION) {
+  if (dagegongEditVersion < APP_DAGEGONG_EDIT_VERSION) {
     isNeedExtractEditThisCookie = true
   }
   const isExtractDoneFlagFilePath = path.join(editThisCookieExtensionPath, 'EXTRACT_DONE')

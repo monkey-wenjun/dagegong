@@ -1,27 +1,27 @@
 import { bootstrap, launchBoss } from './bootstrap'
-import { initPuppeteer } from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
+import { initPuppeteer } from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 import { MsgStatus, type ChatListItem } from './types'
 import { Browser, Page } from 'puppeteer'
 import { getGptContent, sendLookForwardReplyEmotion, sendMessage } from './boss-operation'
-import { sleep, sleepWithRandomDelay } from '@geekgeekrun/utils/sleep.mjs'
-import { waitForPage } from '@geekgeekrun/utils/puppeteer/wait.mjs'
+import { sleep, sleepWithRandomDelay } from '@dagegong/utils/sleep.mjs'
+import { waitForPage } from '@dagegong/utils/puppeteer/wait.mjs'
 import { app, dialog } from 'electron'
-import { initDb } from '@geekgeekrun/sqlite-plugin'
+import { initDb } from '@dagegong/sqlite-plugin'
 import {
   getPublicDbFilePath,
   readConfigFile
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { ChatMessageRecord } from '@geekgeekrun/sqlite-plugin/dist/entity/ChatMessageRecord'
+} from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord'
 import {
   saveChatMessageRecord,
   getJobHireStatusRecord,
   saveJobHireStatusRecord
-} from '@geekgeekrun/sqlite-plugin/dist/handlers'
+} from '@dagegong/sqlite-plugin/dist/handlers'
 import {
   writeStorageFile,
   readStorageFile
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { BossInfo } from '@geekgeekrun/sqlite-plugin/dist/entity/BossInfo'
+} from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { BossInfo } from '@dagegong/sqlite-plugin/dist/entity/BossInfo'
 import { messageForSaveFilter } from '../../../common/utils/chat-list'
 import {
   AUTO_CHAT_ERROR_EXIT_CODE,
@@ -30,7 +30,7 @@ import {
   RECHAT_LLM_FALLBACK
 } from '../../../common/enums/auto-start-chat'
 import gtag from '../../utils/gtag'
-import { JobHireStatus } from '@geekgeekrun/sqlite-plugin/dist/enums'
+import { JobHireStatus } from '@dagegong/sqlite-plugin/dist/enums'
 import dayjs from 'dayjs'
 import cheerio from 'cheerio'
 import { connectToDaemon, sendToDaemon } from '../OPEN_SETTING_WINDOW/connect-to-daemon'
@@ -43,7 +43,7 @@ import { configWithBrowserAssistant } from '../../features/config-with-browser-a
 import { getBrowserConfig } from '../../features/browser-config'
 import { runningLogManager } from '../../features/running-log'
 import { DEFAULT_CONSTANT_OPEN_CONTENT_SEGS } from '../../../common/constant'
-import { setDomainLocalStorage } from '@geekgeekrun/utils/puppeteer/local-storage.mjs'
+import { setDomainLocalStorage } from '@dagegong/utils/puppeteer/local-storage.mjs'
 
 process.on('SIGTERM', () => {
   console.log('收到SIGTERM信号，正在退出')
@@ -315,7 +315,7 @@ let browser: null | Browser = null
 async function initBrowserConfig() {
   const browserConfig = await getBrowserConfig()
   if (browserConfig.headless) {
-    process.env.GEEKGEEKRUN_BROWSER_HEADLESS = '1'
+    process.env.DAGEGONG_BROWSER_HEADLESS = '1'
     console.log('[Browser] 已启用无头模式')
   }
   runningLogManager.logInfo('浏览器配置', { headless: browserConfig.headless })
@@ -438,7 +438,7 @@ const mainLoop = async () => {
     '设置合适的期望薪资范围'
   ].map((it) => new RegExp(it))
   browser = await bootstrap()
-  runningLogManager.logInfo('浏览器已启动', { headless: process.env.GEEKGEEKRUN_BROWSER_HEADLESS === '1' })
+  runningLogManager.logInfo('浏览器已启动', { headless: process.env.DAGEGONG_BROWSER_HEADLESS === '1' })
   
   await Promise.all([launchBoss(browser)])
   runningLogManager.logInfo('页面已获取')
@@ -463,7 +463,7 @@ const mainLoop = async () => {
       }
     })
     // 如果当前是无头模式，打开浏览器让用户扫码登录
-    if (process.env.GEEKGEEKRUN_BROWSER_HEADLESS === '1') {
+    if (process.env.DAGEGONG_BROWSER_HEADLESS === '1') {
       runningLogManager.logInfo('登录状态已过期，正在打开浏览器等待扫码登录...')
       await handleRelogin()
       // 登录成功后重新启动

@@ -5,14 +5,29 @@ import UnoCSS from 'unocss/vite'
 import { presetUno, presetAttributify, presetIcons } from 'unocss'
 import transformerDirective from '@unocss/transformer-directives'
 import Replace from 'unplugin-replace/vite'
+import { execSync } from 'child_process'
 
 process.env = { ...process.env, ...loadEnv(process.env.NODE_ENV!, process.cwd()) }
+
+// 从 git tag 获取版本号
+function getVersionFromGitTag(): string {
+  try {
+    const tag = execSync('git describe --tags --match "ui-v*" --abbrev=0', { encoding: 'utf-8' }).trim()
+    // 去掉 ui-v 前缀
+    return tag.replace(/^ui-v/, '')
+  } catch {
+    // 如果没有 tag，使用 build-info.json 中的版本
+    return '0.19.4'
+  }
+}
+
+const appVersion = getVersionFromGitTag()
 const mainPlugins = [
   externalizeDepsPlugin({
     exclude: [
-      '@geekgeekrun/utils',
+      '@dagegong/utils',
       'find-chrome-bin',
-      '@geekgeekrun/launch-bosszhipin-login-page-with-preload-extension'
+      '@dagegong/launch-bosszhipin-login-page-with-preload-extension'
     ]
   }),
   Replace({
@@ -65,12 +80,18 @@ export default defineConfig({
       },
       minify: process.env.NODE_ENV === 'development' ? undefined : 'terser'
     },
-    plugins: mainPlugins
+    plugins: mainPlugins,
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion)
+    }
   },
   preload: {
     plugins: preloadPlugins,
     build: {
       minify: process.env.NODE_ENV === 'development' ? undefined : 'terser'
+    },
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion)
     }
   },
   renderer: {
@@ -82,6 +103,9 @@ export default defineConfig({
     plugins: rendererPlugins,
     build: {
       minify: process.env.NODE_ENV === 'development' ? undefined : 'terser'
+    },
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion)
     }
   }
 })

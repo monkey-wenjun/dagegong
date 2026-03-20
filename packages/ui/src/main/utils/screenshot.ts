@@ -18,7 +18,7 @@ export async function pushCurrentPageScreenshot (page) {
     const screenshotAt = Date.now()
     await sendToDaemon({
       type: 'worker-screenshot',
-      workerId: process.env.GEEKGEEKRUND_WORKER_ID,
+      workerId: process.env.DAGEGONGD_WORKER_ID,
       data: {
         screenshot: `data:image/jpeg;base64,${screenshotBase64}`,
         screenshotAt,

@@ -1,45 +1,45 @@
 import { app } from 'electron'
-import { initPuppeteer } from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
+import { initPuppeteer } from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 import {
   readStorageFile,
   writeStorageFile
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+} from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import {
   RECOMMEND_JOB_ENTRY_SELECTOR,
   USER_SET_EXPECT_JOB_ENTRIES_SELECTOR
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/constant.mjs'
-import { setDomainLocalStorage } from '@geekgeekrun/utils/puppeteer/local-storage.mjs'
+} from '@dagegong/geek-auto-start-chat-with-boss/constant.mjs'
+import { setDomainLocalStorage } from '@dagegong/utils/puppeteer/local-storage.mjs'
 import {
   saveJobInfoFromRecommendPage,
   saveChatStartupRecord,
   saveMarkAsNotSuitRecord,
   saveChatMessageRecord,
   saveJobHireStatusRecord
-} from '@geekgeekrun/sqlite-plugin/dist/handlers'
-import { initDb } from '@geekgeekrun/sqlite-plugin'
-import { getPublicDbFilePath } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+} from '@dagegong/sqlite-plugin/dist/handlers'
+import { initDb } from '@dagegong/sqlite-plugin'
+import { getPublicDbFilePath } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import {
   MarkAsNotSuitReason,
   JobSource,
   JobHireStatus
-} from '@geekgeekrun/sqlite-plugin/dist/enums'
+} from '@dagegong/sqlite-plugin/dist/enums'
 import cheerio from 'cheerio'
 
 import fs from 'node:fs'
 import { Target } from 'puppeteer'
 import { pipeWriteRegardlessError } from '../utils/pipe'
 import * as JSONStream from 'JSONStream'
-import { ChatStartupFrom } from '@geekgeekrun/sqlite-plugin/dist/entity/ChatStartupLog'
+import { ChatStartupFrom } from '@dagegong/sqlite-plugin/dist/entity/ChatStartupLog'
 import gtag from '../../utils/gtag'
 import attachListenerForKillSelfOnParentExited from '../../utils/attachListenerForKillSelfOnParentExited'
-import { type ChatMessageRecord } from '@geekgeekrun/sqlite-plugin/src/entity/ChatMessageRecord'
-import { BossInfo } from '@geekgeekrun/sqlite-plugin/dist/entity/BossInfo'
+import { type ChatMessageRecord } from '@dagegong/sqlite-plugin/src/entity/ChatMessageRecord'
+import { BossInfo } from '@dagegong/sqlite-plugin/dist/entity/BossInfo'
 import { messageForSaveFilter } from '../../../common/utils/chat-list'
 
 import {
   ensureEditThisCookie,
   editThisCookieExtensionPath
-} from '@geekgeekrun/launch-bosszhipin-login-page-with-preload-extension/utils.mjs'
+} from '@dagegong/launch-bosszhipin-login-page-with-preload-extension/utils.mjs'
 
 const dbInitPromise = initDb(getPublicDbFilePath())
 

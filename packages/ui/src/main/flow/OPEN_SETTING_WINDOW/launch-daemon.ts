@@ -3,7 +3,7 @@ import {
   ensureStorageFileExist,
   writeStorageFile,
   readStorageFile
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+} from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import { randomUUID } from 'node:crypto'
 import { connectToDaemon } from './connect-to-daemon'
 
@@ -13,11 +13,11 @@ export async function ensureIpcPipeName({ isReset } = {}) {
   }
   let ipcPipeName = readStorageFile('ipc-pipe-name', { isJson: false })
   if (!ipcPipeName) {
-    ipcPipeName = `geekgeekrun-d_${randomUUID()}`
+    ipcPipeName = `dagegongd_${randomUUID()}`
     ensureStorageFileExist()
     await writeStorageFile('ipc-pipe-name', ipcPipeName, { isJson: false })
   }
-  process.env.GEEKGEEKRUND_PIPE_NAME = ipcPipeName
+  process.env.DAGEGONGD_PIPE_NAME = ipcPipeName
   return ipcPipeName
 }
 

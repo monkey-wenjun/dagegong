@@ -8,7 +8,7 @@ export default function overrideConsole() {
   const originConsoleWarn = console.warn.bind(console)
   const originConsoleError = console.error.bind(console)
 
-  const runtimeFolderPath = path.join(os.homedir(), '.geekgeekrun')
+  const runtimeFolderPath = path.join(os.homedir(), '.dagegong')
   const logDirPath = path.join(runtimeFolderPath, 'log')
   if (!fs.existsSync(logDirPath)) {
     fs.mkdirSync(logDirPath, { recursive: true })

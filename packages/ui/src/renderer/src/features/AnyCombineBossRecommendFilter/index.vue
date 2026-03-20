@@ -130,8 +130,8 @@
 </template>
 
 <script lang="ts" setup>
-import conditions from '@geekgeekrun/geek-auto-start-chat-with-boss/internal-config/job-filter-conditions-20241002.json'
-import industryFilterExemption from '@geekgeekrun/geek-auto-start-chat-with-boss/internal-config/job-filter-industry-filter-exemption-20241002.json'
+import conditions from '@dagegong/geek-auto-start-chat-with-boss/internal-config/job-filter-conditions-20241002.json'
+import industryFilterExemption from '@dagegong/geek-auto-start-chat-with-boss/internal-config/job-filter-industry-filter-exemption-20241002.json'
 import CityChooser from '@renderer/page/MainLayout/GeekAutoStartChatWithBoss/components/CityChooser.vue'
 import { PropType } from 'vue'
 

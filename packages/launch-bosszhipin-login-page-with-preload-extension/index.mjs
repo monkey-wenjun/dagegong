@@ -1,14 +1,14 @@
 import {
   initPuppeteer
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
+} from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 import {
   sleep,
   sleepWithRandomDelay
-} from '@geekgeekrun/utils/sleep.mjs'
-import { blockNavigation } from '@geekgeekrun/utils/puppeteer/block-navigation.mjs'
+} from '@dagegong/utils/sleep.mjs'
+import { blockNavigation } from '@dagegong/utils/puppeteer/block-navigation.mjs'
 import {
   writeStorageFile
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+} from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 
 import JSON5 from 'json5'
 import url from 'url';

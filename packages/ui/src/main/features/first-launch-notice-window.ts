@@ -2,7 +2,10 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import buildInfo from '../../common/build-info.json'
-import { ensureStorageFileExist } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { ensureStorageFileExist } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+
+// 从 git tag 获取的版本号（构建时注入）
+const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : buildInfo.version
 import {
   createFirstLaunchNoticeWindow,
   firstLaunchNoticeWindow
@@ -11,7 +14,7 @@ import { ipcMain } from 'electron'
 
 export const firstLaunchNoticeApproveFlagPath = path.join(
   os.homedir(),
-  '.geekgeekrun/storage',
+  '.dagegong/storage',
   'ui-first-launch-notice-flag'
 )
 
@@ -19,7 +22,7 @@ export const isFirstLaunchNoticeApproveFlagExist = () =>
   fs.existsSync(firstLaunchNoticeApproveFlagPath)
 export const createFirstLaunchNoticeApproveFlag = () => {
   ensureStorageFileExist()
-  fs.writeFileSync(firstLaunchNoticeApproveFlagPath, buildInfo.version)
+  fs.writeFileSync(firstLaunchNoticeApproveFlagPath, appVersion)
 }
 export async function waitForUserApproveAgreement({ windowOption } = {}) {
   return new Promise((resolve, reject) => {

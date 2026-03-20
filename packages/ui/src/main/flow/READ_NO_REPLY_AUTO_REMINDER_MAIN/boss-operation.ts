@@ -1,15 +1,15 @@
 import { Page } from 'puppeteer'
-import { sleepWithRandomDelay, sleep } from '@geekgeekrun/utils/sleep.mjs'
-import { completes } from '@geekgeekrun/utils/gpt-request.mjs'
+import { sleepWithRandomDelay, sleep } from '@dagegong/utils/sleep.mjs'
+import { completes } from '@dagegong/utils/gpt-request.mjs'
 import { recordGptCompletionRequest, RequestSceneEnum } from '../../features/llm-request-log'
 import {
   readConfigFile,
   readStorageFile,
   writeStorageFile
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+} from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import { formatResumeJsonToMarkdown } from '../../../common/utils/resume'
 import { SINGLE_ITEM_DEFAULT_SERVE_WEIGHT } from '../../../common/constant'
-import { LlmModelUsageRecord } from '@geekgeekrun/sqlite-plugin/dist/entity/LlmModelUsageRecord'
+import { LlmModelUsageRecord } from '@dagegong/sqlite-plugin/dist/entity/LlmModelUsageRecord'
 import gtag from '../../utils/gtag'
 
 export const sendLookForwardReplyEmotion = async (page: Page) => {

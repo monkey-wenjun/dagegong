@@ -14,7 +14,7 @@ export default class DingtalkPlugin {
     function sendMergedMessage () {
       if (collectedMessageList.length === 0) {
       } else if (collectedMessageList.length === 1) {
-        collectedMessageList[0].dingtalkRequestBody.text.content += `\n${dayjs(collectedMessageList[0].insertedTime).format('MM-DD HH:mm:ss')}\n\n【geekgeekrun】`
+        collectedMessageList[0].dingtalkRequestBody.text.content += `\n${dayjs(collectedMessageList[0].insertedTime).format('MM-DD HH:mm:ss')}\n\n【dagegong】`
         requestDingtalkNotify(
           _this.dingtalkAccessToken, JSON.stringify(collectedMessageList[0].dingtalkRequestBody)
         ).then(res => res.json()).then((res) => {
@@ -25,7 +25,7 @@ export default class DingtalkPlugin {
           _this.dingtalkAccessToken, JSON.stringify((createTextMessage(
             collectedMessageList.map(it => {
               return `${it.dingtalkRequestBody.text.content}\n${dayjs(it.insertedTime).format('MM-DD HH:mm:ss')}\n`
-            }).join('-----\n') + '\n【geekgeekrun】'
+            }).join('-----\n') + '\n【dagegong】'
           )).dingtalkRequestBody)
         ).then(res => res.json()).then((res) => {
           console.log('[DingtalkPlugin] Response: ', res)

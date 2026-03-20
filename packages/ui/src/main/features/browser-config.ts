@@ -1,4 +1,4 @@
-import { readConfigFile, writeConfigFile } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { readConfigFile, writeConfigFile } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 
 export interface BrowserConfig {
   headless: boolean

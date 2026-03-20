@@ -2,6 +2,9 @@ import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import gtag from './gtag'
 import buildInfo from '../../common/build-info.json'
 import os from 'node:os'
+
+// 从 git tag 获取的版本号（构建时注入）
+const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : buildInfo.version
 import fs from 'node:fs'
 import path from 'node:path'
 import {
@@ -11,7 +14,7 @@ import {
   readConfigFile,
   readStorageFile,
   writeConfigFile
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+} from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import { runningLogManager } from '../features/running-log'
 import { getBrowserConfig, saveBrowserConfig } from '../features/browser-config'
 import { initAutoSyncIpc } from '../features/auto-sync-boss-chat-relations'
@@ -48,7 +51,7 @@ export default function initPublicIpc() {
   })
   ipcMain.on('send-feed-back-to-github-issue', (ev, payload) => {
     const getIssueUrlWithBody = (issueBody: string = '') => {
-      const baseUrl = `https://github.com/geekgeekrun/geekgeekrun/issues/new`
+      const baseUrl = `https://github.com/dagegong/dagegong/issues/new`
       issueBody = issueBody || ''
       if (!issueBody || !issueBody.trim()) {
         return baseUrl
@@ -61,7 +64,7 @@ export default function initPublicIpc() {
 
     shell.openExternal(
       getIssueUrlWithBody(`\n\n\n-----
-版本号：${buildInfo.version}(${buildInfo.buildVersion})
+版本号：${appVersion}(${buildInfo.buildVersion})
 提交：${buildInfo.buildHash.substring(0, 6)}
 操作系统信息: \`${os.type()}\` / \`${os.release()}\` / \`${os.arch()}\``),
       {
@@ -195,8 +198,8 @@ export default function initPublicIpc() {
       const wt2Cookie = cookies.find(c => c.name === 'wt2')
       
       // 尝试从数据库获取最近的用户
-      const { getPublicDbFilePath } = await import('@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs')
-      const { initDb } = await import('@geekgeekrun/sqlite-plugin')
+      const { getPublicDbFilePath } = await import('@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs')
+      const { initDb } = await import('@dagegong/sqlite-plugin')
       const { DataSource } = await import('typeorm')
       
       let ds: any

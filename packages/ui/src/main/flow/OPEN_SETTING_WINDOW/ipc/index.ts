@@ -6,7 +6,7 @@ import {
   writeConfigFile,
   readStorageFile,
   storageFilePath
-} from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+} from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import { ChildProcess } from 'child_process'
 import * as JSONStream from 'JSONStream'
 import { checkCookieListFormat } from '../../../../common/utils/cookie'
@@ -59,7 +59,7 @@ import {
 } from '../../../features/first-launch-notice-window'
 import { getLastUsedAndAvailableBrowser } from '../../DOWNLOAD_DEPENDENCIES/utils/browser-history'
 import { waitForCommonJobConditionDone } from '../../../features/common-job-condition'
-import { ensureConfigFileExist } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { ensureConfigFileExist } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 
 export default function initIpc() {
   ipcMain.handle('save-config-file-from-ui', async (ev, payload) => {
@@ -826,12 +826,12 @@ export default function initIpc() {
 }
 
 // 同步BOSS直聘沟通列表
-import { initDb } from '@geekgeekrun/sqlite-plugin'
-import { getPublicDbFilePath } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { saveBossChatRelationList } from '@geekgeekrun/sqlite-plugin/dist/handlers'
-import { BossChatRelation } from '@geekgeekrun/sqlite-plugin/dist/entity/BossChatRelation'
+import { initDb } from '@dagegong/sqlite-plugin'
+import { getPublicDbFilePath } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { saveBossChatRelationList } from '@dagegong/sqlite-plugin/dist/handlers'
+import { BossChatRelation } from '@dagegong/sqlite-plugin/dist/entity/BossChatRelation'
 
-import { initPuppeteer } from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
+import { initPuppeteer } from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 import { getAnyAvailablePuppeteerExecutable } from '../../DOWNLOAD_DEPENDENCIES/utils/puppeteer-executable/index'
 
 async function syncBossChatRelations() {

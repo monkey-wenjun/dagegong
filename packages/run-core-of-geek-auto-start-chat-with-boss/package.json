@@ -1,5 +1,5 @@
 {
-  "name": "@geekgeekrun/run-core-of-geek-auto-start-chat-with-boss",
+  "name": "@dagegong/run-core-of-geek-auto-start-chat-with-boss",
   "private": true,
   "version": "1.0.0",
   "description": "run-core-of-geek-auto-start-chat-with-boss",
@@ -10,12 +10,12 @@
     "start": "node ./daemon-main.mjs",
     "start:bare": "node ./main.mjs"
   },
-  "author": "geekgeekrun",
+  "author": "dagegong",
   "license": "ISC",
   "dependencies": {
-    "@geekgeekrun/dingtalk-plugin": "workspace:*",
-    "@geekgeekrun/geek-auto-start-chat-with-boss": "workspace:*",
-    "@geekgeekrun/utils": "workspace:*",
-    "@geekgeekrun/sqlite-plugin": "workspace:*"
+    "@dagegong/dingtalk-plugin": "workspace:*",
+    "@dagegong/geek-auto-start-chat-with-boss": "workspace:*",
+    "@dagegong/utils": "workspace:*",
+    "@dagegong/sqlite-plugin": "workspace:*"
   }
 }

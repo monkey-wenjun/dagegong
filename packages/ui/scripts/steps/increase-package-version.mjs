@@ -13,6 +13,17 @@ export const getPackageInfo = () => fs.readFileSync(PATH_TO_PACKAGE_JSON)
 export const getRuntimeConfig = () => fs.readFileSync(PATH_TO_BUILD_INFO_JSON)
 
 /**
+ * Atomically write to a file to prevent race conditions with file watchers
+ * @param {string} filePath
+ * @param {string} content
+ */
+function writeFileAtomic(filePath, content) {
+  const tempPath = filePath + '.tmp'
+  fs.writeFileSync(tempPath, content)
+  fs.renameSync(tempPath, filePath)
+}
+
+/**
  * @param {semver.ReleaseType} releaseType
  */
 export default async function increasePackageVersion(releaseType = 'prerelease') {
@@ -20,7 +31,7 @@ export default async function increasePackageVersion(releaseType = 'prerelease')
   const packageInfo = JSON.parse(getPackageInfo().toString('utf-8'))
   packageInfo.version = semver.inc(packageInfo.version, releaseType)
 
-  fs.writeFileSync(PATH_TO_PACKAGE_JSON, JSON.stringify(packageInfo, null, 2))
+  writeFileAtomic(PATH_TO_PACKAGE_JSON, JSON.stringify(packageInfo, null, 2))
 
   runtimeConfig.name = packageInfo.name
   runtimeConfig.version = packageInfo.version
@@ -28,5 +39,5 @@ export default async function increasePackageVersion(releaseType = 'prerelease')
     typeof runtimeConfig.buildVersion === 'number' ? runtimeConfig.buildVersion + 1 : 1
   runtimeConfig.buildTime = Number(new Date())
   runtimeConfig.buildHash = execSync('git rev-parse HEAD').toString().trim()
-  fs.writeFileSync(PATH_TO_BUILD_INFO_JSON, JSON.stringify(runtimeConfig, null, 2))
+  writeFileAtomic(PATH_TO_BUILD_INFO_JSON, JSON.stringify(runtimeConfig, null, 2))
 }
