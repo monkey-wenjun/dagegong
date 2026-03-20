@@ -453,6 +453,14 @@ const greetingMessageConfig = {
   customPrompt: readConfigFile('boss.json').greetingMessagePrompt ?? ''
 }
 
+// 打印打招呼消息配置（调试用）
+console.log('[GreetingConfig] 打招呼消息配置:', {
+  mode: greetingMessageConfig.mode,
+  modeType: typeof greetingMessageConfig.mode,
+  customMessageLength: greetingMessageConfig.customMessage?.length ?? 0,
+  hasCustomPrompt: !!greetingMessageConfig.customPrompt
+})
+
 /**
  * @type { import('puppeteer').Browser }
  */
@@ -1898,16 +1906,23 @@ async function toRecommendPage (hooks) {
             await storeStorage(page).catch(() => void 0)
             await sleepWithRandomDelay(1500)
             const closeDialogButtonProxy = await page.$('.greet-boss-dialog .greet-boss-footer .cancel-btn')
-            await closeDialogButtonProxy.click()
-            await sleepWithRandomDelay(2000)
+            if (closeDialogButtonProxy) {
+              await closeDialogButtonProxy.click()
+              await sleepWithRandomDelay(2000)
+            } else {
+              hooks.logInfo?.('[Chat] 未找到问候对话框，跳过关闭步骤')
+            }
             
             // 根据模式发送打招呼消息
             let messageToSend = null
+            
+            hooks.logInfo?.(`[Chat] 当前打招呼模式: ${greetingMessageConfig.mode} (0=默认, 1=自定义, 2=AI生成)`)
             
             switch (greetingMessageConfig.mode) {
               case GreetingMessageMode.CUSTOM:
                 // 使用固定自定义消息
                 messageToSend = greetingMessageConfig.customMessage?.trim() || null
+                hooks.logInfo?.(`[Chat] 自定义模式: 消息长度=${greetingMessageConfig.customMessage?.length ?? 0}, 有效=${!!messageToSend}`)
                 if (messageToSend) {
                   hooks.logInfo?.('[Chat] 准备发送固定自定义打招呼消息...')
                 }
@@ -1934,8 +1949,10 @@ async function toRecommendPage (hooks) {
             // 发送消息
             if (messageToSend) {
               try {
+                hooks.logInfo?.('[Chat] 开始发送自定义消息...')
                 const chatInputSelector = '.chat-conversation .message-controls .chat-input'
                 const chatInputHandle = await page.$(chatInputSelector)
+                hooks.logInfo?.(`[Chat] 输入框元素: ${chatInputHandle ? '找到' : '未找到'}`)
                 if (chatInputHandle) {
                   await chatInputHandle.click()
                   await sleep(500)
@@ -1943,6 +1960,7 @@ async function toRecommendPage (hooks) {
                   await sleep(1000)
                   const sendButtonSelector = '.chat-conversation .message-controls .chat-op .btn-send:not(.disabled)'
                   const sendButton = await page.$(sendButtonSelector)
+                  hooks.logInfo?.(`[Chat] 发送按钮: ${sendButton ? '找到' : '未找到'}`)
                   if (sendButton) {
                     await sendButton.click()
                     hooks.logInfo?.('[Chat] 打招呼消息已发送')
@@ -1952,6 +1970,8 @@ async function toRecommendPage (hooks) {
                 console.warn('发送打招呼消息失败:', sendErr.message)
                 hooks.logError?.(`[Chat] 发送打招呼消息失败: ${sendErr.message}`)
               }
+            } else {
+              hooks.logInfo?.('[Chat] 没有要发送的消息 (messageToSend 为空)')
             }
           }
           const handleAddFriendResponse = async (res) => {
