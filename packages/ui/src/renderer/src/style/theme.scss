@@ -167,6 +167,15 @@ body {
   color: var(--text-primary);
 }
 
+// 亮色模式表格当前行高亮
+[data-theme="light"] {
+  .el-table {
+    .current-row > td.el-table__cell {
+      background-color: var(--primary-light) !important;
+    }
+  }
+}
+
 // Element Plus 组件主题适配
 [data-theme="dark"] {
   // 按钮样式微调
@@ -244,6 +253,11 @@ body {
     
     tr:hover > td.el-table__cell {
       background-color: var(--bg-hover);
+    }
+    
+    // 当前行高亮
+    .current-row > td.el-table__cell {
+      background-color: var(--primary-light) !important;
     }
   }
   
