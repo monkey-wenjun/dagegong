@@ -3,30 +3,7 @@
  * 支持 headless 模式运行
  */
 
-// 从主进程导入
-let readStorageFile: any
-let initDb: any
-let getPublicDbFilePath: any
-let saveBossChatRelationList: any
-let initPuppeteer: any
-let getAnyAvailablePuppeteerExecutable: any
-
-// 动态导入避免循环依赖
-async function initImports() {
-  const runtimeUtils = await import('@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs')
-  readStorageFile = runtimeUtils.readStorageFile
-  
-  const sqlitePlugin = await import('@geekgeekrun/sqlite-plugin/dist/index.js')
-  initDb = sqlitePlugin.initDb
-  getPublicDbFilePath = sqlitePlugin.getPublicDbFilePath
-  saveBossChatRelationList = sqlitePlugin.saveBossChatRelationList
-  
-  const geekAutoStart = await import('@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs')
-  initPuppeteer = geekAutoStart.initPuppeteer
-  
-  const puppeteerUtils = await import('../../DOWNLOAD_DEPENDENCIES/utils/puppeteer-executable/index')
-  getAnyAvailablePuppeteerExecutable = puppeteerUtils.getAnyAvailablePuppeteerExecutable
-}
+import { readStorageFile } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import { getAnyAvailablePuppeteerExecutable } from '../../DOWNLOAD_DEPENDENCIES/utils/puppeteer-executable/index'
 import { initDb, getPublicDbFilePath, saveBossChatRelationList } from '@geekgeekrun/sqlite-plugin/dist/index.js'
 import { initPuppeteer } from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
@@ -44,10 +21,6 @@ export async function syncBossChatRelations(options: SyncOptions = {}): Promise<
   }
 }> {
   const { headless = false } = options
-  
-  // 初始化导入
-  await initImports()
-  
   const dbInitPromise = initDb(getPublicDbFilePath())
   let browser: any = null
   
