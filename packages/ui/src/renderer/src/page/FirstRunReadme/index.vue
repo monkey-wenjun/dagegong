@@ -226,6 +226,10 @@ const componentRootEl = ref<HTMLElement>()
   footer {
     flex: 0;
     background-color: #f0f0f0;
+    
+    [data-theme="dark"] & {
+      background-color: #1d1d1d;
+    }
   }
 }
 </style>
