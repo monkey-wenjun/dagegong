@@ -115,7 +115,7 @@
           </ElTableColumn>
         </ElTable>
         
-        <!-- 自动开聊记录 -->
+        <!-- AI沟通记录 -->
         <ElTable
           v-else
           ref="tableRef"
@@ -399,7 +399,7 @@ async function getBossChatRelationList() {
   }
 }
 
-// 获取自动开聊记录
+// 获取AI沟通记录
 async function getAutoStartChatRecord() {
   try {
     isTableLoading.value = true
@@ -509,7 +509,7 @@ const exportRecords = () => {
     a.click()
     URL.revokeObjectURL(url)
   } else {
-    // 导出自动开聊记录
+    // 导出AI沟通记录
     const headers = ['公司', '职位名称', '职位分类', '开聊时间', '工作经验', '薪资', 'BOSS', 'BOSS身份']
     const rows = (tableData.value as VChatStartupLog[]).map(row => [
       row.companyName || '-',

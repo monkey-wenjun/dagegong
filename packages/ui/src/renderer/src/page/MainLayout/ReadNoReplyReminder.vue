@@ -14,11 +14,11 @@
               :model-value="false"
               disabled
             >
-              发送提醒消息前，先按照“自动开聊-职位类型正则”校验正在与BOSS沟通的岗位是否满足期望，校验通过后再提醒
+              发送提醒消息前，先按照“AI沟通-职位类型正则”校验正在与BOSS沟通的岗位是否满足期望，校验通过后再提醒
             </el-checkbox>
             <template v-else>
               <el-checkbox v-model="formContent.autoReminder.onlyRemindBossWithExpectJobType">
-                发送提醒消息前，先按照“自动开聊-职位类型正则”校验正在与BOSS沟通的岗位是否满足期望，校验通过后再提醒
+                发送提醒消息前，先按照“AI沟通-职位类型正则”校验正在与BOSS沟通的岗位是否满足期望，校验通过后再提醒
               </el-checkbox>
               <div ml1.5em color-gray>
                 <div>当前职位类型正则：{{ expectJobTypeRegExpStrForRender?.trim() }}</div>
@@ -42,11 +42,11 @@
               :model-value="false"
               disabled
             >
-              发送提醒消息前，先按照“自动开聊-不期望投递公司正则”校验正在与BOSS沟通的岗位是否归属于不期望投递的公司，如果是，则不提醒
+              发送提醒消息前，先按照“AI沟通-不期望投递公司正则”校验正在与BOSS沟通的岗位是否归属于不期望投递的公司，如果是，则不提醒
             </el-checkbox>
             <template v-else>
               <el-checkbox v-model="formContent.autoReminder.onlyRemindBossWithoutBlockCompanyName">
-                发送提醒消息前，先按照“自动开聊-不期望投递公司正则”校验正在与BOSS沟通的岗位是否归属于不期望投递的公司，如果是，则不提醒
+                发送提醒消息前，先按照“AI沟通-不期望投递公司正则”校验正在与BOSS沟通的岗位是否归属于不期望投递的公司，如果是，则不提醒
               </el-checkbox>
               <div ml1.5em color-gray>
                 <div>当前不期望投递公司正则：{{ blockCompanyNameRegExpStrForRender?.trim() }}</div>

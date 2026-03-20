@@ -127,7 +127,7 @@
         >
           <div mb6px>
             <b color-red>全局公司黑名单</b>正则<br /><span font-size-12px
-              ><b color-orange>最高优先级</b>，不区分大小写；输入框留空表示不筛选<br />用于全局屏蔽一些公司（如996公司），无论自动开聊还是已读不回复聊，遇到这类公司都不会进行沟通</span
+              ><b color-orange>最高优先级</b>，不区分大小写；输入框留空表示不筛选<br />用于全局屏蔽一些公司（如996公司），无论AI沟通还是已读不回复聊，遇到这类公司都不会进行沟通</span
             >
           </div>
           <el-dropdown @command="handleGlobalBlockCompanyNameRegExpTemplateClicked">

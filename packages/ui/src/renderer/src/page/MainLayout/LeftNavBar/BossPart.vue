@@ -1,9 +1,9 @@
 <template>
   <div class="group-item">
-    <div class="group-title">逛BOSS</div>
+    <div class="group-title">简历投递</div>
     <div flex flex-col class="link-list">
       <RouterLink to="./GeekAutoStartChatWithBoss">
-        自动开聊
+        AI沟通
         <el-tooltip
           placement="right"
           :enterable="false"

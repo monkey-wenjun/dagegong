@@ -30,7 +30,7 @@ const syncStatus: SyncStatus = {
 let syncTimer: NodeJS.Timeout | null = null
 const SYNC_INTERVAL = 5 * 60 * 1000 // 5分钟
 
-// 检查是否正在运行自动开聊任务
+// 检查是否正在运行AI沟通任务
 function isAutoChatRunning(): boolean {
   return globalThis.__AUTO_CHAT_RUNNING__ === true
 }
@@ -63,11 +63,11 @@ async function doSync(): Promise<void> {
   }
 
   if (isAutoChatRunning()) {
-    console.log('[AutoSync] 自动开聊任务运行中，跳过同步')
+    console.log('[AutoSync] AI沟通任务运行中，跳过同步')
     syncStatus.lastSyncResult = {
       success: false,
       syncedCount: 0,
-      error: '自动开聊任务运行中'
+      error: 'AI沟通任务运行中'}
     }
     return
   }
