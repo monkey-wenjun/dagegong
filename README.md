@@ -25,7 +25,7 @@
 
 <p align="center">
   <a href="https://github.com/monkey-wenjun/dagegong/actions"><img src="https://github.com/monkey-wenjun/dagegong/workflows/Build%20Electron%20App/badge.svg" alt="Build Status"></a>
-  <a href="https://github.com/monkey-wenjun/dagegong/releases"><img src="https://img.shields.io/badge/version-0.17.1-blue.svg" alt="Version"></a>
+  <a href="https://github.com/monkey-wenjun/dagegong/releases"><img src="https://img.shields.io/badge/version-0.19.2-blue.svg" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-ISC-green.svg" alt="License"></a>
 </p>
 
@@ -35,9 +35,10 @@
 按照你设置的求职偏好，自动在 BOSS 直聘上与匹配的招聘者打招呼：
 
 - **智能匹配** - 根据公司名称、职位类型、职位描述自动筛选目标职位
+- **自定义打招呼** - 支持三种模式：BOSS 默认、固定自定义消息、AI 智能生成
 - **活跃度检测** - 自动跳过长期不活跃的 BOSS，提高回复率
 - **自动筛选** - 不匹配的职位自动标记为不合适，减少无效推荐
-- **异常处理** - 自动切换筛选条件获取更多职位，用完开聊次数后智能暂停
+- **每日限额控制** - 自动检测沟通次数，用完后智能暂停，次日自动恢复
 
 ### 💬 已读不回自动复聊
 BOSS 已读不回？自动提醒功能帮你把握机会：
@@ -56,8 +57,9 @@ BOSS 已读不回？自动提醒功能帮你把握机会：
 ### ⚙️ 高级配置
 - **任务管理** - 创建和管理多个求职任务
 - **LLM 配置** - 配置 AI 回复服务
-- **Cookie 助手** - 便捷登录 BOSS 直聘
-- **浏览器助手** - 智能浏览器辅助工具
+- **Cookie 助手** - 便捷登录 BOSS 直聘，支持自动保存登录状态
+- **浏览器助手** - 智能检测 Chrome 浏览器，无需手动配置
+- **主题切换** - 支持亮色/暗色/自动三种主题模式
 
 ## 🚀 快速开始
 
@@ -128,6 +130,7 @@ dagegong/
 1. 进入"自动开聊"页面
 2. 配置期望职位、城市、薪资等筛选条件
 3. 设置职位关键词匹配规则
+4. 选择打招呼模式（BOSS 默认/自定义消息/AI 生成）
 
 ### 3. 启动自动开聊
 1. 点击"准备运行"检查配置
