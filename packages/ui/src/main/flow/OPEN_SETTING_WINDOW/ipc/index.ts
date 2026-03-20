@@ -209,6 +209,10 @@ export default async function initIpc() {
     if ('greetingMessagePrompt' in payload) {
       bossConfig.greetingMessagePrompt = payload.greetingMessagePrompt
     }
+    // 自动发送简历配置
+    if ('autoSendResumeEnabled' in payload) {
+      bossConfig.autoSendResumeEnabled = payload.autoSendResumeEnabled
+    }
 
     promiseArr.push(writeConfigFile('boss.json', bossConfig))
 

@@ -257,6 +257,51 @@
               </div>
             </el-form-item>
           </el-card>
+          
+          <!-- 自动发送简历配置 -->
+          <el-card class="config-section">
+            <el-form-item mb0>
+              <div w-full>
+                <div font-size-16px mb8px>
+                  自动发送简历
+                  <el-tooltip effect="light" placement="top">
+                    <template #content>
+                      <div style="max-width: 350px">
+                        <p>开启后，程序会自动检查 BOSS 的新招呼</p>
+                        <p style="margin-top: 4px">发现新招呼时自动发送你的简历给对方</p>
+                        <p style="margin-top: 4px; color: #f56c6c">注意：需要先在 BOSS 直聘上传简历</p>
+                      </div>
+                    </template>
+                    <el-button type="text" font-size-12px>
+                      <QuestionFilled w-1em h-1em mr2px />
+                      功能说明
+                    </el-button>
+                  </el-tooltip>
+                </div>
+                <div font-size-12px color-666 mb12px>
+                  当 BOSS 主动发起新招呼时，自动发送简历给对方
+                </div>
+                <div>
+                  <el-checkbox
+                    v-model="formContent.autoSendResumeEnabled"
+                    @change="(v) => gtagRenderer('auto_send_resume_changed', { v })"
+                  >
+                    启用自动发送简历
+                  </el-checkbox>
+                </div>
+                <div pl-1.5em font-size-12px mt8px :style="{ color: formContent.autoSendResumeEnabled ? '' : '#aaa' }">
+                  <div flex align-center gap-8px>
+                    <span>轮询间隔：30 秒检查一次</span>
+                    <el-tag size="small" type="info">自动</el-tag>
+                  </div>
+                  <div mt4px color-999>
+                    使用最近上传的第一份简历进行发送
+                  </div>
+                </div>
+              </div>
+            </el-form-item>
+          </el-card>
+          
           <el-card class="config-section">
             <el-form-item class="job-source-form-item" prop="__jobSourceList">
               <div w-full>
@@ -2012,7 +2057,9 @@ const formContent = ref({
   // 打招呼消息配置
   greetingMessage: '',
   greetingMessageMode: 0,
-  greetingMessagePrompt: DEFAULT_AI_GREETING_PROMPT
+  greetingMessagePrompt: DEFAULT_AI_GREETING_PROMPT,
+  // 自动发送简历配置
+  autoSendResumeEnabled: false
 })
 
 const anyCombineBossRecommendFilterHasCondition = computed(() => {
@@ -2197,6 +2244,8 @@ electron.ipcRenderer.invoke('fetch-config-file-content').then((res) => {
   // 如果配置中没有 prompt 或为空，使用默认模板
   const savedPrompt = res.config['boss.json']?.greetingMessagePrompt
   formContent.value.greetingMessagePrompt = savedPrompt?.trim() ? savedPrompt : DEFAULT_AI_GREETING_PROMPT
+  // 自动发送简历配置
+  formContent.value.autoSendResumeEnabled = res.config['boss.json']?.autoSendResumeEnabled ?? false
 
   commonJobConditionConfig.value = {
     expectJobNameRegExpStr:

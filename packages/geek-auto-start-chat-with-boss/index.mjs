@@ -13,6 +13,7 @@ import { setDomainLocalStorage } from '@dagegong/utils/puppeteer/local-storage.m
 import { completes } from '@dagegong/utils/gpt-request.mjs'
 
 import { readConfigFile, writeStorageFile, ensureConfigFileExist, readStorageFile, ensureStorageFileExist } from './runtime-file-utils.mjs'
+import { startAutoSendResumePolling } from './auto-send-resume.mjs'
 import {
   calculateTotalCombinations,
   combineFiltersWithConstraintsGenerator,
@@ -2283,7 +2284,22 @@ export async function mainLoop (hooks) {
       blockBossNotActive,
       blockBossNotNewChat
     })
-    await toRecommendPage(hooks)
+    
+    // 启动自动发送简历轮询（如果启用）
+    let stopAutoSendResume = () => {}
+    try {
+      stopAutoSendResume = startAutoSendResumePolling(page, hooks)
+    } catch (err) {
+      console.error('[mainLoop] 启动自动发送简历失败:', err)
+      hooks.logError?.(`[mainLoop] 启动自动发送简历失败: ${err.message}`)
+    }
+    
+    try {
+      await toRecommendPage(hooks)
+    } finally {
+      // 停止自动发送简历轮询
+      stopAutoSendResume()
+    }
     // goto search
 
     // ;await browser.close()
