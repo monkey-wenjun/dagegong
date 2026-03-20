@@ -38,8 +38,9 @@ export function openSettingWindow() {
     initIpc()
 
     // 初始化后台自动同步服务（每5分钟同步一次BOSS沟通记录）
-    const { initAutoSyncOnAppStart } = await import('../../features/auto-sync-boss-chat-relations')
-    initAutoSyncOnAppStart()
+    import('../../features/auto-sync-boss-chat-relations').then(({ initAutoSyncOnAppStart }) => {
+      initAutoSyncOnAppStart()
+    })
 
     app.on('activate', function () {
       // On macOS it's common to re-create a window in the app when the
