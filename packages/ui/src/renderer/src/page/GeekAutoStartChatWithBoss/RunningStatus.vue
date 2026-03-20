@@ -3,12 +3,12 @@
     <FlyingCompanyLogoList class="flying-company-logo-list" />
     <div class="tip">
       <article>
-        <h1>👋 AI自动找工作正在运行</h1>
+        <h1 class="main-title">AI正在帮你找工作中</h1>
         <p>💬 正在为你开聊BOSS，请静候佳音</p>
         <p>📱 你可以在<b>手机</b> / <b>平板电脑</b>上，使用BOSS直聘App与为你开聊的BOSS聊天</p>
         <p>🍀 祝你求职顺利！</p>
       </article>
-      <el-button :disabled="isStopping" @click="handleStopButtonClick">停止开聊</el-button>
+      <el-button type="danger" size="large" :disabled="isStopping" @click="handleStopButtonClick">结束任务</el-button>
     </div>
   </div>
 </template>
@@ -98,6 +98,28 @@ onMounted(async () => {
         margin-top: 0;
         font-size: 1.8rem;
         margin-bottom: 1.5rem;
+        
+        &.main-title {
+          font-size: 3.5rem;
+          font-weight: 700;
+          text-align: center;
+          color: var(--primary-color, #00b2b2);
+          margin-bottom: 2rem;
+          letter-spacing: 2px;
+          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+          animation: pulse 2s ease-in-out infinite;
+        }
+      }
+      
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.85;
+          transform: scale(1.02);
+        }
       }
       p {
         margin: 0.8rem 0;
@@ -109,9 +131,10 @@ onMounted(async () => {
     .el-button {
       margin-top: 2rem;
       width: 100%;
-      height: 44px;
-      font-size: 1rem;
+      height: 50px;
+      font-size: 1.1rem;
       border-radius: 12px;
+      font-weight: 500;
     }
   }
   .flying-company-logo-list {
