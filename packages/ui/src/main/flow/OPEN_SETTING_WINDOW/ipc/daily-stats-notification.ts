@@ -41,7 +41,7 @@ export async function getTodayStats(): Promise<{ resumeCount: number; bossCount:
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
     
-    // 查询今天AI沟通的数量（投递简历数）
+    // 查询今天AI自动找工作的数量（投递简历数）
     const resumeResult = await db.query(
       `SELECT COUNT(*) as count FROM chat_startup_log 
        WHERE date >= ? AND date <= ?`,

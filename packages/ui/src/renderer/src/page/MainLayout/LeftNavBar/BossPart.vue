@@ -3,7 +3,7 @@
     <div class="group-title">简历投递</div>
     <div flex flex-col class="link-list">
       <RouterLink to="./GeekAutoStartChatWithBoss">
-        AI沟通
+        AI自动找工作
         <el-tooltip
           placement="right"
           :enterable="false"

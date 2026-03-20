@@ -82,7 +82,7 @@ const routes: Array<RouteRecordRaw> = [
         path: 'GeekAutoStartChatWithBoss',
         component: () => import('@renderer/page/MainLayout/GeekAutoStartChatWithBoss/index.vue'),
         meta: {
-          title: 'AI沟通'
+          title: 'AI自动找工作'
         }
       },
       {
@@ -165,14 +165,14 @@ const routes: Array<RouteRecordRaw> = [
         path: 'prepareRun',
         component: () => import('@renderer/page/GeekAutoStartChatWithBoss/PrepareRun.vue'),
         meta: {
-          title: 'AI沟通 正在预热'
+          title: 'AI自动找工作 正在预热'
         }
       },
       {
         path: 'runningStatus',
         component: () => import('@renderer/page/GeekAutoStartChatWithBoss/RunningStatus.vue'),
         meta: {
-          title: 'AI沟通 正在为你开聊BOSS'
+          title: 'AI自动找工作 正在为你开聊BOSS'
         }
       },
       {

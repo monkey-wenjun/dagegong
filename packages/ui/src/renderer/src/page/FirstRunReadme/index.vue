@@ -35,7 +35,7 @@
               本程序需要存储您的登录凭据，即Cookie，来模拟您在BOSS直聘上开聊BOSS的行为；本程序仅会把您的Cookie存储在本地，并在您访问BOSS直聘时将其传输到BOSS直聘，<b
                 class="color-red"
                 >不会泄露给第三方</b
-              >，也不会进行除AI沟通BOSS以外的行为；<b class="color-red">请勿向他人泄漏您的Cookie</b
+              >，也不会进行除AI自动找工作BOSS以外的行为；<b class="color-red">请勿向他人泄漏您的Cookie</b
               >。
             </ElCheckbox>
             <ElCheckbox :label="2" :class="[unreadItemsAfterClickSubmit[2] ? 'unread' : '']">
