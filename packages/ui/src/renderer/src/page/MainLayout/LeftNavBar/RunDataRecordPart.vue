@@ -8,6 +8,7 @@
       <RouterLink to="./JobLibrary">职位库</RouterLink>
       <RouterLink to="./BossLibrary">BOSS库</RouterLink>
       <RouterLink to="./CompanyLibrary">公司库</RouterLink>
+      <RouterLink to="./StatisticsDashboard">数据统计</RouterLink>
     </div>
   </div>
 </template>

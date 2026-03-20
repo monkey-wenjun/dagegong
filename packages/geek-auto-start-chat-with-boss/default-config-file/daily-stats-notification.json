@@ -1,0 +1,7 @@
+{
+  "dailyStatsNotificationEnabled": false,
+  "dailyStatsNotificationType": "feishu",
+  "dailyStatsWebhookUrl": "",
+  "dailyStatsPushTime": "20:00",
+  "dailyStatsTemplate": "您今日已投递简历{{resumeCount}}份，与{{bossCount}}位BOSS进行沟通"
+}

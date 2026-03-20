@@ -2060,7 +2060,10 @@ const formContent = ref({
   greetingMessageMode: 0,
   greetingMessagePrompt: DEFAULT_AI_GREETING_PROMPT,
   // 自动发送简历配置
-  autoSendResumeEnabled: false
+  autoSendResumeEnabled: false,
+  autoSendResumeUseLabelFilter: false,
+  autoSendResumeLabelId: 0,
+  autoSendResumeLabelName: '全部'
 })
 
 const anyCombineBossRecommendFilterHasCondition = computed(() => {
@@ -2247,6 +2250,9 @@ electron.ipcRenderer.invoke('fetch-config-file-content').then((res) => {
   formContent.value.greetingMessagePrompt = savedPrompt?.trim() ? savedPrompt : DEFAULT_AI_GREETING_PROMPT
   // 自动发送简历配置
   formContent.value.autoSendResumeEnabled = res.config['boss.json']?.autoSendResumeEnabled ?? false
+  formContent.value.autoSendResumeUseLabelFilter = res.config['boss.json']?.autoSendResumeUseLabelFilter ?? false
+  formContent.value.autoSendResumeLabelId = res.config['boss.json']?.autoSendResumeLabelId ?? 0
+  formContent.value.autoSendResumeLabelName = res.config['boss.json']?.autoSendResumeLabelName ?? '全部'
 
   commonJobConditionConfig.value = {
     expectJobNameRegExpStr:

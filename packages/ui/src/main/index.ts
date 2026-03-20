@@ -3,6 +3,7 @@ import minimist from 'minimist'
 import { runCommon } from './features/run-common'
 import { launchDaemon } from './flow/OPEN_SETTING_WINDOW/launch-daemon'
 import { app } from 'electron'
+import { initDailyStatsNotification } from './flow/OPEN_SETTING_WINDOW/ipc/daily-stats-notification'
 
 const isUiDev = process.env.NODE_ENV === 'development'
 const enableLogToFile = process.env.DAGEGONG_ENABLE_LOG_TO_FILE === String(1)
@@ -67,6 +68,8 @@ const runMode = commandlineArgs['mode']
     case 'geekAutoStartWithBoss': {
       app.dock?.hide()
       await launchDaemon()
+      // 初始化每日统计通知
+      await initDailyStatsNotification()
       const { isAlreadyRunning } = await runCommon({ mode: 'geekAutoStartWithBossMain' })
       if (isAlreadyRunning) {
         process.exit(0)
@@ -76,6 +79,8 @@ const runMode = commandlineArgs['mode']
     case 'readNoReplyAutoReminder': {
       app.dock?.hide()
       await launchDaemon()
+      // 初始化每日统计通知
+      await initDailyStatsNotification()
       const { isAlreadyRunning } = await runCommon({ mode: 'readNoReplyAutoReminderMain' })
       if (isAlreadyRunning) {
         process.exit(0)
@@ -85,6 +90,8 @@ const runMode = commandlineArgs['mode']
     default: {
       globalThis.DAGEGONG_PROCESS_ROLE = 'ui'
       await launchDaemon()
+      // 初始化每日统计通知（主窗口模式）
+      await initDailyStatsNotification()
       const { openSettingWindow } = await import('./flow/OPEN_SETTING_WINDOW/index')
       openSettingWindow()
       break

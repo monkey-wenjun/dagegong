@@ -10,6 +10,8 @@ import { sleep } from '@dagegong/utils/sleep.mjs'
 const GEEK_FRIEND_LIST_API = 'https://www.zhipin.com/wapi/zprelation/friend/getGeekFriendList.json'
 // 聊天关系列表 API（用于获取 friendIds）
 const GEEK_CHAT_RELATION_API = 'https://www.zhipin.com/wapi/zprelation/friend/getGeekChatRelation'
+// 按标签筛选好友 API（用于获取 friendIds）
+const GEEK_FILTER_BY_LABEL_API = 'https://www.zhipin.com/wapi/zprelation/friend/geekFilterByLabel'
 // 简历列表 API
 const RESUME_LIST_API = 'https://www.zhipin.com/wapi/zpgeek/resume/attachment/checkbox.json'
 // 发送简历 API
@@ -67,14 +69,68 @@ async function getChatRelationList(page) {
 }
 
 /**
+ * 按标签筛选获取好友列表（用于获取 friendIds）
+ * @param {import('puppeteer').Page} page
+ * @param {number} labelId - 标签ID，0表示全部
+ * @param {string} name - 标签名称，如"全部"
+ * @returns {Promise<Array<number>>}
+ */
+async function getFriendIdsByLabel(page, labelId = 0, name = '全部') {
+  try {
+    const response = await page.evaluate(async (apiUrl, labelId, name) => {
+      const params = new URLSearchParams({
+        labelId: String(labelId),
+        name: name
+      })
+      
+      const res = await fetch(`${apiUrl}?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json, text/plain, */*',
+          'accept-language': 'en-US,en;q=0.9',
+          'x-requested-with': 'XMLHttpRequest'
+        },
+        credentials: 'include'
+      })
+      return res.json()
+    }, GEEK_FILTER_BY_LABEL_API, labelId, name)
+
+    if (response.code !== 0) {
+      console.log('[AutoSendResume] 按标签筛选好友列表失败:', response.message)
+      return []
+    }
+
+    // 解析返回数据 - 返回的是 friendId 列表
+    const friendIds = response.zpData?.friendIdList || []
+    console.log(`[AutoSendResume] 按标签筛选获取到 ${friendIds.length} 个好友`)
+    return friendIds
+  } catch (err) {
+    console.error('[AutoSendResume] 按标签筛选获取好友列表出错:', err)
+    return []
+  }
+}
+
+/**
  * 获取需要发送简历的聊天列表
  * @param {import('puppeteer').Page} page
+ * @param {Object} options - 选项
+ * @param {boolean} options.useLabelFilter - 是否使用标签筛选
+ * @param {number} options.labelId - 标签ID，0表示全部
+ * @param {string} options.labelName - 标签名称，如"全部"
  * @returns {Promise<Array<{securityId: string, encryptBossId: string, name: string, lastMsg: string}>>}
  */
-async function getNewGreetingList(page) {
+async function getNewGreetingList(page, options = {}) {
   try {
+    const { useLabelFilter = false, labelId = 0, labelName = '全部' } = options
+    
     // 1. 先获取 friendIds
-    const friendIds = await getChatRelationList(page)
+    let friendIds = []
+    if (useLabelFilter) {
+      friendIds = await getFriendIdsByLabel(page, labelId, labelName)
+    } else {
+      friendIds = await getChatRelationList(page)
+    }
+    
     if (friendIds.length === 0) {
       console.log('[AutoSendResume] 没有聊天关系，跳过')
       return []
@@ -229,7 +285,14 @@ export function startAutoSendResumePolling(page, hooks) {
   }
 
   console.log('[AutoSendResume] 启动自动发送简历轮询')
-  hooks.logInfo?.('[AutoSendResume] 自动发送简历功能已启动')
+  
+  // 检查是否使用了标签筛选
+  if (config.autoSendResumeUseLabelFilter) {
+    console.log(`[AutoSendResume] 使用标签筛选: ${config.autoSendResumeLabelName ?? '全部'} (ID: ${config.autoSendResumeLabelId ?? 0})`)
+    hooks.logInfo?.(`[AutoSendResume] 自动发送简历功能已启动（标签筛选: ${config.autoSendResumeLabelName ?? '全部'}）`)
+  } else {
+    hooks.logInfo?.('[AutoSendResume] 自动发送简历功能已启动')
+  }
 
   let isRunning = true
   const processedBosses = new Set() // 已处理的 Boss 集合，用于去重
@@ -245,8 +308,15 @@ export function startAutoSendResumePolling(page, hooks) {
 
         console.log('[AutoSendResume] 开始轮询检查新招呼...')
         
-        // 1. 获取新招呼列表
-        const newGreetings = await getNewGreetingList(page)
+        // 1. 获取新招呼列表（支持按标签筛选）
+        const labelFilterOptions = config.autoSendResumeUseLabelFilter
+          ? {
+              useLabelFilter: true,
+              labelId: config.autoSendResumeLabelId ?? 0,
+              labelName: config.autoSendResumeLabelName ?? '全部'
+            }
+          : {}
+        const newGreetings = await getNewGreetingList(page, labelFilterOptions)
         
         if (newGreetings.length === 0) {
           console.log('[AutoSendResume] 暂无新招呼')

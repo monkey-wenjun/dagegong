@@ -389,6 +389,79 @@ export async function getJobHireStatusRecord(
   return result
 }
 
+export interface CompanyDetailInfo {
+  encryptCompanyId: string
+  brandName: string
+  customerBrandName?: string
+  industryName?: string
+  stageName?: string
+  scaleName?: string
+}
+
+function getCompanyDetailIfIsEqual(savedOne: CompanyDetailInfo | null, currentOne: CompanyDetailInfo) {
+  if (savedOne === null && currentOne === null) {
+    return true
+  }
+  if (
+    (savedOne !== null && currentOne === null) ||
+    (savedOne === null && currentOne !== null)
+  ) {
+    return false;
+  }
+  if (
+    savedOne.brandName !== currentOne.brandName ||
+    savedOne.customerBrandName !== currentOne.customerBrandName ||
+    savedOne.industryName !== currentOne.industryName ||
+    savedOne.stageName !== currentOne.stageName ||
+    savedOne.scaleName !== currentOne.scaleName
+  ) {
+    return false
+  }
+  return true;
+}
+
+export async function saveCompanyInfo(
+  ds: DataSource,
+  companyInfo: CompanyDetailInfo
+) {
+  const companyInfoChangeLogRepository = ds.getRepository(CompanyInfoChangeLog)
+  
+  // Get last saved info
+  let lastSavedCompanyInfo: CompanyDetailInfo | null = null
+  try {
+    lastSavedCompanyInfo = JSON.parse((await companyInfoChangeLogRepository.findOne({
+      where: { encryptCompanyId: companyInfo.encryptCompanyId },
+      order: { updateTime: "DESC" },
+    })).dataAsJson);
+  } catch {
+    lastSavedCompanyInfo = null
+  }
+  
+  const isCompanyInfoEqual = getCompanyDetailIfIsEqual(lastSavedCompanyInfo, companyInfo)
+  if (!isCompanyInfoEqual) {
+    const changeLog = new CompanyInfoChangeLog()
+    changeLog.dataAsJson = JSON.stringify(companyInfo)
+    changeLog.encryptCompanyId = companyInfo.encryptCompanyId
+    changeLog.updateTime = new Date()
+    await companyInfoChangeLogRepository.save(changeLog)
+  }
+
+  const company = new CompanyInfo();
+  company.encryptCompanyId = companyInfo.encryptCompanyId;
+  company.brandName = companyInfo.brandName;
+  company.name = companyInfo.customerBrandName || companyInfo.brandName;
+  company.industryName = companyInfo.industryName;
+  company.stageName = companyInfo.stageName;
+  const companyScale = parseCompanyScale(companyInfo.scaleName);
+  company.scaleLow = companyScale[0];
+  company.scaleHigh = companyScale[1];
+
+  const companyInfoRepository = ds.getRepository(CompanyInfo);
+  await companyInfoRepository.save(company);
+  
+  return company
+}
+
 import { BossChatRelation } from './entity/BossChatRelation'
 
 export interface ChatRelationItem {

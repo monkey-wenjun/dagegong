@@ -32,7 +32,8 @@ import {
   getBossIdsByJobIds,
   saveJobHireStatusRecord,
   saveBossChatRelationList,
-  getBossChatRelationList
+  getBossChatRelationList,
+  saveCompanyInfo
 } from "./handlers";
 import { UpdateChatStartupLogTable1729182577167 } from "./migrations/1729182577167-UpdateChatStartupLogTable";
 import minimist from 'minimist'
@@ -274,5 +275,6 @@ export { VBossChatRelation } from './entity/VBossChatRelation'
 // Export handlers
 export {
   saveBossChatRelationList,
-  getBossChatRelationList
+  getBossChatRelationList,
+  saveCompanyInfo
 } from './handlers'

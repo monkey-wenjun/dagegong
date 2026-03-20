@@ -62,14 +62,15 @@ import { waitForCommonJobConditionDone } from '../../../features/common-job-cond
 import { ensureConfigFileExist } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import { 
   setupDailyStatsNotification, 
-  sendDailyStatsNotification,
-  initDailyStatsNotification 
+  sendDailyStatsNotification
 } from './daily-stats-notification'
+import { getStatisticsDashboardData } from './statistics-dashboard'
 
 export default async function initIpc() {
-  // 初始化每日统计通知
-  await initDailyStatsNotification()
-  
+  // 统计数据仪表盘
+  ipcMain.handle('get-statistics-dashboard-data', async (_, params) => {
+    return await getStatisticsDashboardData(params)
+  })
   ipcMain.handle('save-config-file-from-ui', async (ev, payload) => {
     payload = JSON.parse(payload)
     ensureConfigFileExist()
@@ -212,6 +213,15 @@ export default async function initIpc() {
     // 自动发送简历配置
     if ('autoSendResumeEnabled' in payload) {
       bossConfig.autoSendResumeEnabled = payload.autoSendResumeEnabled
+    }
+    if ('autoSendResumeUseLabelFilter' in payload) {
+      bossConfig.autoSendResumeUseLabelFilter = payload.autoSendResumeUseLabelFilter
+    }
+    if ('autoSendResumeLabelId' in payload) {
+      bossConfig.autoSendResumeLabelId = payload.autoSendResumeLabelId
+    }
+    if ('autoSendResumeLabelName' in payload) {
+      bossConfig.autoSendResumeLabelName = payload.autoSendResumeLabelName
     }
 
     promiseArr.push(writeConfigFile('boss.json', bossConfig))
@@ -855,17 +865,20 @@ export default async function initIpc() {
     return await getTodayStats()
   })
 
-  // 测试每日统计通知
+  // 测试每日统计通知 - 使用真实数据
   ipcMain.handle('test-daily-stats-notification', async (_, { type, webhookUrl, template }) => {
     try {
+      const { getTodayStats } = await import('./daily-stats-notification')
+      const { resumeCount, bossCount } = await getTodayStats()
+      
       await sendDailyStatsNotification({
         type,
         webhookUrl,
-        resumeCount: 5,
-        bossCount: 3,
+        resumeCount,
+        bossCount,
         template
       })
-      return { success: true }
+      return { success: true, data: { resumeCount, bossCount } }
     } catch (error) {
       console.error('Test notification error:', error)
       return { success: false, error: error.message }

@@ -5,7 +5,7 @@
 
 import { readStorageFile, getPublicDbFilePath } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import { getAnyAvailablePuppeteerExecutable } from '../../DOWNLOAD_DEPENDENCIES/utils/puppeteer-executable/index'
-import { initDb, saveBossChatRelationList } from '@dagegong/sqlite-plugin/dist/index.js'
+import { initDb, saveBossChatRelationList, saveCompanyInfo } from '@dagegong/sqlite-plugin/dist/index.js'
 import { initPuppeteer } from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 
 interface SyncOptions {
@@ -226,6 +226,15 @@ export async function syncBossChatRelations(options: SyncOptions = {}): Promise<
                 jobName: item.jobName || '',
                 brandName: item.brandName || '',
                 encryptCompanyId: item.encryptCompanyId || item.companyId || '',
+                // 公司详情（可能在沟通列表中已包含）
+                companyInfo: item.brandComInfo ? {
+                  encryptCompanyId: item.brandComInfo.encryptBrandId || item.encryptCompanyId || item.companyId || '',
+                  brandName: item.brandComInfo.brandName || item.brandName || '',
+                  customerBrandName: item.brandComInfo.customerBrandName || '',
+                  industryName: item.brandComInfo.industryName || '',
+                  stageName: item.brandComInfo.stageName || '',
+                  scaleName: item.brandComInfo.scaleName || ''
+                } : null,
                 lastText: item.lastText || '',
                 lastMessageId: item.lastMessageId || '',
                 unreadCount: item.unreadCount || 0,
@@ -260,11 +269,9 @@ export async function syncBossChatRelations(options: SyncOptions = {}): Promise<
       console.log(`[SyncBossChat] Got ${allChatList.length} items from Vue data`)
     }
     
-    // 关闭浏览器
-    await browser.close()
-    browser = null
-    
     if (allChatList.length === 0) {
+      await browser.close()
+      browser = null
       return { success: false, error: '未获取到沟通记录，请确保BOSS直聘账号有沟通记录' }
     }
     
@@ -272,10 +279,128 @@ export async function syncBossChatRelations(options: SyncOptions = {}): Promise<
     const ds = await dbInitPromise
     const result = await saveBossChatRelationList(ds, allChatList, encryptUserId)
     
+    // 获取并保存公司详情
+    console.log('[SyncBossChat] Fetching company details...')
+    const uniqueCompanies = new Map<string, { brandName: string; encryptCompanyId: string; companyInfo?: any }>()
+    for (const item of allChatList) {
+      if (item.encryptCompanyId && !uniqueCompanies.has(item.encryptCompanyId)) {
+        uniqueCompanies.set(item.encryptCompanyId, {
+          encryptCompanyId: item.encryptCompanyId,
+          brandName: item.brandName,
+          companyInfo: item.companyInfo // 可能已有的公司信息
+        })
+      }
+    }
+    
+    console.log(`[SyncBossChat] Found ${uniqueCompanies.size} unique companies`)
+    
+    // 首先保存从列表中已获取的公司信息
+    let companySuccessCount = 0
+    for (const company of uniqueCompanies.values()) {
+      if (company.companyInfo && company.companyInfo.encryptCompanyId) {
+        try {
+          await saveCompanyInfo(ds, {
+            encryptCompanyId: company.companyInfo.encryptCompanyId,
+            brandName: company.companyInfo.brandName || company.brandName,
+            customerBrandName: company.companyInfo.customerBrandName,
+            industryName: company.companyInfo.industryName,
+            stageName: company.companyInfo.stageName,
+            scaleName: company.companyInfo.scaleName
+          })
+          companySuccessCount++
+          console.log(`[SyncBossChat] Saved company from list: ${company.companyInfo.brandName || company.brandName}`)
+        } catch (error) {
+          console.error(`[SyncBossChat] Error saving company from list ${company.encryptCompanyId}:`, error)
+        }
+      }
+    }
+    
+    console.log(`[SyncBossChat] Saved ${companySuccessCount} companies from list`)
+    
+    // 批量获取缺失的公司详情（列表中没有的）
+    const missingCompanies = Array.from(uniqueCompanies.values()).filter(c => !c.companyInfo)
+    const batchSize = 5 // 每批并发5个，避免请求过快
+    
+    for (let i = 0; i < missingCompanies.length; i += batchSize) {
+      const batch = missingCompanies.slice(i, i + batchSize)
+      await Promise.all(batch.map(async (company) => {
+        try {
+          const companyDetail = await page.evaluate(async (encryptCompanyId) => {
+            try {
+              // 尝试多个API端点获取公司详情
+              const endpoints = [
+                `/wapi/zpcompany/company/${encryptCompanyId}`,
+                `/wapi/zpcompany/detail.json?companyId=${encryptCompanyId}`,
+                `/wapi/zpcompany/getCompanyById?companyId=${encryptCompanyId}`
+              ]
+              
+              for (const endpoint of endpoints) {
+                try {
+                  const response = await fetch(endpoint, {
+                    headers: {
+                      'accept': 'application/json, text/plain, */*',
+                      'x-requested-with': 'XMLHttpRequest'
+                    },
+                    credentials: 'include'
+                  })
+                  
+                  if (response.ok) {
+                    const result = await response.json()
+                    if (result.code === 0 && result.zpData) {
+                      return result.zpData
+                    }
+                  }
+                } catch (e) {
+                  console.log(`[SyncBossChat] Endpoint failed: ${endpoint}`, e)
+                }
+              }
+              return null
+            } catch (error) {
+              console.error('[SyncBossChat] Error fetching company detail:', error)
+              return null
+            }
+          }, company.encryptCompanyId)
+          
+          if (companyDetail) {
+            // 提取公司信息
+            const companyInfo = {
+              encryptCompanyId: company.encryptCompanyId,
+              brandName: companyDetail.brandName || companyDetail.customerBrandName || company.brandName || '',
+              customerBrandName: companyDetail.customerBrandName || companyDetail.brandName || company.brandName || '',
+              industryName: companyDetail.industryName || companyDetail.industry || '',
+              stageName: companyDetail.stageName || companyDetail.stage || '',
+              scaleName: companyDetail.scaleName || companyDetail.scale || ''
+            }
+            
+            await saveCompanyInfo(ds, companyInfo)
+            companySuccessCount++
+          }
+        } catch (error) {
+          console.error(`[SyncBossChat] Error saving company ${company.encryptCompanyId}:`, error)
+        }
+      }))
+      
+      // 添加小延迟避免请求过快
+      if (i + batchSize < missingCompanies.length) {
+        await new Promise(r => setTimeout(r, 500))
+      }
+    }
+    
+    console.log(`[SyncBossChat] Saved ${companySuccessCount}/${uniqueCompanies.size} company details`)
+    
+    // 关闭浏览器
+    if (browser) {
+      try {
+        await browser.close()
+      } catch {}
+      browser = null
+    }
+    
     return {
       success: true,
       data: {
         syncedCount: result.syncedCount,
+        companySyncedCount: companySuccessCount,
         syncTime: result.syncTime
       }
     }

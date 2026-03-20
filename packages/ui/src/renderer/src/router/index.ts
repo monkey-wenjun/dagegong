@@ -128,6 +128,13 @@ const routes: Array<RouteRecordRaw> = [
         }
       },
       {
+        path: 'StatisticsDashboard',
+        component: () => import('@renderer/page/MainLayout/StatisticsDashboard.vue'),
+        meta: {
+          title: '数据统计'
+        }
+      },
+      {
         path: 'RunningLog',
         component: () => import('@renderer/page/MainLayout/RunningLog.vue'),
         meta: {

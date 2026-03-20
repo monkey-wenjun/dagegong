@@ -32,6 +32,7 @@
                 v-model="formContent.dailyStatsWebhookUrl"
                 :placeholder="webhookPlaceholder"
                 clearable
+                show-password
               />
             </el-form-item>
 
@@ -118,12 +119,32 @@ const webhookPlaceholder = computed(() => {
     : 'https://oapi.dingtalk.com/robot/send?access_token=xxx'
 })
 
-// 消息预览
+// 今日统计数据
+const todayStats = ref({ resumeCount: 0, bossCount: 0 })
+
+// 加载今日统计
+async function loadTodayStats() {
+  try {
+    const stats = await ipcRenderer.invoke('get-today-stats-preview')
+    if (stats) {
+      todayStats.value = stats
+    }
+  } catch (error) {
+    console.error('获取今日统计失败:', error)
+  }
+}
+
+// 组件挂载时加载
+onMounted(() => {
+  loadTodayStats()
+})
+
+// 消息预览 - 使用真实数据
 const previewMessage = computed(() => {
   const template = formContent.value.dailyStatsTemplate || '您今日已投递简历{{resumeCount}}份，与{{bossCount}}位BOSS进行沟通'
   return template
-    .replace(/\{\{resumeCount\}\}/g, '5')
-    .replace(/\{\{bossCount\}\}/g, '3')
+    .replace(/\{\{resumeCount\}\}/g, String(todayStats.value.resumeCount || 0))
+    .replace(/\{\{bossCount\}\}/g, String(todayStats.value.bossCount || 0))
 })
 
 // 测试通知
@@ -142,7 +163,8 @@ async function testNotification() {
     })
     
     if (result.success) {
-      ElMessage.success('测试消息发送成功，请检查群消息')
+      const { resumeCount, bossCount } = result.data || {}
+      ElMessage.success(`测试消息发送成功！今日数据：投递简历 ${resumeCount || 0} 份，沟通BOSS ${bossCount || 0} 人，请检查群消息`)
       gtagRenderer('test_notification_success')
     } else {
       ElMessage.error('发送失败：' + result.error)

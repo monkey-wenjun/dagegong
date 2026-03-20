@@ -1,21 +1,33 @@
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, shell, app } from 'electron'
 import path from 'path'
 import { openDevTools } from '../commands'
 import { daemonEE } from '../flow/OPEN_SETTING_WINDOW/connect-to-daemon'
 import { runningLogManager } from '../features/running-log'
 export let mainWindow: BrowserWindow | null = null
 
+// 获取应用图标路径
+function getIconPath(): string {
+  // 优先使用应用资源目录
+  if (app.isPackaged && process.resourcesPath) {
+    return path.join(process.resourcesPath, 'build/icon.ico')
+  }
+  // 开发模式下使用项目目录
+  return path.join(app.getAppPath(), 'build/icon.ico')
+}
+
 export function createMainWindow(): BrowserWindow {
+  const iconPath = getIconPath()
+  console.log('[MainWindow] Using icon:', iconPath)
+  
   // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
     minWidth: 1280,
-    show: true,  // 改为 true，先显示窗口
+    show: true,
     autoHideMenuBar: true,
     frame: true,
-    // 使用更可靠的图标路径
-    icon: path.join(process.resourcesPath || __dirname, 'build/icon.ico'),
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       sandbox: false

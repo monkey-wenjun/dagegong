@@ -369,6 +369,31 @@ async function loadData() {
   }
 }
 
+// 加载两个标签页的数量统计（用于初始化显示）
+async function loadTabCounts() {
+  try {
+    // 同时获取两个标签页的数量
+    const encryptUserId = await getCurrentUserId()
+    
+    const [bossRes, autoRes] = await Promise.all([
+      electron.ipcRenderer.invoke('get-boss-chat-relation-list', {
+        pageNo: 1,
+        pageSize: 1,
+        encryptUserId
+      }) as Promise<{ data: PagedRes<VBossChatRelation> }>,
+      electron.ipcRenderer.invoke('get-auto-start-chat-record', {
+        pageNo: 1,
+        pageSize: 1
+      }) as Promise<{ data: PagedRes<VChatStartupLog> }>
+    ])
+    
+    bossRelationCount.value = bossRes.data.totalItemCount
+    autoStartChatCount.value = autoRes.data.totalItemCount
+  } catch (err) {
+    console.error('加载标签数量失败:', err)
+  }
+}
+
 // 获取BOSS沟通记录
 async function getBossChatRelationList() {
   try {
@@ -572,6 +597,7 @@ const setTableMaxHeight = () =>
 let ro: ResizeObserver | null = null
 onMounted(() => {
   loadData()
+  loadTabCounts() // 加载两个标签页的数量
   loadAutoSyncStatus()
   setTableMaxHeight()
   ro = new ResizeObserver(() => setTableMaxHeight())

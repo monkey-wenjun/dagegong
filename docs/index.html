@@ -277,20 +277,108 @@
       font-size: 1.125rem;
     }
 
-    /* Screenshot */
+    /* Screenshot Carousel */
     .screenshot {
       background: var(--bg-soft);
       padding: 4rem 2rem;
     }
 
-    .screenshot img {
-      width: 100%;
-      max-width: 1100px;
+    .carousel {
+      position: relative;
+      max-width: 900px;
       margin: 0 auto;
-      display: block;
       border-radius: var(--radius-lg);
+      overflow: hidden;
       box-shadow: var(--shadow-lg);
       border: 1px solid var(--border);
+      background: #1a1a2e;
+    }
+
+    .carousel-track {
+      display: flex;
+      transition: transform 0.5s ease-in-out;
+    }
+
+    .carousel-slide {
+      min-width: 100%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .carousel-slide img {
+      max-width: 100%;
+      max-height: 500px;
+      width: auto;
+      height: auto;
+      display: block;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    .carousel-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      transition: all 0.2s;
+      z-index: 10;
+      box-shadow: var(--shadow);
+    }
+
+    .carousel-btn:hover {
+      background: white;
+      color: var(--primary);
+      transform: translateY(-50%) scale(1.05);
+    }
+
+    .carousel-prev {
+      left: 1rem;
+    }
+
+    .carousel-next {
+      right: 1rem;
+    }
+
+    .carousel-dots {
+      position: absolute;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 0.5rem;
+      z-index: 10;
+    }
+
+    .carousel-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .carousel-dot.active {
+      background: var(--primary);
+      width: 24px;
+      border-radius: 5px;
+    }
+
+    .carousel-dot:hover {
+      background: rgba(255, 255, 255, 0.8);
     }
 
     /* Features */
@@ -640,10 +728,37 @@
     </div>
   </section>
 
-  <!-- Screenshot -->
+  <!-- Screenshot Carousel -->
   <section class="screenshot">
     <div class="container">
-      <img src="images/screenshot.png" alt="应用界面截图">
+      <div class="carousel">
+        <div class="carousel-track">
+          <div class="carousel-slide">
+            <img src="images/1.png" alt="应用界面截图1">
+          </div>
+          <div class="carousel-slide">
+            <img src="images/2.png" alt="应用界面截图2">
+          </div>
+          <div class="carousel-slide">
+            <img src="images/3.png" alt="应用界面截图3">
+          </div>
+        </div>
+        <button class="carousel-btn carousel-prev" aria-label="上一张">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <button class="carousel-btn carousel-next" aria-label="下一张">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        <div class="carousel-dots">
+          <button class="carousel-dot active" data-index="0" aria-label="第1张"></button>
+          <button class="carousel-dot" data-index="1" aria-label="第2张"></button>
+          <button class="carousel-dot" data-index="2" aria-label="第3张"></button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -824,5 +939,110 @@
     </div>
     <p>© 2024 打个工 (dagegong) · ISC License</p>
   </footer>
+
+  <script>
+    // Carousel functionality
+    (function() {
+      const carousel = document.querySelector('.carousel');
+      if (!carousel) return;
+
+      const track = carousel.querySelector('.carousel-track');
+      const slides = carousel.querySelectorAll('.carousel-slide');
+      const prevBtn = carousel.querySelector('.carousel-prev');
+      const nextBtn = carousel.querySelector('.carousel-next');
+      const dots = carousel.querySelectorAll('.carousel-dot');
+
+      let currentIndex = 0;
+      let autoplayInterval;
+      const autoplayDelay = 5000; // 5 seconds
+
+      function goToSlide(index) {
+        if (index < 0) index = slides.length - 1;
+        if (index >= slides.length) index = 0;
+
+        currentIndex = index;
+
+        // Update dots
+        dots.forEach((dot, i) => {
+          dot.classList.toggle('active', i === currentIndex);
+        });
+
+        // Move track
+        track.style.transform = `translateX(-${currentIndex * 100}%)`;
+      }
+
+      function nextSlide() {
+        goToSlide(currentIndex + 1);
+      }
+
+      function prevSlide() {
+        goToSlide(currentIndex - 1);
+      }
+
+      function startAutoplay() {
+        stopAutoplay();
+        autoplayInterval = setInterval(nextSlide, autoplayDelay);
+      }
+
+      function stopAutoplay() {
+        if (autoplayInterval) {
+          clearInterval(autoplayInterval);
+        }
+      }
+
+      // Event listeners
+      prevBtn.addEventListener('click', () => {
+        prevSlide();
+        startAutoplay(); // Reset timer
+      });
+
+      nextBtn.addEventListener('click', () => {
+        nextSlide();
+        startAutoplay(); // Reset timer
+      });
+
+      dots.forEach((dot, index) => {
+        dot.addEventListener('click', () => {
+          goToSlide(index);
+          startAutoplay(); // Reset timer
+        });
+      });
+
+      // Pause on hover
+      carousel.addEventListener('mouseenter', stopAutoplay);
+      carousel.addEventListener('mouseleave', startAutoplay);
+
+      // Start autoplay
+      startAutoplay();
+
+      // Touch/swipe support
+      let touchStartX = 0;
+      let touchEndX = 0;
+
+      carousel.addEventListener('touchstart', (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+        stopAutoplay();
+      }, { passive: true });
+
+      carousel.addEventListener('touchend', (e) => {
+        touchEndX = e.changedTouches[0].screenX;
+        handleSwipe();
+        startAutoplay();
+      }, { passive: true });
+
+      function handleSwipe() {
+        const swipeThreshold = 50;
+        const diff = touchStartX - touchEndX;
+
+        if (Math.abs(diff) > swipeThreshold) {
+          if (diff > 0) {
+            nextSlide();
+          } else {
+            prevSlide();
+          }
+        }
+      }
+    })();
+  </script>
 </body>
 </html>

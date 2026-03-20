@@ -165,6 +165,7 @@
                     maxRows: 10
                   }"
                   font-size-12px
+                  show-password
                 ></el-input>
               </el-form-item>
               <div class="serve-weight-config">
