@@ -8,7 +8,7 @@
 
 **本项目基于 [dagegong/dagegong](https://github.com/dagegong/dagegong) 进行二次开发。**
 
-原项目是一个开源的 BOSS 直聘自动化工具，感谢原作者的贡献。本项目在此基础上进行了部分定制和优化。
+原项目是一个开源的 BOSS 直聘自动化工具，感谢原作者的贡献。本项目在此基础上进行了部分定制和优化。对主题 功能做了增删。
 
 - 🔗 原项目地址：https://github.com/geekgeekrun/geekgeekrun 
 - 📝 原项目作者：[@geekgeekrun](https://github.com/geekgeekrun)
@@ -31,6 +31,9 @@
 
 ## ✨ 功能特性
 
+
+![clip_1773981109599_11ezgv.png](https://file.awen.me/images/clip_1773981109599_11ezgv.png)
+
 ### 🎯 自动开聊
 按照你设置的求职偏好，自动在 BOSS 直聘上与匹配的招聘者打招呼：
 
@@ -39,7 +42,10 @@
 - **活跃度检测** - 自动跳过长期不活跃的 BOSS，提高回复率
 - **自动筛选** - 不匹配的职位自动标记为不合适，减少无效推荐
 - **每日限额控制** - 自动检测沟通次数，用完后智能暂停，次日自动恢复
+- **无头模式**  - 登录后自动保存cookies 并在无头模式下进行工作
+- **运行日志** - 可以在无头模式下检查是否正常工作
 
+![clip_1773981185444_nea7io.png](https://file.awen.me/images/clip_1773981185444_nea7io.png)
 ### 💬 已读不回自动复聊
 BOSS 已读不回？自动提醒功能帮你把握机会：
 
