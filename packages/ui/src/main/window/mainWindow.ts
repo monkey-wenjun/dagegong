@@ -11,10 +11,11 @@ export function createMainWindow(): BrowserWindow {
     width: 1280,
     height: 720,
     minWidth: 1280,
-    show: false,
+    show: true,  // 改为 true，先显示窗口
     autoHideMenuBar: true,
     frame: true,
-    icon: path.join(__dirname, '../../build/icon.ico'),
+    // 使用更可靠的图标路径
+    icon: path.join(process.resourcesPath || __dirname, 'build/icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -43,7 +44,14 @@ export function createMainWindow(): BrowserWindow {
   if (process.env.NODE_ENV === 'development' && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+    // 添加错误处理和日志
+    const htmlPath = path.join(__dirname, '../renderer/index.html')
+    console.log('Loading renderer from:', htmlPath)
+    mainWindow.loadFile(htmlPath).catch(err => {
+      console.error('Failed to load renderer:', err)
+      // 如果加载失败，显示错误信息
+      mainWindow?.loadURL(`data:text/html,<h1>Error loading app</h1><p>${err.message}</p>`)
+    })
   }
 
   mainWindow!.once('closed', () => {

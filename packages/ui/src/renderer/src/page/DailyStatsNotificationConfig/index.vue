@@ -36,13 +36,11 @@
             </el-form-item>
 
             <el-form-item label="推送时间">
-              <el-time-select
+              <el-time-picker
                 v-model="formContent.dailyStatsPushTime"
-                :picker-options="{
-                  start: '18:00',
-                  step: '00:30',
-                  end: '23:30'
-                }"
+                format="HH:mm"
+                value-format="HH:mm"
+                :clearable="false"
                 placeholder="选择推送时间"
                 style="width: 200px"
               />
@@ -260,5 +258,11 @@ onMounted(async () => {
     padding-left: 20px;
     padding-right: 36px;
   }
+}
+
+/* 修复时间选择器下拉列表高度 */
+:deep(.el-time-panel) {
+  max-height: 300px;
+  overflow-y: auto;
 }
 </style>
