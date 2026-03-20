@@ -22,10 +22,11 @@
       </div>
       <div flex gap8 flex-items-center>
         <el-switch
-          v-model="autoSyncEnabled"
+          :model-value="autoSyncStatus.isEnabled"
+          :loading="switchLoading"
           active-text="自动同步"
           inline-prompt
-          @change="handleAutoSyncChange"
+          @update:model-value="handleAutoSyncChange"
         />
         <el-button
           :loading="isSyncing"
@@ -271,12 +272,8 @@ const autoSyncStatus = ref<AutoSyncStatus>({
   nextSyncTime: null
 })
 
-const autoSyncEnabled = computed({
-  get: () => autoSyncStatus.value.isEnabled,
-  set: (val) => {
-    autoSyncStatus.value.isEnabled = val
-  }
-})
+// 开关的临时状态，用于在操作完成前保持UI状态
+const switchLoading = ref(false)
 
 // 获取自动同步状态
 async function loadAutoSyncStatus() {
@@ -298,6 +295,7 @@ async function loadAutoSyncStatus() {
 
 // 处理自动同步开关变化
 async function handleAutoSyncChange(enabled: boolean) {
+  switchLoading.value = true
   try {
     const status = await electron.ipcRenderer.invoke('set-auto-sync-enabled', enabled)
     autoSyncStatus.value = {
@@ -309,8 +307,9 @@ async function handleAutoSyncChange(enabled: boolean) {
   } catch (err) {
     console.error('设置自动同步失败:', err)
     ElMessage.error('设置失败')
-    // 恢复原状态
-    autoSyncEnabled.value = !enabled
+    // 发生错误时不更新状态，开关保持原样
+  } finally {
+    switchLoading.value = false
   }
 }
 
@@ -586,7 +585,6 @@ onMounted(() => {
       autoSyncStatus.value.nextSyncTime = new Date(autoSyncStatus.value.nextSyncTime)
     }
   }, 60000) // 每分钟刷新一次
-  }
   
   // 每次进入页面自动触发一次同步（只在BOSS沟通记录标签页）
   if (!hasAutoSynced.value && activeTab.value === 'boss') {

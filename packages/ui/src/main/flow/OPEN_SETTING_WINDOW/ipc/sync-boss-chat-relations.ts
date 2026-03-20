@@ -3,9 +3,9 @@
  * 支持 headless 模式运行
  */
 
-import { readStorageFile } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
+import { readStorageFile, getPublicDbFilePath } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import { getAnyAvailablePuppeteerExecutable } from '../../DOWNLOAD_DEPENDENCIES/utils/puppeteer-executable/index'
-import { initDb, getPublicDbFilePath, saveBossChatRelationList } from '@geekgeekrun/sqlite-plugin/dist/index.js'
+import { initDb, saveBossChatRelationList } from '@geekgeekrun/sqlite-plugin/dist/index.js'
 import { initPuppeteer } from '@geekgeekrun/geek-auto-start-chat-with-boss/index.mjs'
 
 interface SyncOptions {

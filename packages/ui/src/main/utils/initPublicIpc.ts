@@ -14,6 +14,7 @@ import {
 } from '@geekgeekrun/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
 import { runningLogManager } from '../features/running-log'
 import { getBrowserConfig, saveBrowserConfig } from '../features/browser-config'
+import { initAutoSyncIpc } from '../features/auto-sync-boss-chat-relations'
 
 export default function initPublicIpc() {
   ipcMain.on(
@@ -220,4 +221,7 @@ export default function initPublicIpc() {
       return null
     }
   })
+
+  // 初始化自动同步 IPC 处理
+  initAutoSyncIpc()
 }
