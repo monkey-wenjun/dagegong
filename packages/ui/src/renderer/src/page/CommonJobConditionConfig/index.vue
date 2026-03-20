@@ -369,38 +369,42 @@
                             lineHeight: '1.25em'
                           }"
                         >
-                          <tr>
-                            <th
-                              v-for="(text, i) in ['月薪下限', '月薪上限', '']"
-                              :key="i"
-                              :style="{
-                                borderBottom: '2px solid var(--border-secondary)'
-                              }"
-                            >
-                              {{ text }}
-                            </th>
-                          </tr>
-                          <tr v-for="m in mGroup" :key="m">
-                            <td>
-                              {{
-                                formContent.expectSalaryLow
-                                  ? ((formContent.expectSalaryLow / m) * 10).toFixed(2)
-                                  : '无下限'
-                              }}<small v-if="formContent.expectSalaryLow" class="ml-2px" style="color: #999"
-                                >k</small
+                          <thead>
+                            <tr>
+                              <th
+                                v-for="(text, i) in ['月薪下限', '月薪上限', '']"
+                                :key="i"
+                                :style="{
+                                  borderBottom: '2px solid var(--border-secondary)'
+                                }"
                               >
-                            </td>
-                            <td>
-                              {{
-                                formContent.expectSalaryHigh
-                                  ? ((formContent.expectSalaryHigh / m) * 10).toFixed(2)
-                                  : '无上限'
-                              }}<small v-if="formContent.expectSalaryHigh" class="ml-2px" style="color: #999"
-                                >k</small
-                              >
-                            </td>
-                            <td>{{ m }}薪</td>
-                          </tr>
+                                {{ text }}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="m in mGroup" :key="m">
+                              <td>
+                                {{
+                                  formContent.expectSalaryLow
+                                    ? ((formContent.expectSalaryLow / m) * 10).toFixed(2)
+                                    : '无下限'
+                                }}<small v-if="formContent.expectSalaryLow" class="ml-2px" style="color: #999"
+                                  >k</small
+                                >
+                              </td>
+                              <td>
+                                {{
+                                  formContent.expectSalaryHigh
+                                    ? ((formContent.expectSalaryHigh / m) * 10).toFixed(2)
+                                    : '无上限'
+                                }}<small v-if="formContent.expectSalaryHigh" class="ml-2px" style="color: #999"
+                                  >k</small
+                                >
+                              </td>
+                              <td>{{ m }}薪</td>
+                            </tr>
+                          </tbody>
                         </table>
                         <div v-if="index !== 1" class="w-2px flex-self-stretch divider-line"></div>
                       </template>
