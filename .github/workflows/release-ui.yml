@@ -42,8 +42,8 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cd packages/ui
         pnpm i --force
+      shell: cmd
 
     - name: Build sqlite-plugin
       run: |
@@ -89,7 +89,6 @@ jobs:
     - name: Install dependencies
       run: |
         npm i pnpm@8 -g
-        cd packages/ui
         pnpm i --force
 
     - name: Build sqlite-plugin
@@ -129,7 +128,6 @@ jobs:
     - name: Install dependencies
       run: |
         npm i pnpm@8 -g
-        cd packages/ui
         pnpm i --force
 
     - name: Build sqlite-plugin
