@@ -2934,7 +2934,7 @@ const fillCommonConfigField = (field) => {
 }
 
 // 暗色主题适配
-.dark .global-block-company-notice {
+[data-theme="dark"] .global-block-company-notice {
   background-color: var(--el-color-danger-dark-9, #2b1d1d);
   border-color: var(--el-color-danger-dark-7, #5c3a3a);
 }
