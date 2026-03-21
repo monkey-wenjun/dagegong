@@ -393,8 +393,8 @@
           </div>
         </el-form-item>
         <el-form-item class="last-form-item" flex>
-          <el-button type="primary" @click="handleSubmit">开始提醒</el-button>
           <el-button @click="handleSaveConfig">保存配置</el-button>
+          <el-button type="primary" @click="handleSubmit">开始提醒</el-button>
         </el-form-item>
       </el-form>
     </div>
