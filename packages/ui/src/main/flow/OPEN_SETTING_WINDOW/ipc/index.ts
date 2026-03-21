@@ -991,8 +991,10 @@ import { BossChatRelation } from '@dagegong/sqlite-plugin/dist/entity/BossChatRe
 import { initPuppeteer } from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 import { getAnyAvailablePuppeteerExecutable } from '../../DOWNLOAD_DEPENDENCIES/utils/puppeteer-executable/index'
 
+// 共享的数据库初始化 Promise
+const dbInitPromise = initDb(getPublicDbFilePath())
+
 async function syncBossChatRelations() {
-  const dbInitPromise = initDb(getPublicDbFilePath())
   let browser = null
   
   try {
