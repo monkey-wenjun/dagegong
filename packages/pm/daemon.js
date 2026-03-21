@@ -362,8 +362,8 @@ function stopWorker(workerId) {
     return;
   }
   
-  const process = workerInfo.process;
-  const pid = process.pid;
+  const workerProcess = workerInfo.process;
+  const pid = workerProcess.pid;
   
   // 关闭工具进程的TCP连接
   if (workerInfo.socket) {
@@ -373,48 +373,76 @@ function stopWorker(workerId) {
   // 标记进程已停止（防止重启）
   workers.delete(workerId);
   
-  // 首先尝试发送SIGTERM
-  process.kill('SIGTERM');
-  
-  // 设置超时，如果进程未在3秒内退出，强制终止
-  const forceKillTimeout = setTimeout(() => {
-    try {
-      // 检查进程是否仍然存在
-      if (pidToProcessInfoMap.has(pid)) {
-        console.log(`工具进程 ${workerId} 未响应SIGTERM，强制终止`);
-        
-        if (process.platform === 'win32') {
-          // Windows: 使用taskkill强制终止进程树
+  // 平台特定的停止逻辑
+  if (process.platform === 'win32') {
+    // Windows: 使用更可靠的方式停止进程
+    // Windows 不支持 POSIX 信号，SIGTERM 不会触发 process.on('SIGTERM')
+    console.log(`Windows平台，使用taskkill停止进程 ${workerId} (PID: ${pid})`);
+    
+    // 首先尝试通过断开IPC触发worker的disconnect事件（如果有IPC连接）
+    if (workerProcess.connected) {
+      try {
+        workerProcess.disconnect();
+      } catch (e) {
+        // IPC可能已经断开，忽略错误
+      }
+    }
+    
+    // 设置超时，使用taskkill强制终止进程树
+    const forceKillTimeout = setTimeout(() => {
+      try {
+        if (pidToProcessInfoMap.has(pid)) {
+          console.log(`使用taskkill强制终止进程 ${workerId}`);
           const { exec } = require('child_process');
           exec(`taskkill /F /T /PID ${pid}`, (err) => {
             if (err) {
               console.log(`taskkill失败: ${err.message}`);
               // 尝试直接kill
               try {
-                workerProcess.kill('SIGKILL');
+                workerProcess.kill();
               } catch (e) {
                 // 进程可能已退出
               }
+            } else {
+              console.log(`taskkill成功终止进程 ${workerId}`);
             }
           });
-        } else {
-          // Unix/Linux/macOS: 使用SIGKILL
+        }
+      } catch (e) {
+        console.log(`强制终止工具进程 ${workerId} 失败: ${e.message}`);
+      }
+    }, 2000); // Windows上给2秒超时
+    
+    // 监听进程退出，清理超时
+    workerProcess.once('exit', () => {
+      clearTimeout(forceKillTimeout);
+    });
+  } else {
+    // Unix/Linux/macOS: 使用SIGTERM
+    console.log(`Unix平台，发送SIGTERM给进程 ${workerId} (PID: ${pid})`);
+    workerProcess.kill('SIGTERM');
+    
+    // 设置超时，如果进程未在3秒内退出，强制终止
+    const forceKillTimeout = setTimeout(() => {
+      try {
+        if (pidToProcessInfoMap.has(pid)) {
+          console.log(`工具进程 ${workerId} 未响应SIGTERM，强制终止`);
           try {
             workerProcess.kill('SIGKILL');
           } catch (e) {
             // 进程可能已退出
           }
         }
+      } catch (e) {
+        console.log(`强制终止工具进程 ${workerId} 失败: ${e.message}`);
       }
-    } catch (e) {
-      console.log(`强制终止工具进程 ${workerId} 失败: ${e.message}`);
-    }
-  }, 3000);
-  
-  // 监听进程退出，清理超时
-  workerProcess.once('exit', () => {
-    clearTimeout(forceKillTimeout);
-  });
+    }, 3000);
+    
+    // 监听进程退出，清理超时
+    workerProcess.once('exit', () => {
+      clearTimeout(forceKillTimeout);
+    });
+  }
   
   // 通知GUI客户端
   broadcastToGUI({

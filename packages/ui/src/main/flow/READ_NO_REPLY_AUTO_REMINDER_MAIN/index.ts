@@ -56,6 +56,17 @@ process.on('SIGTERM', () => {
   process.exit(0)
 })
 
+process.on('disconnect', () => {
+  console.log('[DEBUG] Process disconnect event received')
+  // 尝试关闭浏览器以加速退出
+  try {
+    pageMapByName?.boss?.close()
+  } catch (e) {
+    // 忽略错误
+  }
+  process.exit(0)
+})
+
 const throttleIntervalMinutes =
   readConfigFile('boss.json').autoReminder?.throttleIntervalMinutes ?? 10
 const rechatLimitDay = readConfigFile('boss.json').autoReminder?.rechatLimitDay ?? 21
