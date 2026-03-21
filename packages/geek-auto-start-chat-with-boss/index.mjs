@@ -42,6 +42,16 @@ import { parseSalary } from './sqlite-plugin-compat.mjs'
 import { waitForSageTimeOrJustContinue } from './sage-time.mjs'
 import cityGroupData from './cityGroup.mjs'
 import { hasIntersection } from '@dagegong/utils/number.mjs';
+import {
+  readRecoveryState,
+  updateExecutionPhase,
+  recordProcessedJob,
+  isJobProcessed,
+  attachBrowserCrashListener,
+  attachPageErrorListener,
+  ExecutionPhase,
+} from './browser-crash-recovery.mjs'
+
 const flattedCityList = []
 
 // Track daily remaining chat count (null = unknown, 0 = reached limit)
@@ -2240,8 +2250,27 @@ async function toRecommendPage (hooks) {
   }
 }
 
-export async function mainLoop (hooks) {
+// 用于标记浏览器是否已断开，避免重复触发
+let browserDisconnected = false
+let browserDisconnectReject = null
+
+export async function mainLoop (hooks, recoveryOptions = {}) {
   console.log('[DEBUG] mainLoop started')
+  
+  // 重置浏览器断开标记
+  browserDisconnected = false
+  browserDisconnectReject = null
+  
+  // 读取恢复状态
+  const recoveryState = readRecoveryState()
+  const isRecoveryMode = recoveryState.crashCount > 0 && recoveryState.isRecovering
+  
+  if (isRecoveryMode) {
+    const resumeMsg = `[Recovery] 进入恢复模式，上次阶段: ${recoveryState.currentPhase || 'unknown'}`
+    console.log(resumeMsg)
+    hooks.logInfo?.(resumeMsg)
+  }
+  
   // Reset daily chat count at the start of each session (new day assumed)
   dailyRemainingChatCount = null
   hooks.logInfo?.('[DailyLimit] 每日沟通次数限制已重置（新会话开始）')
@@ -2252,6 +2281,12 @@ export async function mainLoop (hooks) {
     await initPuppeteer()
     console.log('[DEBUG] initPuppeteer done')
   }
+  
+  // 创建浏览器断开检测 Promise
+  const browserDisconnectPromise = new Promise((_, reject) => {
+    browserDisconnectReject = reject
+  })
+  
   try {
     // 从环境变量读取无头模式配置
     const headlessMode = process.env.DAGEGONG_BROWSER_HEADLESS === '1'
@@ -2301,7 +2336,10 @@ export async function mainLoop (hooks) {
         '--password-store=basic',
         '--use-mock-keychain',
         '--no-sandbox',
-        '--disable-setuid-sandbox'
+        '--disable-setuid-sandbox',
+        // 崩溃恢复相关参数
+        '--disable-features=site-per-process', // 减少内存使用
+        '--max_old_space_size=4096', // 增加 V8 堆内存限制
       ]
     })
     console.log('[DEBUG] Browser launched successfully')
@@ -2310,27 +2348,60 @@ export async function mainLoop (hooks) {
     console.log('[DEBUG] Got first page')
     hooks.pageGotten?.call(page)
     
-    // 监听浏览器断开连接
+    // 监听浏览器断开连接 - 抛出错误以便外层捕获进行恢复
     browser.on('disconnected', () => {
+      if (browserDisconnected) return
+      browserDisconnected = true
       console.error('[Browser] 浏览器进程已断开连接')
       hooks.logError?.('[Browser] 浏览器进程已断开连接（可能已崩溃）')
+      const error = new Error('Browser disconnected - Browser process crashed or was terminated')
+      error.code = 'BROWSER_CRASHED'
+      if (browserDisconnectReject) {
+        browserDisconnectReject(error)
+      }
     })
     
     // 监听页面崩溃
     page.on('error', (err) => {
       console.error('[Page] 页面错误:', err.message)
       hooks.logError?.(`[Page] 页面错误: ${err.message}`)
+      // 页面错误也可能导致浏览器不稳定，记录状态
+      updateExecutionPhase('page_error', { errorMessage: err.message })
     })
     
-    //set cookies
+    // 监听页面崩溃事件 (crashed)
+    page.on('framenavigated', async (frame) => {
+      if (frame === page.mainFrame()) {
+        try {
+          // 检查页面是否还能正常响应
+          await page.evaluate(() => document.readyState).catch(() => {
+            console.error('[Page] 页面导航后无法响应')
+          })
+        } catch (e) {
+          // 忽略
+        }
+      }
+    })
+    
+    //set cookies - 使用 race 检测浏览器断开
     const bossCookies = readStorageFile('boss-cookies.json')
     const bossLocalStorage = readStorageFile('boss-local-storage.json')
     await hooks.cookieWillSet?.promise(bossCookies)
     for(let i = 0; i < bossCookies.length; i++){
-      await page.setCookie(bossCookies[i]);
+      await Promise.race([
+        page.setCookie(bossCookies[i]),
+        browserDisconnectPromise
+      ])
     }
-    await setDomainLocalStorage(browser, localStoragePageUrl, bossLocalStorage)
-    await page.bringToFront()
+    await Promise.race([
+      setDomainLocalStorage(browser, localStoragePageUrl, bossLocalStorage),
+      browserDisconnectPromise
+    ])
+    await Promise.race([
+      page.bringToFront(),
+      browserDisconnectPromise
+    ])
+    
     // __GGR_INJECT_ANTI_ANTI_DEBUGGER__
     await hooks.mainFlowWillLaunch?.promise({
       jobNotMatchStrategy,
@@ -2351,7 +2422,11 @@ export async function mainLoop (hooks) {
     }
     
     try {
-      await toRecommendPage(hooks)
+      // 使用 race 检测浏览器断开
+      await Promise.race([
+        toRecommendPage(hooks),
+        browserDisconnectPromise
+      ])
     } finally {
       // 停止自动发送简历轮询
       stopAutoSendResume()
@@ -2406,4 +2481,57 @@ async function storeStorage (page) {
       writeStorageFile('boss-local-storage.json', localStorage),
     ]
   )
+}
+
+// ============================================
+// 浏览器崩溃自动恢复 - 便捷函数
+// ============================================
+
+import {
+  createAutoRestartWrapper as createAutoRestartWrapperImpl,
+} from './browser-crash-recovery.mjs'
+
+/**
+ * 创建带自动重启功能的 mainLoop 包装器
+ * @param {Object} hooks - 钩子对象
+ * @returns {Object} 包含 start, stop, getStatus 和 eventBus 的对象
+ */
+export function createAutoRestartWrapper(hooks) {
+  return createAutoRestartWrapperImpl(mainLoop, hooks)
+}
+
+/**
+ * 便捷的带自动重启的 mainLoop 启动函数
+ * 用法: await runMainLoopWithAutoRestart(hooks)
+ * 
+ * @param {Object} hooks - 钩子对象
+ * @returns {Promise<void>}
+ */
+export async function runMainLoopWithAutoRestart(hooks) {
+  const wrapper = createAutoRestartWrapper(hooks)
+  
+  // 监听恢复事件并通知前端
+  wrapper.eventBus.on('recovering', (state) => {
+    hooks.logInfo?.(`[AutoRestart] 检测到崩溃，正在进行第 ${state.crashCount} 次恢复尝试...`)
+  })
+  
+  wrapper.eventBus.on('crashed', ({ state }) => {
+    hooks.logError?.(`[AutoRestart] 浏览器已崩溃，将在延迟后自动重启 (${state.crashCount}/5)`)
+  })
+  
+  wrapper.eventBus.on('maxRetriesReached', () => {
+    hooks.logError?.('[AutoRestart] 已达到最大重试次数，自动恢复停止')
+  })
+  
+  return wrapper.start()
+}
+
+/**
+ * 停止自动恢复循环（用于手动停止）
+ * @returns {Promise<void>}
+ */
+export async function stopAutoRestart() {
+  // 通过清除恢复状态来阻止后续恢复
+  const { clearRecoveryState } = await import('./browser-crash-recovery.mjs')
+  clearRecoveryState()
 }

@@ -121,7 +121,7 @@ const runAutoChat = async () => {
   }
   
   console.log('[DEBUG] Importing geek-auto-start-chat-with-boss module...')
-  const { initPuppeteer, mainLoop, closeBrowserWindow, autoStartChatEventBus } = await import(
+  const { initPuppeteer, mainLoop, closeBrowserWindow, autoStartChatEventBus, createAutoRestartWrapper } = await import(
     '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
   )
   console.log('[DEBUG] Module imported successfully')
@@ -240,19 +240,64 @@ const runAutoChat = async () => {
   })
   
   initPlugins(hooks)
+  
+  // 创建带自动恢复的包装器
+  const autoRestartWrapper = createAutoRestartWrapper(hooks)
+  
+  // 监听恢复事件并通知前端
+  autoRestartWrapper.eventBus.on('recovering', (state) => {
+    runningLogManager.logInfo(`[自动恢复] 浏览器崩溃，正在进行第 ${state.crashCount} 次恢复尝试...`)
+    sendToDaemon({
+      type: 'worker-to-gui-message',
+      data: {
+        type: 'browser-recovering',
+        crashCount: state.crashCount,
+        maxRetries: 5,
+        message: `浏览器崩溃，正在自动恢复 (${state.crashCount}/5)...`
+      }
+    })
+  })
+  
+  autoRestartWrapper.eventBus.on('crashed', ({ error, state }) => {
+    runningLogManager.logError(`[自动恢复] 浏览器已崩溃: ${error.message}`)
+  })
+  
+  autoRestartWrapper.eventBus.on('maxRetriesReached', () => {
+    runningLogManager.logError('[自动恢复] 已达到最大重试次数，停止自动恢复')
+    sendToDaemon({
+      type: 'worker-to-gui-message',
+      data: {
+        type: 'browser-recovery-failed',
+        message: '浏览器连续崩溃多次，已停止自动恢复'
+      }
+    })
+  })
 
   gtag('run_auto_chat_with_boss_main_ready')
 
   autoStartChatEventBus.once('LOGIN_STATUS_INVALID', () => {
   })
 
-  console.log('[DEBUG] Entering main loop...')
+  console.log('[DEBUG] Entering main loop with auto-restart...')
+  
+  // 主循环 - 带自动恢复
   while (true) {
     try {
-      console.log('[DEBUG] Calling mainLoop...')
-      await mainLoop(hooks)
+      console.log('[DEBUG] Starting auto-restart wrapper...')
+      await autoRestartWrapper.start()
       console.log('[DEBUG] mainLoop completed')
     } catch (err) {
+      // 检查是否是最大重试次数达到的错误
+      if (err.message === 'MAX_RETRIES_REACHED') {
+        await dialog.showMessageBox({
+          type: 'error',
+          message: '浏览器连续崩溃多次',
+          detail: '浏览器已连续崩溃 5 次，已停止自动恢复。请检查系统资源或重新启动程序。'
+        })
+        process.exit(AUTO_CHAT_ERROR_EXIT_CODE.BROWSER_CRASHED)
+        break
+      }
+      
       if (err instanceof Error) {
         if (err.message.includes('LOGIN_STATUS_INVALID')) {
           await dialog.showMessageBox({
@@ -276,6 +321,7 @@ const runAutoChat = async () => {
           break
         }
       }
+      
       closeBrowserWindow?.()
       console.error(err)
       const shouldExit = await checkShouldExit()
@@ -283,6 +329,8 @@ const runAutoChat = async () => {
         app.exit()
         return
       }
+      
+      // 如果不是浏览器崩溃导致的错误，使用原来的重试间隔
       console.log(
         `[Run core main] An internal error is caught, and browser will be restarted in ${rerunInterval}ms.`
       )
