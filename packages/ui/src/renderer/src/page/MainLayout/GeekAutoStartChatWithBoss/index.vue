@@ -183,6 +183,16 @@
                       <el-checkbox :label="0">周日</el-checkbox>
                     </el-checkbox-group>
                   </div>
+                  
+                  <!-- 自动运行时间预览 -->
+                  <div v-if="formContent.autoRunTimeEnabled && autoRunWaitPreview" mt12px font-size-12px>
+                    <div v-if="autoRunWaitPreview.shouldWait" style="color: #409eff;">
+                      ⏰ {{ autoRunWaitPreview.text }}
+                    </div>
+                    <div v-else style="color: #67c23a;">
+                      ✅ {{ autoRunWaitPreview.reason }}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2064,6 +2074,41 @@ const formContent = ref({
   autoSendResumeUseLabelFilter: false,
   autoSendResumeLabelId: 0,
   autoSendResumeLabelName: '全部'
+})
+
+// 计算预计启动等待时间（用于实时预览）
+const autoRunWaitPreview = computed(() => {
+  if (!formContent.value.autoRunTimeEnabled) {
+    return null
+  }
+  
+  const now = new Date()
+  const currentDay = now.getDay()
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const allowedWeekdays = formContent.value.autoRunWeekdays || [1, 2, 3, 4, 5]
+  const startTime = formContent.value.autoRunStartTime || '10:00'
+  
+  // 检查今天是否在允许的运行日期内
+  if (!allowedWeekdays.includes(currentDay)) {
+    return { shouldWait: false, reason: '今天不在运行星期范围内' }
+  }
+  
+  // 如果当前时间早于启动时间，计算等待时间
+  if (currentTime < startTime) {
+    const [startHour, startMinute] = startTime.split(':').map(Number)
+    const targetTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMinute, 0)
+    const waitMs = targetTime.getTime() - now.getTime()
+    const waitMinutes = Math.max(0, Math.round(waitMs / 1000 / 60))
+    return { 
+      shouldWait: true, 
+      waitMinutes,
+      waitUntilTime: startTime,
+      text: `预计等待约 ${waitMinutes} 分钟，将在 ${startTime} 自动开始运行`
+    }
+  }
+  
+  // 当前时间已经在运行时间段内
+  return { shouldWait: false, reason: '当前时间已在运行时间段内，将立即开始' }
 })
 
 const anyCombineBossRecommendFilterHasCondition = computed(() => {
