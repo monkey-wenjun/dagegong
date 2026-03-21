@@ -52,7 +52,12 @@ const runRecordId = minimist(process.argv.slice(2))['run-record-id'] ?? null
 const runAutoChat = async () => {
   console.log('[DEBUG] runAutoChat started')
   app.dock?.hide()
+  
+  // 记录启动日志
+  runningLogManager.logInfo('启动子进程')
+  
   console.log('[DEBUG] Getting browser executable...')
+  runningLogManager.logInfo('开始检查 Puppeteer 可执行程序')
   let puppeteerExecutable = await getLastUsedAndAvailableBrowser()
   console.log('[DEBUG] Browser executable:', puppeteerExecutable)
   if (!puppeteerExecutable) {
@@ -64,6 +69,7 @@ const runAutoChat = async () => {
     puppeteerExecutable = await getLastUsedAndAvailableBrowser()
   }
   if (!puppeteerExecutable) {
+    runningLogManager.logError('未找到可用的浏览器')
     await dialog.showMessageBox({
       type: `error`,
       message: `未找到可用的浏览器`,
@@ -83,6 +89,7 @@ const runAutoChat = async () => {
     app.exit(AUTO_CHAT_ERROR_EXIT_CODE.PUPPETEER_IS_NOT_EXECUTABLE)
     return
   }
+  runningLogManager.logInfo('Puppeteer 可执行程序检查通过', { executablePath: puppeteerExecutable.executablePath })
   sendToDaemon({
     type: 'worker-to-gui-message',
     data: {

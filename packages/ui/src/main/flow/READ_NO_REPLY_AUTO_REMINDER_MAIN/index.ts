@@ -783,6 +783,10 @@ export async function runEntry() {
     e.preventDefault()
   })
   initPublicIpc()
+  
+  // 设置日志转发到 daemon
+  runningLogManager.setSendToDaemon(sendToDaemon)
+  
   await connectToDaemon()
   await sendToDaemon(
     {
@@ -792,6 +796,7 @@ export async function runEntry() {
       needCallback: true
     }
   )
+  runningLogManager.logInfo('启动子进程')
   sendToDaemon({
     type: 'worker-to-gui-message',
     data: {
@@ -803,6 +808,7 @@ export async function runEntry() {
       runRecordId
     }
   })
+  runningLogManager.logInfo('开始检查 Puppeteer 可执行程序')
   let puppeteerExecutable = await getLastUsedAndAvailableBrowser()
   if (!puppeteerExecutable) {
     try {
@@ -813,6 +819,7 @@ export async function runEntry() {
     puppeteerExecutable = await getLastUsedAndAvailableBrowser()
   }
   if (!puppeteerExecutable) {
+    runningLogManager.logError('未找到可用的浏览器')
     await dialog.showMessageBox({
       type: `error`,
       message: `未找到可用的浏览器`,
@@ -831,6 +838,7 @@ export async function runEntry() {
     })
     throw new Error(`PUPPETEER_IS_NOT_EXECUTABLE`)
   }
+  runningLogManager.logInfo('Puppeteer 可执行程序检查通过', { executablePath: puppeteerExecutable.executablePath })
   sendToDaemon({
     type: 'worker-to-gui-message',
     data: {
