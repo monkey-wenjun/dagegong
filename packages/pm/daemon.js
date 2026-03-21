@@ -391,7 +391,7 @@ function stopWorker(workerId) {
               console.log(`taskkill失败: ${err.message}`);
               // 尝试直接kill
               try {
-                process.kill('SIGKILL');
+                workerProcess.kill('SIGKILL');
               } catch (e) {
                 // 进程可能已退出
               }
@@ -400,7 +400,7 @@ function stopWorker(workerId) {
         } else {
           // Unix/Linux/macOS: 使用SIGKILL
           try {
-            process.kill('SIGKILL');
+            workerProcess.kill('SIGKILL');
           } catch (e) {
             // 进程可能已退出
           }
@@ -412,7 +412,7 @@ function stopWorker(workerId) {
   }, 3000);
   
   // 监听进程退出，清理超时
-  process.once('exit', () => {
+  workerProcess.once('exit', () => {
     clearTimeout(forceKillTimeout);
   });
   
