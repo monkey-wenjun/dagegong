@@ -5,6 +5,9 @@
     width="700px"
     class="chat-history-dialog"
     destroy-on-close
+    :close-on-click-modal="true"
+    :close-on-press-escape="true"
+    show-close
   >
     <div class="chat-history-container">
       <!-- 头部信息 -->
