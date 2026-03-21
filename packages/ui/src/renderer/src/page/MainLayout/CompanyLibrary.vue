@@ -54,7 +54,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElPagination } from 'element-plus'
-import { type VChatStartupLog } from '@dagegong/sqlite-plugin/src/entity/VChatStartupLog'
+import { type VChatStartupLog } from '@dagegong/sqlite-plugin/dist/entity/VChatStartupLog'
 import { PageReq, PagedRes } from '../../../../common/types/pagination'
 import { formatCompanyScale } from '@dagegong/sqlite-plugin/src/utils/parser'
 import { gtagRenderer } from '@renderer/utils/gtag'

@@ -43,8 +43,8 @@
 
 <script setup lang="ts">
 import { PropType, computed, ref, watch } from 'vue'
-import { type VChatStartupLog } from '@dagegong/sqlite-plugin/src/entity/VChatStartupLog'
-import { JobInfoChangeLog } from '@dagegong/sqlite-plugin/src/entity/JobInfoChangeLog'
+import { type VChatStartupLog } from '@dagegong/sqlite-plugin/dist/entity/VChatStartupLog'
+import { JobInfoChangeLog } from '@dagegong/sqlite-plugin/dist/entity/JobInfoChangeLog'
 import { ElTable, ElTableColumn, ElForm, ElFormItem, ElRow, ElCol, ElDivider } from 'element-plus'
 import TextDiff from '../../components/TextDiff.vue'
 import { transformUtcDateToLocalDate } from '@dagegong/utils/date.mjs'
