@@ -45,6 +45,11 @@ jobs:
         cd packages/ui
         pnpm i --force
 
+    - name: Build sqlite-plugin
+      run: |
+        cd packages/sqlite-plugin
+        npm run build
+
     - name: Build
       run: |
         cd packages/ui
@@ -87,6 +92,11 @@ jobs:
         cd packages/ui
         pnpm i --force
 
+    - name: Build sqlite-plugin
+      run: |
+        cd packages/sqlite-plugin
+        npm run build
+
     - name: Build
       run: |
         cd packages/ui
@@ -121,6 +131,11 @@ jobs:
         npm i pnpm@8 -g
         cd packages/ui
         pnpm i --force
+
+    - name: Build sqlite-plugin
+      run: |
+        cd packages/sqlite-plugin
+        npm run build
 
     - name: Build
       run: |

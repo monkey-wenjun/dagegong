@@ -34,6 +34,11 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
       
+    - name: Build sqlite-plugin
+      run: |
+        cd packages/sqlite-plugin
+        npm run build
+      
     - name: Build Electron App (Windows)
       if: matrix.os == 'windows-latest'
       run: |
