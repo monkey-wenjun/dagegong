@@ -149,8 +149,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElPagination, ElDialog, ElTag, ElMessage, ElMessageBox, ElAvatar, ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker } from 'element-plus'
-import type { VInterviewRecord } from '@dagegong/sqlite-plugin/src/entity/VInterviewRecord'
-import { InterviewStage } from '@dagegong/sqlite-plugin/src/entity/InterviewRecord'
+import type { VInterviewRecord } from '@dagegong/sqlite-plugin/dist/entity/VInterviewRecord'
+import { InterviewStage } from '@dagegong/sqlite-plugin/dist/entity/InterviewRecord'
 import { PageReq, PagedRes } from '../../../../common/types/pagination'
 import dayjs from 'dayjs'
 
