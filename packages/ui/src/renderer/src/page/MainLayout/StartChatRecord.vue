@@ -3,6 +3,29 @@
     <div class="page-header" flex flex-items-center flex-justify-between p12px border-b>
       <div flex flex-items-center gap8>
         <h3>沟通记录</h3>
+        <!-- 用户选择器 -->
+        <el-select
+          v-if="syncedUserList.length > 0"
+          v-model="selectedUserId"
+          size="small"
+          style="width: 180px"
+          placeholder="选择用户"
+          @change="handleUserChange"
+        >
+          <el-option
+            v-for="user in syncedUserList"
+            :key="user.encryptUserId"
+            :label="user.name"
+            :value="user.encryptUserId"
+          >
+            <div flex flex-col>
+              <span>{{ user.name }}</span>
+              <span style="font-size: 12px; color: #999">
+                {{ user.chatCount }}条记录 · {{ formatSyncTime(new Date(user.lastSyncTime)) }}
+              </span>
+            </div>
+          </el-option>
+        </el-select>
         <el-tag v-if="pagination.totalItemCount > 0" type="info" size="small">
           共 {{ pagination.totalItemCount }} 条记录
         </el-tag>
@@ -28,26 +51,17 @@
           inline-prompt
           @update:model-value="handleAutoSyncChange"
         />
-        <el-button
-          :loading="isSyncing"
-          size="small"
-          type="success"
-          @click="handleSync"
-        >
+        <el-button :loading="isSyncing" size="small" type="success" @click="handleSync">
           <template #icon>
             <i class="i-mdi-sync" />
           </template>
           同步BOSS沟通记录
         </el-button>
-        <el-button
-          :loading="isTableLoading"
-          size="small"
-          @click="refresh"
-        >刷新</el-button>
+        <el-button :loading="isTableLoading" size="small" @click="refresh">刷新</el-button>
         <el-button size="small" type="primary" @click="exportRecords">导出</el-button>
       </div>
     </div>
-    
+
     <!-- 标签切换 -->
     <div class="tabs-container" px12px pt8px>
       <el-radio-group v-model="activeTab" size="small" @change="handleTabChange">
@@ -55,12 +69,35 @@
         <el-radio-button label="auto">本应用开聊记录 ({{ autoStartChatCount }})</el-radio-button>
       </el-radio-group>
     </div>
-    
+
     <div v-loading="isTableLoading" class="flex-1 of-hidden">
       <div ref="tableContainerEl" class="h-100% of-hidden">
+        <!-- 空状态提示 -->
+        <div
+          v-if="!isTableLoading && activeTab === 'boss' && syncedUserList.length === 0"
+          class="empty-state"
+          style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;"
+        >
+          <div class="empty-icon" style="margin-bottom: 16px;">
+            <i class="i-mdi-chat-outline" style="font-size: 64px; color: #dcdfe6" />
+          </div>
+          <div class="empty-text" style="margin-bottom: 8px; font-size: 16px; color: #606266;">
+            暂无沟通记录
+          </div>
+          <div class="empty-desc" style="margin-bottom: 16px; font-size: 14px; color: #909399; text-align: center;">
+            点击右上角"同步BOSS沟通记录"按钮，从BOSS直聘同步聊天记录到本地数据库
+          </div>
+          <el-button type="primary" :loading="isSyncing" @click="handleSync">
+            <template #icon>
+              <i class="i-mdi-sync" />
+            </template>
+            立即同步
+          </el-button>
+        </div>
+
         <!-- BOSS沟通记录 -->
         <ElTable
-          v-if="activeTab === 'boss'"
+          v-if="activeTab === 'boss' && syncedUserList.length > 0"
           ref="tableRef"
           :max-height="tableMaxHeight"
           :data="tableData"
@@ -76,7 +113,9 @@
               <div flex items-center gap-2>
                 <el-avatar :size="24" :src="row.bossAvatar" />
                 <span>{{ row.bossName }}</span>
-                <el-tag v-if="row.unreadCount > 0" type="danger" size="small">{{ row.unreadCount }}未读</el-tag>
+                <el-tag v-if="row.unreadCount > 0" type="danger" size="small"
+                  >{{ row.unreadCount }}未读</el-tag
+                >
                 <el-tag v-if="row.isTop" type="warning" size="small">置顶</el-tag>
               </div>
             </template>
@@ -99,28 +138,23 @@
           />
           <ElTableColumn label="操作" fixed="right" width="220" align="center">
             <template #default="{ row }">
-              <ElButton
-                link
-                type="primary"
-                size="small"
-                @click="handleOpenChat(row.encryptBossId, row.encryptJobId)"
-              >打开聊天</ElButton>
+              <ElButton link type="primary" size="small" @click="handleOpenLocalChat(row)"
+                >打开聊天</ElButton
+              >
               <ElButton
                 link
                 type="primary"
                 size="small"
                 @click="handleViewJobOnline(row.encryptJobId)"
-              >查看职位</ElButton>
-              <ElButton
-                link
-                type="success"
-                size="small"
-                @click="handleMarkAsInterview(row)"
-              >标记为面试</ElButton>
+                >查看职位</ElButton
+              >
+              <ElButton link type="success" size="small" @click="handleMarkAsInterview(row)"
+                >标记为面试</ElButton
+              >
             </template>
           </ElTableColumn>
         </ElTable>
-        
+
         <!-- AI自动找工作记录 -->
         <ElTable
           v-else
@@ -136,14 +170,20 @@
         >
           <ElTableColumn prop="companyName" label="公司" min-width="120" show-overflow-tooltip />
           <ElTableColumn prop="jobName" label="职位名称" min-width="150" show-overflow-tooltip />
-          <ElTableColumn prop="positionName" label="职位分类" min-width="100" show-overflow-tooltip />
+          <ElTableColumn
+            prop="positionName"
+            label="职位分类"
+            min-width="100"
+            show-overflow-tooltip
+          />
           <ElTableColumn
             prop="date"
             label="开聊时间"
             min-width="150"
             sortable
             :formatter="
-              (_row, _col, val) => val ? transformUtcDateToLocalDate(val).format('YYYY-MM-DD HH:mm:ss') : '-'
+              (_row, _col, val) =>
+                val ? transformUtcDateToLocalDate(val).format('YYYY-MM-DD HH:mm:ss') : '-'
             "
           />
           <ElTableColumn prop="experienceName" label="工作经验" min-width="90" />
@@ -183,7 +223,12 @@
     </div>
     <div class="flex flex-0 flex-justify-between pt10px pb10px px12px">
       <div class="w100px">
-        <el-select v-model="pagination.pageSize" size="small" style="width: 90px" @change="handlePageSizeChange">
+        <el-select
+          v-model="pagination.pageSize"
+          size="small"
+          style="width: 90px"
+          @change="handlePageSizeChange"
+        >
           <el-option
             v-for="size in pageSizeList"
             :key="size"
@@ -217,17 +262,41 @@
         "
       />
     </ElDrawer>
+
+    <!-- 聊天记录弹窗 -->
+    <ChatHistoryDialog
+      v-model="chatHistoryVisible"
+      :boss-info="selectedChatBossInfo"
+      :encrypt-user-id="currentUserId"
+      :can-sync="true"
+      @open-boss-chat="handleOpenBossChat"
+      @view-job="handleViewJobOnline"
+      @sync="handleChatHistorySynced"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElPagination, ElDrawer, ElTag, ElMessage, ElMessageBox, ElAvatar, ElSwitch, ElTooltip } from 'element-plus'
+import {
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElPagination,
+  ElDrawer,
+  ElTag,
+  ElMessage,
+  ElMessageBox,
+  ElAvatar,
+  ElSwitch,
+  ElTooltip
+} from 'element-plus'
 import { type VChatStartupLog } from '@dagegong/sqlite-plugin/dist/entity/VChatStartupLog'
 import { type VBossChatRelation } from '@dagegong/sqlite-plugin/dist/entity/VBossChatRelation'
 import { transformUtcDateToLocalDate } from '@dagegong/utils/date.mjs'
 import { PageReq, PagedRes } from '../../../../common/types/pagination'
 import JobInfoSnapshot from '../../features/JobInfoSnapshot/index.vue'
+import ChatHistoryDialog from '../../components/ChatHistoryDialog.vue'
 import { gtagRenderer } from '@renderer/utils/gtag'
 import dayjs from 'dayjs'
 
@@ -235,6 +304,41 @@ import dayjs from 'dayjs'
 const activeTab = ref<'boss' | 'auto'>('boss')
 const bossRelationCount = ref(0)
 const autoStartChatCount = ref(0)
+
+// 用户选择
+interface SyncedUser {
+  encryptUserId: string
+  name: string
+  lastSyncTime: string
+  chatCount: number
+}
+const syncedUserList = ref<SyncedUser[]>([])
+const selectedUserId = ref<string>('')
+
+// 加载已同步的用户列表
+async function loadSyncedUserList() {
+  try {
+    const result = await electron.ipcRenderer.invoke('get-synced-user-list')
+    if (result.success && result.data) {
+      syncedUserList.value = result.data
+      
+      // 如果只有一个用户，自动选择
+      if (result.data.length === 1 && !selectedUserId.value) {
+        selectedUserId.value = result.data[0].encryptUserId
+        currentUserId.value = result.data[0].encryptUserId
+      }
+    }
+  } catch (err) {
+    console.error('加载用户列表失败:', err)
+  }
+}
+
+// 切换用户
+function handleUserChange(userId: string) {
+  currentUserId.value = userId
+  pagination.value.pageNo = 1
+  refresh()
+}
 
 // 数据
 const tableData = ref<VChatStartupLog[] | VBossChatRelation[]>([])
@@ -356,14 +460,25 @@ electron.ipcRenderer.on('auto-sync-failed', (_, data) => {
 // 定时器，每分钟刷新下次同步时间显示
 let nextSyncTimer: NodeJS.Timeout | null = null
 
-// 获取当前用户ID
+// 获取当前用户ID（优先使用选择的用户）
 const getCurrentUserId = async () => {
+  // 如果已经选择了用户，直接返回
+  if (selectedUserId.value) {
+    return selectedUserId.value
+  }
+  
+  // 否则尝试从 user_info 表获取
   try {
     const userInfo = await electron.ipcRenderer.invoke('get-user-info')
-    return userInfo?.encryptUserId || ''
+    if (userInfo?.encryptUserId) {
+      selectedUserId.value = userInfo.encryptUserId
+      return userInfo.encryptUserId
+    }
   } catch {
-    return ''
+    // 忽略错误
   }
+  
+  return ''
 }
 
 // 加载数据
@@ -380,7 +495,7 @@ async function loadTabCounts() {
   try {
     // 同时获取两个标签页的数量
     const encryptUserId = await getCurrentUserId()
-    
+
     const [bossRes, autoRes] = await Promise.all([
       electron.ipcRenderer.invoke('get-boss-chat-relation-list', {
         pageNo: 1,
@@ -392,7 +507,7 @@ async function loadTabCounts() {
         pageSize: 1
       }) as Promise<{ data: PagedRes<VChatStartupLog> }>
     ])
-    
+
     bossRelationCount.value = bossRes.data.totalItemCount
     autoStartChatCount.value = autoRes.data.totalItemCount
   } catch (err) {
@@ -405,13 +520,13 @@ async function getBossChatRelationList() {
   try {
     isTableLoading.value = true
     const encryptUserId = await getCurrentUserId()
-    
+
     const { data: res } = (await electron.ipcRenderer.invoke('get-boss-chat-relation-list', {
       pageNo: pagination.value.pageNo,
       pageSize: pagination.value.pageSize,
       encryptUserId
     })) as { data: PagedRes<VBossChatRelation> }
-    
+
     tableData.value = res.data
     pagination.value = {
       totalItemCount: res.totalItemCount,
@@ -438,7 +553,7 @@ async function getAutoStartChatRecord() {
       pageNo: pagination.value.pageNo,
       pageSize: pagination.value.pageSize
     })) as { data: PagedRes<VChatStartupLog> }
-    
+
     tableData.value = res.data
     pagination.value = {
       totalItemCount: res.totalItemCount,
@@ -473,12 +588,19 @@ function handleTabChange() {
 async function handleSync() {
   try {
     isSyncing.value = true
-    
+
     const result = await electron.ipcRenderer.invoke('sync-boss-chat-relations')
-    
+
     if (result.success) {
       ElMessage.success(`同步成功，共 ${result.data.syncedCount} 条沟通记录`)
       lastSyncTime.value = new Date(result.data.syncTime)
+      // 同步成功后刷新用户列表（可能有新用户）
+      await loadSyncedUserList()
+      // 如果是第一次同步且只有一个用户，自动选择
+      if (!selectedUserId.value && syncedUserList.value.length === 1) {
+        selectedUserId.value = syncedUserList.value[0].encryptUserId
+        currentUserId.value = syncedUserList.value[0].encryptUserId
+      }
       refresh()
     } else {
       ElMessage.error(result.error || '同步失败')
@@ -517,11 +639,11 @@ const exportRecords = () => {
     ElMessage.warning('没有可导出的数据')
     return
   }
-  
+
   if (activeTab.value === 'boss') {
     // 导出BOSS沟通记录
     const headers = ['BOSS', '职位', '公司', '职位名称', '最后消息', '更新时间', '未读数']
-    const rows = (tableData.value as VBossChatRelation[]).map(row => [
+    const rows = (tableData.value as VBossChatRelation[]).map((row) => [
       row.bossName,
       row.bossTitle || '-',
       row.brandName,
@@ -530,8 +652,8 @@ const exportRecords = () => {
       row.updateTime ? dayjs(row.updateTime).format('YYYY-MM-DD HH:mm:ss') : '-',
       row.unreadCount
     ])
-    
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -541,8 +663,17 @@ const exportRecords = () => {
     URL.revokeObjectURL(url)
   } else {
     // 导出AI自动找工作记录
-    const headers = ['公司', '职位名称', '职位分类', '开聊时间', '工作经验', '薪资', 'BOSS', 'BOSS身份']
-    const rows = (tableData.value as VChatStartupLog[]).map(row => [
+    const headers = [
+      '公司',
+      '职位名称',
+      '职位分类',
+      '开聊时间',
+      '工作经验',
+      '薪资',
+      'BOSS',
+      'BOSS身份'
+    ]
+    const rows = (tableData.value as VChatStartupLog[]).map((row) => [
       row.companyName || '-',
       row.jobName || '-',
       row.positionName || '-',
@@ -554,8 +685,8 @@ const exportRecords = () => {
       row.bossName || '-',
       row.bossTitle || '-'
     ])
-    
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -564,16 +695,59 @@ const exportRecords = () => {
     a.click()
     URL.revokeObjectURL(url)
   }
-  
+
   gtagRenderer('start_chat_record_export')
   ElMessage.success('导出成功')
 }
 
-// 打开聊天
-async function handleOpenChat(encryptBossId: string, encryptJobId: string) {
-  await electron.ipcRenderer.invoke('open-site-with-boss-cookie', {
-    url: `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}&jobId=${encryptJobId}`
+// 打开聊天（本地展示）
+const chatHistoryVisible = ref(false)
+const selectedChatBossInfo = ref<any>(null)
+const currentUserId = ref('')
+
+async function handleOpenLocalChat(row: VBossChatRelation) {
+  console.log('[StartChatRecord] Opening chat for row:', row)
+
+  // 获取当前用户ID
+  if (!currentUserId.value) {
+    const userId = await getCurrentUserId()
+    if (!userId) {
+      ElMessage.warning('请先点击页面顶部的"同步BOSS沟通记录"按钮获取聊天数据')
+      return
+    }
+    currentUserId.value = userId
+  }
+
+  console.log('[StartChatRecord] Current user ID:', currentUserId.value)
+
+  selectedChatBossInfo.value = {
+    encryptBossId: row.encryptBossId,
+    bossName: row.bossName,
+    bossTitle: row.bossTitle,
+    bossAvatar: row.bossAvatar,
+    encryptJobId: row.encryptJobId,
+    jobName: row.jobName,
+    brandName: row.brandName
+  }
+  chatHistoryVisible.value = true
+
+  console.log('[StartChatRecord] Chat dialog opened with:', {
+    bossInfo: selectedChatBossInfo.value,
+    encryptUserId: currentUserId.value
   })
+}
+
+// 在 BOSS 中打开聊天
+async function handleOpenBossChat(encryptBossId: string, encryptJobId?: string) {
+  await electron.ipcRenderer.invoke('open-site-with-boss-cookie', {
+    url: `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}&jobId=${encryptJobId || ''}`
+  })
+}
+
+// 聊天记录同步完成
+function handleChatHistorySynced() {
+  // 可以在这里做一些刷新操作
+  console.log('聊天记录同步完成')
 }
 
 // 查看线上职位
@@ -587,12 +761,16 @@ async function handleViewJobOnline(encryptJobId: string) {
 async function handleMarkAsInterview(row: VBossChatRelation) {
   try {
     // Check if already in interview list
-    const checkResult = await electron.ipcRenderer.invoke('check-is-in-interview', row.encryptBossId, row.encryptJobId)
+    const checkResult = await electron.ipcRenderer.invoke(
+      'check-is-in-interview',
+      row.encryptBossId,
+      row.encryptJobId
+    )
     if (checkResult.data) {
       ElMessage.warning('该职位已在面试列表中')
       return
     }
-    
+
     // Confirm dialog
     await ElMessageBox.confirm(
       `确定将 "${row.brandName} - ${row.jobName}" 标记为面试机会吗？`,
@@ -603,13 +781,15 @@ async function handleMarkAsInterview(row: VBossChatRelation) {
         type: 'info'
       }
     )
+
+    // 获取当前用户ID（优先使用选择的用户）
+    const userId = selectedUserId.value || (await getCurrentUserId())
     
     // Create interview record
-    const userInfo = await electron.ipcRenderer.invoke('get-user-info')
     await electron.ipcRenderer.invoke('create-interview-record', {
       encryptBossId: row.encryptBossId,
       encryptJobId: row.encryptJobId,
-      encryptUserId: userInfo?.encryptUserId,
+      encryptUserId: userId,
       bossName: row.bossName,
       bossTitle: row.bossTitle,
       brandName: row.brandName,
@@ -619,7 +799,7 @@ async function handleMarkAsInterview(row: VBossChatRelation) {
       lastChatText: row.lastText,
       lastChatTime: row.lastTime ? new Date(row.lastTime) : null
     })
-    
+
     ElMessage.success('已添加到面试列表')
   } catch (err: any) {
     if (err !== 'cancel') {
@@ -646,7 +826,10 @@ const tableContainerEl = ref<HTMLElement>()
 const setTableMaxHeight = () =>
   (tableMaxHeight.value = tableContainerEl.value?.clientHeight ?? undefined)
 let ro: ResizeObserver | null = null
-onMounted(() => {
+onMounted(async () => {
+  // 首先加载已同步的用户列表
+  await loadSyncedUserList()
+  
   loadData()
   loadTabCounts() // 加载两个标签页的数量
   loadAutoSyncStatus()
@@ -662,9 +845,9 @@ onMounted(() => {
       autoSyncStatus.value.nextSyncTime = new Date(autoSyncStatus.value.nextSyncTime)
     }
   }, 60000) // 每分钟刷新一次
-  
-  // 每次进入页面自动触发一次同步（只在BOSS沟通记录标签页）
-  if (!hasAutoSynced.value && activeTab.value === 'boss') {
+
+  // 每次进入页面自动触发一次同步（只在BOSS沟通记录标签页，且已选择用户时）
+  if (!hasAutoSynced.value && activeTab.value === 'boss' && selectedUserId.value) {
     hasAutoSynced.value = true
     handleSync()
   }
@@ -696,7 +879,7 @@ onBeforeUnmount(() => {
 
 .page-header {
   border-bottom: 1px solid var(--el-border-color-lighter);
-  
+
   h3 {
     margin: 0;
     font-size: 16px;
@@ -723,7 +906,7 @@ onBeforeUnmount(() => {
 
 :deep(.el-table) {
   font-size: 13px;
-  
+
   .el-table__cell {
     padding: 8px 0;
   }

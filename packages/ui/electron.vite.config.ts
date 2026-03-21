@@ -105,13 +105,19 @@ export default defineConfig({
           'mongodb',
           'redis',
           'ioredis',
+          'pg',
           'pg-native',
           'sqlite3',
           'better-sqlite3',
           'oracledb',
           'mysql2',
           '@sap/hana-client'
-        ]
+        ],
+        output: {
+          // 禁用 hash，确保文件名固定，避免运行时找不到文件
+          entryFileNames: '[name].js',
+          chunkFileNames: '[name].js'
+        }
       },
       minify: process.env.NODE_ENV === 'development' ? undefined : 'terser'
     },

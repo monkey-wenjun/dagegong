@@ -110,11 +110,30 @@ export const saveAndGetCurrentRunRecord = async () => {
   return res
 }
 
-export const getBossChatRelationList = async ({ pageNo, pageSize, encryptUserId }: Partial<PageReq> & { encryptUserId?: string } = {}) => {
+export const getBossChatRelationList = async ({
+  pageNo,
+  pageSize,
+  encryptUserId
+}: Partial<PageReq> & { encryptUserId?: string } = {}) => {
   const res = await createWorkerPromise({
     type: 'getBossChatRelationList',
     pageNo,
     pageSize,
+    encryptUserId
+  })
+  return res
+}
+
+export const getChatMessageList = async ({
+  encryptBossId,
+  encryptUserId
+}: {
+  encryptBossId: string
+  encryptUserId: string
+}) => {
+  const res = await createWorkerPromise({
+    type: 'getChatMessageList',
+    encryptBossId,
     encryptUserId
   })
   return res

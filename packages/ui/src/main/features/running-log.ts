@@ -2,12 +2,19 @@ import { BrowserWindow } from 'electron'
 
 export interface LogItem {
   timestamp: number
-  type: 'click' | 'network' | 'navigation' | 'error' | 'info'
+  type: 'click' | 'network' | 'navigation' | 'error' | 'info' | 'ai-reply'
   message?: string
   method?: string
   url?: string
   status?: number
   details?: any
+  // AI 回复日志专字段
+  bossName?: string
+  bossId?: string
+  jobName?: string
+  receivedMessage?: string
+  replyContent?: string
+  aiResponse?: string
 }
 
 class RunningLogManager {
@@ -122,6 +129,28 @@ class RunningLogManager {
       type: 'info',
       message,
       details
+    })
+  }
+
+  // 记录 AI 回复
+  logAiReply(data: {
+    bossName: string
+    bossId: string
+    jobName?: string
+    receivedMessage: string
+    replyContent: string
+    aiResponse?: string
+  }) {
+    this.addLog({
+      timestamp: Date.now(),
+      type: 'ai-reply',
+      message: `AI 回复 ${data.bossName}: ${data.replyContent.slice(0, 50)}${data.replyContent.length > 50 ? '...' : ''}`,
+      bossName: data.bossName,
+      bossId: data.bossId,
+      jobName: data.jobName,
+      receivedMessage: data.receivedMessage,
+      replyContent: data.replyContent,
+      aiResponse: data.aiResponse
     })
   }
 }

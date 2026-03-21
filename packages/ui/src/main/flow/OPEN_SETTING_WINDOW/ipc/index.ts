@@ -19,7 +19,8 @@ import {
   getJobLibrary,
   getJobHistoryByEncryptId,
   getMarkAsNotSuitRecord,
-  getBossChatRelationList
+  getBossChatRelationList,
+  getChatMessageList
 } from '../utils/db/index'
 import {
   createInterviewRecord,
@@ -67,10 +68,7 @@ import {
 import { getLastUsedAndAvailableBrowser } from '../../DOWNLOAD_DEPENDENCIES/utils/browser-history'
 import { waitForCommonJobConditionDone } from '../../../features/common-job-condition'
 import { ensureConfigFileExist } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { 
-  setupDailyStatsNotification, 
-  sendDailyStatsNotification
-} from './daily-stats-notification'
+import { setupDailyStatsNotification, sendDailyStatsNotification } from './daily-stats-notification'
 import { getStatisticsDashboardData } from './statistics-dashboard'
 
 export default async function initIpc() {
@@ -209,7 +207,7 @@ export default async function initIpc() {
     if ('autoRunWeekdays' in payload) {
       bossConfig.autoRunWeekdays = payload.autoRunWeekdays
     }
-    
+
     // auto run time settings for auto reminder (nested in autoReminder)
     if (payload.autoReminder) {
       if (!bossConfig.autoReminder) {
@@ -220,7 +218,9 @@ export default async function initIpc() {
       }
       if ('autoRunStartTime' in payload.autoReminder) {
         bossConfig.autoReminder.autoRunStartTime = payload.autoReminder.autoRunStartTime
-        console.log(`[Config] Saving autoReminder.autoRunStartTime: ${payload.autoReminder.autoRunStartTime}`)
+        console.log(
+          `[Config] Saving autoReminder.autoRunStartTime: ${payload.autoReminder.autoRunStartTime}`
+        )
       }
       if ('autoRunEndTime' in payload.autoReminder) {
         bossConfig.autoReminder.autoRunEndTime = payload.autoReminder.autoRunEndTime
@@ -264,36 +264,48 @@ export default async function initIpc() {
   })
 
   // 计算自动运行等待时间的辅助函数
-  function calculateAutoRunWaitMs(config: { autoRunTimeEnabled?: boolean, autoRunStartTime?: string, autoRunEndTime?: string, autoRunWeekdays?: number[] }): { shouldWait: boolean, waitMs: number, waitUntilTime?: string } {
+  function calculateAutoRunWaitMs(config: {
+    autoRunTimeEnabled?: boolean
+    autoRunStartTime?: string
+    autoRunEndTime?: string
+    autoRunWeekdays?: number[]
+  }): { shouldWait: boolean; waitMs: number; waitUntilTime?: string } {
     if (!config.autoRunTimeEnabled) {
       return { shouldWait: false, waitMs: 0 }
     }
-    
+
     const now = new Date()
     const currentDay = now.getDay()
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
     const allowedWeekdays = config.autoRunWeekdays || [1, 2, 3, 4, 5]
     const startTime = config.autoRunStartTime || '10:00'
-    
+
     // 检查今天是否在允许的运行日期内
     if (!allowedWeekdays.includes(currentDay)) {
       return { shouldWait: false, waitMs: 0 }
     }
-    
+
     // 如果当前时间早于启动时间，计算等待时间
     if (currentTime < startTime) {
       const [startHour, startMinute] = startTime.split(':').map(Number)
-      const targetTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMinute, 0)
+      const targetTime = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        startHour,
+        startMinute,
+        0
+      )
       const waitMs = targetTime.getTime() - now.getTime()
       return { shouldWait: true, waitMs: Math.max(0, waitMs), waitUntilTime: startTime }
     }
-    
+
     return { shouldWait: false, waitMs: 0 }
   }
 
   ipcMain.handle('run-geek-auto-start-chat-with-boss', async (ev) => {
     const mode = 'geekAutoStartWithBossMain'
-    
+
     // 检查自动运行时间配置
     const bossConfig = readConfigFile('boss.json')
     console.log(`[Config] Read autoRunStartTime: ${bossConfig.autoRunStartTime}`)
@@ -304,19 +316,21 @@ export default async function initIpc() {
       autoRunEndTime: bossConfig.autoRunEndTime,
       autoRunWeekdays: bossConfig.autoRunWeekdays
     })
-    
+
     // 如果需要等待，向子进程传递等待时间
     if (shouldWait && waitMs > 0) {
       process.env.DAGEGONGD_AUTO_RUN_WAIT_MS = String(waitMs)
       process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL = waitUntilTime
-      console.log(`[AutoRunTime] 任务将等待到 ${waitUntilTime} 才开始执行，等待时间: ${Math.round(waitMs / 1000 / 60)} 分钟`)
+      console.log(
+        `[AutoRunTime] 任务将等待到 ${waitUntilTime} 才开始执行，等待时间: ${Math.round(waitMs / 1000 / 60)} 分钟`
+      )
     } else {
       delete process.env.DAGEGONGD_AUTO_RUN_WAIT_MS
       delete process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL
     }
-    
+
     const { runRecordId, isAlreadyRunning } = await runCommon({ mode })
-    
+
     // 如果启用了时间控制，设置定时器检查运行时间
     let timeCheckInterval: NodeJS.Timeout | null = null
     if (bossConfig.autoRunTimeEnabled && !isAlreadyRunning) {
@@ -324,16 +338,15 @@ export default async function initIpc() {
         const now = new Date()
         const currentDay = now.getDay()
         const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-        
+
         const allowedWeekdays = bossConfig.autoRunWeekdays || [1, 2, 3, 4, 5]
         const startTime = bossConfig.autoRunStartTime || '10:00'
         const endTime = bossConfig.autoRunEndTime || '21:00'
-        
+
         // 检查是否超出时间范围
-        const shouldStop = !allowedWeekdays.includes(currentDay) || 
-                          currentTime < startTime || 
-                          currentTime > endTime
-        
+        const shouldStop =
+          !allowedWeekdays.includes(currentDay) || currentTime < startTime || currentTime > endTime
+
         if (shouldStop) {
           console.log('[AutoRunTime] 超出运行时间范围，自动停止任务')
           // 发送停止命令
@@ -351,7 +364,7 @@ export default async function initIpc() {
           }
         }
       }, 60000) // 每分钟检查一次
-      
+
       // 监听任务退出，清除定时器
       const cleanupHandler = (message: any) => {
         if (message.workerId === mode && message.type === 'worker-exited') {
@@ -364,7 +377,7 @@ export default async function initIpc() {
       }
       daemonEE.on('message', cleanupHandler)
     }
-    
+
     daemonEE.on('message', function handler(message) {
       if (message.workerId !== mode) {
         return
@@ -373,7 +386,7 @@ export default async function initIpc() {
         mainWindow?.webContents.send('worker-exited', message)
       }
     })
-    
+
     // 如果需要等待，发送通知给渲染进程
     if (shouldWait && waitMs > 0) {
       mainWindow?.webContents.send('auto-run-waiting', {
@@ -382,37 +395,43 @@ export default async function initIpc() {
         waitMinutes: Math.round(waitMs / 1000 / 60)
       })
     }
-    
+
     return { runRecordId, isWaiting: shouldWait && waitMs > 0, waitUntilTime }
   })
 
   ipcMain.handle('run-read-no-reply-auto-reminder', async () => {
     const mode = 'readNoReplyAutoReminderMain'
-    
+
     // 检查自动运行时间配置
     const bossConfig = readConfigFile('boss.json')
     const autoReminderConfig = bossConfig.autoReminder || {}
-    console.log(`[Config] Read autoReminder.autoRunStartTime: ${autoReminderConfig.autoRunStartTime}`)
-    console.log(`[Config] Read autoReminder.autoRunTimeEnabled: ${autoReminderConfig.autoRunTimeEnabled}`)
+    console.log(
+      `[Config] Read autoReminder.autoRunStartTime: ${autoReminderConfig.autoRunStartTime}`
+    )
+    console.log(
+      `[Config] Read autoReminder.autoRunTimeEnabled: ${autoReminderConfig.autoRunTimeEnabled}`
+    )
     const { shouldWait, waitMs, waitUntilTime } = calculateAutoRunWaitMs({
       autoRunTimeEnabled: autoReminderConfig.autoRunTimeEnabled,
       autoRunStartTime: autoReminderConfig.autoRunStartTime,
       autoRunEndTime: autoReminderConfig.autoRunEndTime,
       autoRunWeekdays: autoReminderConfig.autoRunWeekdays
     })
-    
+
     // 如果需要等待，向子进程传递等待时间
     if (shouldWait && waitMs > 0) {
       process.env.DAGEGONGD_AUTO_RUN_WAIT_MS = String(waitMs)
       process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL = waitUntilTime
-      console.log(`[AutoRunTime] 已读不回复任务将等待到 ${waitUntilTime} 才开始执行，等待时间: ${Math.round(waitMs / 1000 / 60)} 分钟`)
+      console.log(
+        `[AutoRunTime] 已读不回复任务将等待到 ${waitUntilTime} 才开始执行，等待时间: ${Math.round(waitMs / 1000 / 60)} 分钟`
+      )
     } else {
       delete process.env.DAGEGONGD_AUTO_RUN_WAIT_MS
       delete process.env.DAGEGONGD_AUTO_RUN_WAIT_UNTIL
     }
-    
+
     const { runRecordId, isAlreadyRunning } = await runCommon({ mode })
-    
+
     // 如果启用了时间控制，设置定时器检查运行时间
     let timeCheckInterval: NodeJS.Timeout | null = null
     if (autoReminderConfig.autoRunTimeEnabled && !isAlreadyRunning) {
@@ -420,16 +439,15 @@ export default async function initIpc() {
         const now = new Date()
         const currentDay = now.getDay()
         const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-        
+
         const allowedWeekdays = autoReminderConfig.autoRunWeekdays || [1, 2, 3, 4, 5]
         const startTime = autoReminderConfig.autoRunStartTime || '10:00'
         const endTime = autoReminderConfig.autoRunEndTime || '21:00'
-        
+
         // 检查是否超出时间范围
-        const shouldStop = !allowedWeekdays.includes(currentDay) || 
-                          currentTime < startTime || 
-                          currentTime > endTime
-        
+        const shouldStop =
+          !allowedWeekdays.includes(currentDay) || currentTime < startTime || currentTime > endTime
+
         if (shouldStop) {
           console.log('[AutoRunTime] 已读不回复聊超出运行时间范围，自动停止任务')
           // 发送停止命令
@@ -447,7 +465,7 @@ export default async function initIpc() {
           }
         }
       }, 60000) // 每分钟检查一次
-      
+
       // 监听任务退出，清除定时器
       const cleanupHandler = (message: any) => {
         if (message.workerId === mode && message.type === 'worker-exited') {
@@ -460,7 +478,7 @@ export default async function initIpc() {
       }
       daemonEE.on('message', cleanupHandler)
     }
-    
+
     daemonEE.on('message', function handler(message) {
       if (message.workerId !== mode) {
         return
@@ -469,7 +487,7 @@ export default async function initIpc() {
         mainWindow?.webContents.send('worker-exited', message)
       }
     })
-    
+
     // 如果需要等待，发送通知给渲染进程
     if (shouldWait && waitMs > 0) {
       mainWindow?.webContents.send('auto-run-waiting', {
@@ -478,7 +496,7 @@ export default async function initIpc() {
         waitMinutes: Math.round(waitMs / 1000 / 60)
       })
     }
-    
+
     return { runRecordId, isWaiting: shouldWait && waitMs > 0, waitUntilTime }
   })
 
@@ -586,27 +604,128 @@ export default async function initIpc() {
     const a = await getCompanyLibrary(payload)
     return a
   })
-  ipcMain.handle('get-boss-chat-relation-list', async (ev, payload: PageReq & { encryptUserId?: string }) => {
-    const a = await getBossChatRelationList(payload)
-    return a
-  })
+  ipcMain.handle(
+    'get-boss-chat-relation-list',
+    async (ev, payload: PageReq & { encryptUserId?: string }) => {
+      const a = await getBossChatRelationList(payload)
+      return a
+    }
+  )
+  ipcMain.handle(
+    'get-chat-message-list',
+    async (
+      ev,
+      { encryptBossId, encryptUserId }: { encryptBossId: string; encryptUserId: string }
+    ) => {
+      const a = await getChatMessageList({ encryptBossId, encryptUserId })
+      return { data: a }
+    }
+  )
   ipcMain.handle('sync-boss-chat-relations', async () => {
     // 打开BOSS直聘聊天页面并获取沟通列表（自动获取当前登录用户）
     const result = await syncBossChatRelations()
     return result
   })
 
-  // Interview Record IPC handlers
-  ipcMain.handle('get-interview-record-list', async (ev, payload: PageReq & { stage?: string, encryptUserId?: string }) => {
-    const ds = await dbInitPromise
-    const result = await getInterviewRecordList(ds, {
-      pageNo: payload.pageNo,
-      pageSize: payload.pageSize,
-      stage: payload.stage as any,
-      encryptUserId: payload.encryptUserId
-    })
-    return { data: result }
+  // 同步单个 BOSS 的聊天记录
+  ipcMain.handle(
+    'sync-boss-chat-history',
+    async (_, { encryptBossId, encryptJobId, encryptUserId }) => {
+      const result = await syncBossChatHistory(encryptBossId, encryptJobId, encryptUserId)
+      return result
+    }
+  )
+
+  // 获取当前登录用户信息
+  ipcMain.handle('get-current-user-from-boss', async () => {
+    let browser = null
+    try {
+      const cookies = readStorageFile('boss-cookies.json') || []
+      if (!cookies.length) {
+        return { success: false, error: '未配置BOSS直聘Cookie' }
+      }
+
+      const { puppeteer } = await initPuppeteer()
+      const browserInfo = await getAnyAvailablePuppeteerExecutable()
+      if (!browserInfo) {
+        return { success: false, error: '未找到可用的浏览器' }
+      }
+
+      browser = await puppeteer.launch({
+        headless: true,
+        executablePath: browserInfo.executablePath,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      })
+      const page = await browser.newPage()
+      await page.setCookie(
+        ...cookies.map((c) => ({
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path,
+          expires: c.expirationDate,
+          httpOnly: c.httpOnly,
+          secure: c.secure,
+          sameSite: c.sameSite
+        }))
+      )
+
+      await page.goto('https://www.zhipin.com/web/geek/chat', {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      })
+      await new Promise((r) => setTimeout(r, 2000))
+
+      const userInfo = await page.evaluate(() => {
+        try {
+          const mainWrap = document.querySelector('.main-wrap, #app, #container')
+          const vueStore = (mainWrap as any)?.__vue__?.$store
+          if (vueStore?.state?.userInfo) {
+            return vueStore.state.userInfo
+          }
+          const globalUserInfo =
+            (window as any).__INITIAL_STATE__?.userInfo || (window as any).userInfo
+          if (globalUserInfo) {
+            return globalUserInfo
+          }
+          return null
+        } catch (e) {
+          return null
+        }
+      })
+
+      await browser.close()
+      browser = null
+
+      if (!userInfo?.encryptUserId) {
+        return { success: false, error: '未获取到用户信息，请检查Cookie是否过期' }
+      }
+
+      return { success: true, data: userInfo }
+    } catch (error) {
+      if (browser) {
+        try {
+          await browser.close()
+        } catch {}
+      }
+      return { success: false, error: error.message || '获取用户信息失败' }
+    }
   })
+
+  // Interview Record IPC handlers
+  ipcMain.handle(
+    'get-interview-record-list',
+    async (ev, payload: PageReq & { stage?: string; encryptUserId?: string }) => {
+      const ds = await dbInitPromise
+      const result = await getInterviewRecordList(ds, {
+        pageNo: payload.pageNo,
+        pageSize: payload.pageSize,
+        stage: payload.stage as any,
+        encryptUserId: payload.encryptUserId
+      })
+      return { data: result }
+    }
+  )
 
   ipcMain.handle('create-interview-record', async (ev, data) => {
     const ds = await dbInitPromise
@@ -626,11 +745,14 @@ export default async function initIpc() {
     return { success: result }
   })
 
-  ipcMain.handle('check-is-in-interview', async (ev, encryptBossId: string, encryptJobId: string) => {
-    const ds = await dbInitPromise
-    const result = await checkIsInInterview(ds, encryptBossId, encryptJobId)
-    return { data: result }
-  })
+  ipcMain.handle(
+    'check-is-in-interview',
+    async (ev, encryptBossId: string, encryptJobId: string) => {
+      const ds = await dbInitPromise
+      const result = await checkIsInInterview(ds, encryptBossId, encryptJobId)
+      return { data: result }
+    }
+  )
 
   let subProcessOfOpenBossSiteDefer: null | PromiseWithResolvers<ChildProcess> = null
   let subProcessOfOpenBossSite: null | ChildProcess = null
@@ -966,7 +1088,7 @@ export default async function initIpc() {
     try {
       const { getTodayStats } = await import('./daily-stats-notification')
       const { resumeCount, bossCount } = await getTodayStats()
-      
+
       await sendDailyStatsNotification({
         type,
         webhookUrl,
@@ -996,14 +1118,14 @@ const dbInitPromise = initDb(getPublicDbFilePath())
 
 async function syncBossChatRelations() {
   let browser = null
-  
+
   try {
     // 获取cookie
     const cookies = readStorageFile('boss-cookies.json') || []
     if (!cookies.length) {
       return { success: false, error: '未配置BOSS直聘Cookie' }
     }
-    
+
     // 启动浏览器获取用户信息
     const { puppeteer } = await initPuppeteer()
     const browserInfo = await getAnyAvailablePuppeteerExecutable()
@@ -1016,37 +1138,41 @@ async function syncBossChatRelations() {
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     })
     const page = await browser.newPage()
-    
+
     // 设置cookie
-    await page.setCookie(...cookies.map(c => ({
-      name: c.name,
-      value: c.value,
-      domain: c.domain,
-      path: c.path,
-      expires: c.expirationDate,
-      httpOnly: c.httpOnly,
-      secure: c.secure,
-      sameSite: c.sameSite
-    })))
-    
+    await page.setCookie(
+      ...cookies.map((c) => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path,
+        expires: c.expirationDate,
+        httpOnly: c.httpOnly,
+        secure: c.secure,
+        sameSite: c.sameSite
+      }))
+    )
+
     // 打开聊天页面获取用户信息和沟通列表
     console.log('[SyncBossChat] Navigating to chat page...')
     await page.goto('https://www.zhipin.com/web/geek/chat', {
       waitUntil: 'networkidle2',
       timeout: 60000
     })
-    
+
     // 等待页面基本结构加载
     console.log('[SyncBossChat] Waiting for page structure...')
-    await page.waitForSelector('.main-wrap, .chat-container, #container', { 
-      timeout: 30000 
-    }).catch(() => {
-      console.log('[SyncBossChat] Main container not found, trying alternative selectors...')
-    })
-    
+    await page
+      .waitForSelector('.main-wrap, .chat-container, #container', {
+        timeout: 30000
+      })
+      .catch(() => {
+        console.log('[SyncBossChat] Main container not found, trying alternative selectors...')
+      })
+
     // 等待一段时间让 Vue 应用初始化
-    await new Promise(r => setTimeout(r, 3000))
-    
+    await new Promise((r) => setTimeout(r, 3000))
+
     // 检查是否登录（通过检查页面中的登录状态）
     console.log('[SyncBossChat] Checking login status...')
     const isLoggedIn = await page.evaluate(() => {
@@ -1056,26 +1182,29 @@ async function syncBossChatRelations() {
       const hasLoginForm = document.querySelector('.login-wrap, .login-form, [class*="login"]')
       return { hasVueData, hasUserElement: !!hasUserElement, hasLoginForm: !!hasLoginForm }
     })
-    
+
     console.log('[SyncBossChat] Login check:', isLoggedIn)
-    
+
     if (isLoggedIn.hasLoginForm && !isLoggedIn.hasUserElement) {
       await browser.close()
       return { success: false, error: 'BOSS直聘 Cookie 已过期，请重新登录' }
     }
-    
+
     // 尝试等待聊天列表加载（使用更宽松的条件）
     console.log('[SyncBossChat] Waiting for chat list...')
     try {
-      await page.waitForFunction(() => {
-        const chatUser = document.querySelector('.chat-user, .chat-list, [class*="chat"]')
-        const vueData = (chatUser as any)?.__vue__
-        return vueData || document.querySelector('.chat-item, .user-item, .friend-item')
-      }, { timeout: 30000 })
+      await page.waitForFunction(
+        () => {
+          const chatUser = document.querySelector('.chat-user, .chat-list, [class*="chat"]')
+          const vueData = (chatUser as any)?.__vue__
+          return vueData || document.querySelector('.chat-item, .user-item, .friend-item')
+        },
+        { timeout: 30000 }
+      )
     } catch (waitError) {
       console.log('[SyncBossChat] Chat list wait timeout, checking alternative methods...')
     }
-    
+
     // 获取当前用户信息（尝试多种方式）
     console.log('[SyncBossChat] Getting user info...')
     const userInfo = await page.evaluate(() => {
@@ -1085,25 +1214,25 @@ async function syncBossChatRelations() {
       if (vueStore?.state?.userInfo) {
         return vueStore.state.userInfo
       }
-      
+
       // 尝试从全局变量获取
       const globalUserInfo = (window as any).__INITIAL_STATE__?.userInfo || (window as any).userInfo
       if (globalUserInfo) {
         return globalUserInfo
       }
-      
+
       return null
     })
-    
+
     console.log('[SyncBossChat] User info:', userInfo ? 'found' : 'not found')
-    
+
     if (!userInfo || !userInfo.encryptUserId) {
       await browser.close()
       return { success: false, error: '未获取到当前用户信息，请确保BOSS直聘 Cookie 有效且未过期' }
     }
-    
+
     const encryptUserId = userInfo.encryptUserId
-    
+
     // 首先尝试从页面的 Vue 数据中直接获取沟通记录
     console.log('[SyncBossChat] Trying to get chat list from Vue data...')
     let allChatList = await page.evaluate(() => {
@@ -1111,25 +1240,25 @@ async function syncBossChatRelations() {
         // 尝试从 Vue 组件获取沟通列表
         const chatUserEl = document.querySelector('.chat-user, .chat-list')
         const vueData = (chatUserEl as any)?.__vue__
-        
+
         if (vueData?.list && Array.isArray(vueData.list)) {
           return vueData.list
         }
-        
+
         // 尝试从 store 获取
         const mainWrap = document.querySelector('.main-wrap, #app')
         const store = (mainWrap as any)?.__vue__?.$store
         if (store?.state?.chat?.list) {
           return store.state.chat.list
         }
-        
+
         return null
       } catch (e) {
         console.error('Error getting Vue data:', e)
         return null
       }
     })
-    
+
     // 如果 Vue 数据获取失败，尝试通过 API 获取
     if (!allChatList || allChatList.length === 0) {
       console.log('[SyncBossChat] Trying to get chat list from API...')
@@ -1138,62 +1267,70 @@ async function syncBossChatRelations() {
         let pageNum = 1
         const pageSize = 50
         let hasMore = true
-        
+
         // 尝试多个 API 端点
         const apiEndpoints = [
-          (page: number, size: number) => `/wapi/zprelation/friend/geekFilterByLabel?labelId=0&page=${page}&pageSize=${size}`,
-          (page: number, size: number) => `/wapi/zprelation/friend/getGeekFriendList?page=${page}&pageSize=${size}`,
-          (page: number, size: number) => `/wapi/zprelation/friend/list?page=${page}&pageSize=${size}&scene=1`
+          (page: number, size: number) =>
+            `/wapi/zprelation/friend/geekFilterByLabel?labelId=0&page=${page}&pageSize=${size}`,
+          (page: number, size: number) =>
+            `/wapi/zprelation/friend/getGeekFriendList?page=${page}&pageSize=${size}`,
+          (page: number, size: number) =>
+            `/wapi/zprelation/friend/list?page=${page}&pageSize=${size}&scene=1`
         ]
-        
+
         for (const getEndpoint of apiEndpoints) {
           if (allList.length > 0) break // 如果已经获取到数据，不再尝试其他端点
-          
+
           pageNum = 1
           hasMore = true
-          
+
           while (hasMore && allList.length < 1000 && pageNum <= 20) {
             try {
               const endpoint = getEndpoint(pageNum, pageSize)
               console.log(`[SyncBossChat] Trying API: ${endpoint}`)
-              
+
               const response = await fetch(endpoint, {
                 headers: {
-                  'accept': 'application/json, text/plain, */*',
+                  accept: 'application/json, text/plain, */*',
                   'x-requested-with': 'XMLHttpRequest'
                 },
                 credentials: 'include'
               })
-              
+
               if (!response.ok) {
                 console.error('API request failed:', response.status)
                 break
               }
-              
+
               const result = await response.json()
               console.log('[SyncBossChat] API response:', result.code, result.message || '')
-              
+
               if (result.code !== 0) {
                 console.error('API error:', result.message || result.msg)
                 break
               }
-              
+
               // 尝试多种数据结构 (BOSS直聘 API 返回 friendList 而不是 list)
-              let list = result.zpData?.friendList || result.zpData?.list || result.data?.friendList || result.data?.list || []
-              
+              let list =
+                result.zpData?.friendList ||
+                result.zpData?.list ||
+                result.data?.friendList ||
+                result.data?.list ||
+                []
+
               if (!Array.isArray(list)) {
                 console.error('List is not array:', typeof list)
                 break
               }
-              
+
               if (list.length === 0) {
                 console.log('[SyncBossChat] Empty list returned')
                 hasMore = false
                 break
               }
-              
+
               console.log(`[SyncBossChat] Got ${list.length} items from page ${pageNum}`)
-              
+
               // 转换数据格式 (根据实际 API 返回结构调整)
               const formattedList = list.map((item: any) => ({
                 friendId: Number(item.friendId || item.id || 0),
@@ -1218,9 +1355,9 @@ async function syncBossChatRelations() {
                 sourceTitle: item.sourceTitle || '',
                 lastIsSelf: item.lastIsSelf || false
               }))
-              
+
               allList.push(...formattedList)
-              
+
               // 如果返回的数据少于pageSize，说明没有更多了
               if (list.length < pageSize) {
                 hasMore = false
@@ -1233,25 +1370,25 @@ async function syncBossChatRelations() {
             }
           }
         }
-        
+
         return allList
       })
     } else {
       console.log(`[SyncBossChat] Got ${allChatList.length} items from Vue data`)
     }
-    
+
     // 关闭浏览器
     await browser.close()
     browser = null
-    
+
     if (allChatList.length === 0) {
       return { success: false, error: '未获取到沟通记录，请确保BOSS直聘账号有沟通记录' }
     }
-    
+
     // 保存到数据库
     const ds = await dbInitPromise
     const result = await saveBossChatRelationList(ds, allChatList, encryptUserId)
-    
+
     return {
       success: true,
       data: {
@@ -1259,7 +1396,6 @@ async function syncBossChatRelations() {
         syncTime: result.syncTime
       }
     }
-    
   } catch (error) {
     if (browser) {
       await browser.close()
@@ -1268,6 +1404,226 @@ async function syncBossChatRelations() {
     return {
       success: false,
       error: error.message || '同步沟通记录失败'
+    }
+  }
+}
+
+// 同步单个 BOSS 的聊天记录
+import { saveChatMessageRecord } from '@dagegong/sqlite-plugin/dist/handlers'
+import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord'
+
+export async function syncBossChatHistory(
+  encryptBossId: string,
+  encryptJobId: string | undefined,
+  encryptUserId?: string
+): Promise<{
+  success: boolean
+  error?: string
+  data?: {
+    syncedCount: number
+    messages: any[]
+  }
+}> {
+  let browser = null
+
+  try {
+    // 获取cookie
+    const cookies = readStorageFile('boss-cookies.json') || []
+    if (!cookies.length) {
+      return { success: false, error: '未配置BOSS直聘Cookie' }
+    }
+
+    // 启动浏览器
+    const { puppeteer } = await initPuppeteer()
+    const browserInfo = await getAnyAvailablePuppeteerExecutable()
+    if (!browserInfo) {
+      return { success: false, error: '未找到可用的浏览器，请先配置浏览器' }
+    }
+    browser = await puppeteer.launch({
+      headless: true,
+      executablePath: browserInfo.executablePath,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    })
+    const page = await browser.newPage()
+
+    // 设置cookie
+    await page.setCookie(
+      ...cookies.map((c) => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path,
+        expires: c.expirationDate,
+        httpOnly: c.httpOnly,
+        secure: c.secure,
+        sameSite: c.sameSite
+      }))
+    )
+
+    // 打开聊天页面
+    console.log('[SyncChatHistory] Navigating to chat page...')
+    const chatUrl = encryptJobId
+      ? `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}&jobId=${encryptJobId}`
+      : `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}`
+
+    await page.goto(chatUrl, {
+      waitUntil: 'networkidle2',
+      timeout: 60000
+    })
+
+    // 等待页面加载
+    await page
+      .waitForSelector('.main-wrap, .chat-container, .chat-conversation', {
+        timeout: 30000
+      })
+      .catch(() => {
+        console.log('[SyncChatHistory] Main container not found')
+      })
+
+    // 等待 Vue 应用初始化
+    await new Promise((r) => setTimeout(r, 3000))
+
+    // 检查是否登录并获取当前用户信息
+    const userInfo = await page.evaluate(() => {
+      try {
+        // 尝试从 Vue store 获取用户信息
+        const mainWrap = document.querySelector('.main-wrap, #app, #container')
+        const vueStore = (mainWrap as any)?.__vue__?.$store
+        if (vueStore?.state?.userInfo) {
+          return vueStore.state.userInfo
+        }
+        // 尝试从全局变量获取
+        const globalUserInfo =
+          (window as any).__INITIAL_STATE__?.userInfo || (window as any).userInfo
+        if (globalUserInfo) {
+          return globalUserInfo
+        }
+        return null
+      } catch (e) {
+        return null
+      }
+    })
+
+    if (!userInfo?.encryptUserId) {
+      await browser.close()
+      return { success: false, error: '未获取到当前用户信息，请确保BOSS直聘 Cookie 有效' }
+    }
+
+    // 使用从页面获取的用户ID
+    const currentUserId = encryptUserId || userInfo.encryptUserId
+    console.log('[SyncChatHistory] Current user ID:', currentUserId)
+
+    // 保存用户信息到数据库（如果不存在）
+    const ds = await dbInitPromise
+    const { UserInfo } = await import('@dagegong/sqlite-plugin/dist/entity/UserInfo')
+    const userInfoRepository = ds.getRepository(UserInfo)
+    const existingUser = await userInfoRepository.findOneBy({
+      encryptUserId: userInfo.encryptUserId
+    })
+    if (!existingUser) {
+      const newUser = new UserInfo()
+      newUser.encryptUserId = userInfo.encryptUserId
+      newUser.name = userInfo.name || ''
+      await userInfoRepository.save(newUser)
+      console.log('[SyncChatHistory] Saved new user:', userInfo.encryptUserId)
+    }
+
+    // 等待聊天内容加载
+    console.log('[SyncChatHistory] Waiting for chat messages...')
+    try {
+      await page.waitForFunction(
+        () => {
+          const chatRecord = document.querySelector('.message-content .chat-record')
+          const vueData = (chatRecord as any)?.__vue__
+          return vueData?.list$?.length > 0 || vueData?.records$?.length > 0
+        },
+        { timeout: 20000 }
+      )
+    } catch (waitError) {
+      console.log('[SyncChatHistory] Chat messages wait timeout')
+    }
+
+    // 获取聊天记录
+    console.log('[SyncChatHistory] Getting chat messages...')
+    const rawChatRecordList = await page.evaluate(() => {
+      try {
+        const chatRecord = document.querySelector('.message-content .chat-record')
+        const vueData = (chatRecord as any)?.__vue__
+
+        // 尝试获取 list$ 或 records$
+        const messages = vueData?.list$ || vueData?.records$ || []
+
+        // 过滤只保留 sent 和 received 类型的消息
+        return messages.filter((msg: any) => ['sent', 'received'].includes(msg.style))
+      } catch (e) {
+        console.error('Error getting chat messages:', e)
+        return []
+      }
+    })
+
+    console.log(`[SyncChatHistory] Got ${rawChatRecordList.length} messages`)
+
+    if (rawChatRecordList.length === 0) {
+      await browser.close()
+      return { success: false, error: '未获取到聊天记录' }
+    }
+
+    // 获取 BOSS 信息
+    const bossInfo = await page.evaluate(() => {
+      try {
+        const chatConversation = document.querySelector('.chat-conversation')
+        const vueData = (chatConversation as any)?.__vue__
+        return vueData?.conversation$?.bossInfo || null
+      } catch (e) {
+        return null
+      }
+    })
+
+    // 转换并保存聊天记录
+    const chatRecordList: ChatMessageRecord[] = rawChatRecordList.map((it: any) => {
+      const mappedItem = new ChatMessageRecord()
+      mappedItem.mid = it.mid
+      mappedItem.encryptFromUserId = it.isSelf
+        ? currentUserId
+        : bossInfo?.encryptBossId || encryptBossId
+      mappedItem.encryptToUserId = it.isSelf
+        ? bossInfo?.encryptBossId || encryptBossId
+        : currentUserId
+      mappedItem.style = it.isSelf ? 'sent' : 'received'
+      mappedItem.type = it.type || 'text'
+      mappedItem.time = it.time ? new Date(it.time) : null
+      mappedItem.text = it.text
+      if (it.type === 'image' && it.image?.originImage?.url) {
+        mappedItem.imageUrl = it.image.originImage.url
+        mappedItem.imageHeight = it.image.originImage.height
+        mappedItem.imageWidth = it.image.originImage.width
+      }
+      return mappedItem
+    })
+
+    // 保存到数据库
+    await saveChatMessageRecord(ds, chatRecordList)
+
+    await browser.close()
+    browser = null
+
+    return {
+      success: true,
+      data: {
+        syncedCount: chatRecordList.length,
+        messages: chatRecordList
+      }
+    }
+  } catch (error) {
+    if (browser) {
+      try {
+        await browser.close()
+      } catch {}
+    }
+    console.error('[SyncChatHistory] Error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '同步聊天记录失败'
     }
   }
 }

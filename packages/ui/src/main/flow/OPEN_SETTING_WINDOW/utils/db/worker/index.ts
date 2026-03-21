@@ -13,6 +13,7 @@ import { measureExecutionTime } from '../../../../../../common/utils/performance
 import { PageReq, PagedRes } from '../../../../../../common/types/pagination'
 import { JobInfoChangeLog } from '@dagegong/sqlite-plugin/dist/entity/JobInfoChangeLog'
 import { AutoStartChatRunRecord } from '@dagegong/sqlite-plugin/dist/entity/AutoStartChatRunRecord'
+import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord'
 
 const dbInitPromise = initDb(getPublicDbFilePath())
 let dataSource: DataSource | null = null
@@ -72,9 +73,9 @@ const payloadHandler = {
       ORDER BY chat_startup_log.date DESC
       LIMIT ? OFFSET ?
     `
-    
+
     const countQuery = `SELECT COUNT(*) as count FROM chat_startup_log`
-    
+
     const [rawData, countResult] = await Promise.all([
       dataSource!.query(rawQuery, [pageSize, (pageNo - 1) * pageSize]),
       dataSource!.query(countQuery)
@@ -196,9 +197,11 @@ const payloadHandler = {
     const result = await autoStartChatRunRecordRepository.save(autoStartChatRunRecord)
     return result
   },
-  async getBossChatRelationList({ pageNo, pageSize, encryptUserId }: Partial<PageReq> & { encryptUserId?: string } = {}): Promise<
-    PagedRes<VBossChatRelation>
-  > {
+  async getBossChatRelationList({
+    pageNo,
+    pageSize,
+    encryptUserId
+  }: Partial<PageReq> & { encryptUserId?: string } = {}): Promise<PagedRes<VBossChatRelation>> {
     if (!pageNo) {
       pageNo = 1
     }
@@ -211,7 +214,7 @@ const payloadHandler = {
     if (encryptUserId) {
       whereClause.encryptUserId = encryptUserId
     }
-    
+
     const [data, totalItemCount] = await measureExecutionTime(
       repository.findAndCount({
         where: whereClause,
@@ -224,6 +227,28 @@ const payloadHandler = {
       pageNo,
       totalItemCount
     }
+  },
+  async getChatMessageList({
+    encryptBossId,
+    encryptUserId
+  }: {
+    encryptBossId: string
+    encryptUserId: string
+  }): Promise<ChatMessageRecord[]> {
+    const repository = dataSource!.getRepository(ChatMessageRecord)!
+
+    // 查询与该 BOSS 的聊天记录（双向）
+    const messages = await measureExecutionTime(
+      repository.find({
+        where: [
+          { encryptFromUserId: encryptUserId, encryptToUserId: encryptBossId },
+          { encryptFromUserId: encryptBossId, encryptToUserId: encryptUserId }
+        ],
+        order: { time: 'ASC' }
+      })
+    )
+
+    return messages
   }
 }
 

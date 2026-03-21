@@ -147,12 +147,12 @@ export default function initPublicIpc() {
   ipcMain.handle('parse-pdf-resume', async (ev, { filePath }: { filePath: string }) => {
     try {
       // 动态导入 pdf-parse
-      const pdfParse = await import('pdf-parse').then(m => m.default || m)
-      
+      const pdfParse = await import('pdf-parse').then((m) => m.default || m)
+
       // 读取 PDF 文件
       const dataBuffer = fs.readFileSync(filePath)
       const pdfData = await pdfParse(dataBuffer)
-      
+
       return {
         success: true,
         text: pdfData.text,
@@ -169,43 +169,45 @@ export default function initPublicIpc() {
       }
     }
   })
-  
+
   // 运行日志相关 IPC
   ipcMain.handle('get-running-logs', () => {
     return runningLogManager.getLogs()
   })
-  
+
   ipcMain.handle('clear-running-logs', () => {
     runningLogManager.clearLogs()
     return { success: true }
   })
-  
+
   // 浏览器配置相关 IPC
   ipcMain.handle('get-browser-config', async () => {
     return await getBrowserConfig()
   })
-  
+
   ipcMain.handle('save-browser-config', async (_, config) => {
     await saveBrowserConfig(config)
     return { success: true }
   })
-  
+
   // 获取当前用户信息（从cookie或storage中）
   ipcMain.handle('get-user-info', async () => {
     try {
       // 尝试从storage中获取用户信息
       const cookies = readStorageFile('boss-cookies.json') || []
-      const wt2Cookie = cookies.find(c => c.name === 'wt2')
-      
+      const wt2Cookie = cookies.find((c) => c.name === 'wt2')
+
       // 尝试从数据库获取最近的用户
-      const { getPublicDbFilePath } = await import('@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs')
+      const { getPublicDbFilePath } =
+        await import('@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs')
       const { initDb } = await import('@dagegong/sqlite-plugin')
-      const { DataSource } = await import('typeorm')
-      
+
       let ds: any
       try {
         ds = await initDb(getPublicDbFilePath())
-        const result = await ds.query('SELECT encryptUserId, name FROM user_info ORDER BY ROWID DESC LIMIT 1')
+        const result = await ds.query(
+          'SELECT encryptUserId, name FROM user_info ORDER BY ROWID DESC LIMIT 1'
+        )
         if (result && result.length > 0) {
           return {
             encryptUserId: result[0].encryptUserId,
@@ -217,7 +219,7 @@ export default function initPublicIpc() {
           await ds.destroy()
         }
       }
-      
+
       return null
     } catch (error) {
       console.error('Get user info error:', error)
@@ -225,6 +227,55 @@ export default function initPublicIpc() {
     }
   })
 
+  // 获取已同步的用户列表（从聊天关系表中提取）
+  ipcMain.handle('get-synced-user-list', async () => {
+    try {
+      const { getPublicDbFilePath } =
+        await import('@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs')
+      const { initDb } = await import('@dagegong/sqlite-plugin')
+
+      let ds: any
+      try {
+        ds = await initDb(getPublicDbFilePath())
+        // 从 boss_chat_relation 表中获取所有唯一的用户ID，并关联用户名称
+        const result = await ds.query(`
+          SELECT DISTINCT 
+            bcr.encryptUserId,
+            COALESCE(ui.name, '用户 ' || substr(bcr.encryptUserId, 1, 8) || '...') as name,
+            MAX(bcr.syncTime) as lastSyncTime,
+            COUNT(*) as chatCount
+          FROM boss_chat_relation bcr
+          LEFT JOIN user_info ui ON bcr.encryptUserId = ui.encryptUserId
+          GROUP BY bcr.encryptUserId
+          ORDER BY lastSyncTime DESC
+        `)
+        return {
+          success: true,
+          data: result.map((r: any) => ({
+            encryptUserId: r.encryptUserId,
+            name: r.name,
+            lastSyncTime: r.lastSyncTime,
+            chatCount: r.chatCount
+          }))
+        }
+      } finally {
+        if (ds && ds.isInitialized) {
+          await ds.destroy()
+        }
+      }
+    } catch (error) {
+      console.error('Get synced user list error:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
   // 初始化自动同步 IPC 处理
   initAutoSyncIpc()
+
+  // 初始化 AI 自动回复 IPC
+  import('../features/ai-auto-reply-service').then(({ initAiAutoReplyIpc, startAiAutoReply }) => {
+    initAiAutoReplyIpc()
+    // 如果配置启用，自动启动服务
+    startAiAutoReply()
+  })
 }

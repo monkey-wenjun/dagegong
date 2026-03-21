@@ -1,6 +1,7 @@
 <template>
   <draggable
     :model-value="modelValue"
+    item-key="type"
     class="list-group"
     :component-data="{
       tag: 'ul',

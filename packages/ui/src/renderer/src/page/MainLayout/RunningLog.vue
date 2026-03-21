@@ -48,7 +48,26 @@
         <span class="log-time">[{{ formatTime(log.timestamp) }}]</span>
         <span class="log-type-tag">[{{ getTypeLabel(log.type) }}]</span>
         <span class="log-message">{{ getLogMessage(log) }}</span>
-        <div v-if="log.details" class="log-details">
+        <!-- AI 回复详细信息 -->
+        <div v-if="log.type === 'ai-reply'" class="log-details ai-reply-details">
+          <div class="ai-detail-item">
+            <span class="ai-detail-label">BOSS:</span>
+            <span class="ai-detail-value">{{ log.bossName }}</span>
+          </div>
+          <div v-if="log.jobName" class="ai-detail-item">
+            <span class="ai-detail-label">职位:</span>
+            <span class="ai-detail-value">{{ log.jobName }}</span>
+          </div>
+          <div class="ai-detail-item">
+            <span class="ai-detail-label">收到消息:</span>
+            <span class="ai-detail-value received">{{ log.receivedMessage }}</span>
+          </div>
+          <div class="ai-detail-item">
+            <span class="ai-detail-label">AI 回复:</span>
+            <span class="ai-detail-value reply">{{ log.replyContent }}</span>
+          </div>
+        </div>
+        <div v-else-if="log.details" class="log-details">
           <pre>{{ formatDetails(log.details) }}</pre>
         </div>
       </div>
@@ -65,12 +84,19 @@ import dayjs from 'dayjs'
 
 interface LogItem {
   timestamp: number
-  type: 'click' | 'network' | 'navigation' | 'error' | 'info' | 'warn' | 'debug'
+  type: 'click' | 'network' | 'navigation' | 'error' | 'info' | 'warn' | 'debug' | 'ai-reply'
   message?: string
   method?: string
   url?: string
   status?: number
   details?: any
+  // AI 回复日志专字段
+  bossName?: string
+  bossId?: string
+  jobName?: string
+  receivedMessage?: string
+  replyContent?: string
+  aiResponse?: string
 }
 
 // 日志类型选项
@@ -80,6 +106,7 @@ const logTypeOptions = [
   { label: '请求', value: 'network' },
   { label: '点击', value: 'click' },
   { label: '导航', value: 'navigation' },
+  { label: 'AI回复', value: 'ai-reply' },
   { label: '警告', value: 'warn' },
   { label: '错误', value: 'error' }
 ]
@@ -102,7 +129,14 @@ const filteredLogs = computed(() => {
   if (filterKeyword.value) {
     const keyword = filterKeyword.value.toLowerCase()
     result = result.filter((log) => {
-      const searchText = `${log.message || ''} ${log.url || ''} ${log.method || ''}`.toLowerCase()
+      // 基础字段搜索
+      let searchText = `${log.message || ''} ${log.url || ''} ${log.method || ''}`.toLowerCase()
+      
+      // AI 回复日志额外字段
+      if (log.type === 'ai-reply') {
+        searchText += ` ${log.bossName || ''} ${log.jobName || ''} ${log.receivedMessage || ''} ${log.replyContent || ''}`.toLowerCase()
+      }
+      
       return searchText.includes(keyword)
     })
   }
@@ -124,7 +158,8 @@ const getTypeLabel = (type: string) => {
     error: '错误',
     warn: '警告',
     debug: '调试',
-    info: '信息'
+    info: '信息',
+    'ai-reply': 'AI回复'
   }
   return labelMap[type] || type.toUpperCase()
 }
@@ -134,6 +169,10 @@ const getLogMessage = (log: LogItem) => {
   if (log.type === 'network') {
     const statusStr = log.status ? ` [${log.status}]` : ''
     return `${log.method} ${log.url}${statusStr}`
+  }
+  if (log.type === 'ai-reply') {
+    const jobInfo = log.jobName ? ` [职位: ${log.jobName}]` : ''
+    return `回复 ${log.bossName}${jobInfo}: ${log.replyContent || log.message}`
   }
   return log.message || ''
 }
@@ -345,6 +384,16 @@ onUnmounted(() => {
       color: #d2a8ff;
     }
   }
+
+  &.ai-reply {
+    .log-type-tag {
+      color: #00d4aa;
+    }
+    .log-message {
+      color: #00d4aa;
+      font-weight: 500;
+    }
+  }
 }
 
 // 日志类型选择器中的颜色指示点
@@ -361,6 +410,7 @@ onUnmounted(() => {
   &.navigation { background-color: #ffa657; }
   &.warn { background-color: #ffa657; }
   &.error { background-color: #ff7b72; }
+  &.ai-reply { background-color: #00d4aa; }
 }
 
 // Element Plus 样式覆盖
@@ -370,6 +420,41 @@ onUnmounted(() => {
       background-color: #333;
       border-color: #444;
       color: #d4d4d4;
+    }
+  }
+}
+
+// AI 回复详细信息样式
+.ai-reply-details {
+  .ai-detail-item {
+    display: flex;
+    margin-bottom: 4px;
+    align-items: flex-start;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .ai-detail-label {
+    color: #6e7681;
+    font-size: 12px;
+    min-width: 70px;
+    flex-shrink: 0;
+  }
+
+  .ai-detail-value {
+    color: #d4d4d4;
+    font-size: 12px;
+    flex: 1;
+    word-break: break-all;
+
+    &.received {
+      color: #ffa657;
+    }
+
+    &.reply {
+      color: #7ee787;
     }
   }
 }

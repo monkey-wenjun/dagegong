@@ -168,6 +168,13 @@ const routes: Array<RouteRecordRaw> = [
         meta: {
           title: '求职全局设置'
         }
+      },
+      {
+        path: 'ai-auto-reply',
+        component: () => import('@renderer/page/MainLayout/AiAutoReply.vue'),
+        meta: {
+          title: 'AI 自动回复'
+        }
       }
     ]
   },
@@ -192,9 +199,7 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: 'runningStatusForReadNoReplyReminder',
         component: () =>
-          import(
-            '@renderer/page/GeekAutoStartChatWithBoss/RunningStatusForReadNoReplyReminder.vue'
-          ),
+          import('@renderer/page/GeekAutoStartChatWithBoss/RunningStatusForReadNoReplyReminder.vue'),
         meta: {
           title: 'AI自动复聊 正在为你开聊BOSS'
         }

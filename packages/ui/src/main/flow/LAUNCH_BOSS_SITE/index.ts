@@ -18,11 +18,7 @@ import {
 } from '@dagegong/sqlite-plugin/dist/handlers'
 import { initDb } from '@dagegong/sqlite-plugin'
 import { getPublicDbFilePath } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import {
-  MarkAsNotSuitReason,
-  JobSource,
-  JobHireStatus
-} from '@dagegong/sqlite-plugin/dist/enums'
+import { MarkAsNotSuitReason, JobSource, JobHireStatus } from '@dagegong/sqlite-plugin/dist/enums'
 import cheerio from 'cheerio'
 
 import fs from 'node:fs'
@@ -470,3 +466,81 @@ export async function launchBossSite() {
 }
 
 attachListenerForKillSelfOnParentExited()
+
+/**
+ * 启动浏览器并发送回复消息（用于AI自动回复）
+ */
+export async function launchBossSiteForReply(
+  encryptBossId: string,
+  encryptJobId: string | undefined,
+  message: string
+): Promise<void> {
+  const { puppeteer } = await initPuppeteer()
+  const browserInfo = await getAnyAvailablePuppeteerExecutable()
+  if (!browserInfo) {
+    throw new Error('未找到可用的浏览器')
+  }
+
+  const browser = await puppeteer.launch({
+    headless: true, // 使用无头模式
+    executablePath: browserInfo.executablePath,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  })
+
+  try {
+    const page = await browser.newPage()
+
+    // 设置cookie
+    const cookies = readStorageFile('boss-cookies.json') || []
+    for (const cookie of cookies) {
+      await page.setCookie(cookie)
+    }
+
+    // 打开聊天页面
+    const chatUrl = encryptJobId
+      ? `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}&jobId=${encryptJobId}`
+      : `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}`
+
+    await page.goto(chatUrl, {
+      waitUntil: 'networkidle2',
+      timeout: 60000
+    })
+
+    // 等待页面加载
+    await page.waitForSelector('.chat-conversation', { timeout: 30000 })
+    await new Promise((r) => setTimeout(r, 2000))
+
+    // 检查是否登录
+    const isLoggedIn = await page.evaluate(() => {
+      const hasLoginForm = document.querySelector('.login-wrap, .login-form')
+      return !hasLoginForm
+    })
+
+    if (!isLoggedIn) {
+      throw new Error('BOSS直聘 Cookie 已过期')
+    }
+
+    // 发送消息
+    const chatInputSelector = '.chat-conversation .message-controls .chat-input'
+    const chatInputHandle = await page.$(chatInputSelector)
+    if (!chatInputHandle) {
+      throw new Error('未找到聊天输入框')
+    }
+
+    await chatInputHandle.click()
+    await new Promise((r) => setTimeout(r, 500))
+    await chatInputHandle.type(message, { delay: 50 })
+    await new Promise((r) => setTimeout(r, 1000))
+
+    const sendButtonSelector =
+      '.chat-conversation .message-controls .chat-op .btn-send:not(.disabled)'
+    await page.click(sendButtonSelector)
+
+    // 等待消息发送成功
+    await new Promise((r) => setTimeout(r, 2000))
+
+    console.log('[LaunchBossSite] 消息发送成功:', message)
+  } finally {
+    await browser.close()
+  }
+}
