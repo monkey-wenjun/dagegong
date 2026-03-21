@@ -56,6 +56,7 @@ import { AddVBossChatRelationView1770000000001 } from "./migrations/177000000000
 import { FixBossChatRelationNullable1770000000002 } from "./migrations/1770000000002-FixBossChatRelationNullable";
 import { AddInterviewRecordTable1770000000003 } from "./migrations/1770000000003-AddInterviewRecordTable";
 import { AddVInterviewRecordView1770000000004 } from "./migrations/1770000000004-AddVInterviewRecordView";
+import { FixVInterviewRecordView1770000000005 } from "./migrations/1770000000005-FixVInterviewRecordView";
 import chunk from 'lodash/chunk'
 import * as typeorm from 'typeorm'
 
@@ -103,7 +104,8 @@ export function initDb(dbFilePath) {
       AddVBossChatRelationView1770000000001,
       FixBossChatRelationNullable1770000000002,
       AddInterviewRecordTable1770000000003,
-      AddVInterviewRecordView1770000000004
+      AddVInterviewRecordView1770000000004,
+      FixVInterviewRecordView1770000000005
     ],
     migrationsRun: true
   });

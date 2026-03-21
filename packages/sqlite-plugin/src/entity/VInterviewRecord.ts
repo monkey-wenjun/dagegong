@@ -37,9 +37,6 @@ export class VInterviewRecord {
   bossTitle?: string;
 
   @ViewColumn()
-  bossAvatar?: string;
-
-  @ViewColumn()
   brandName: string;
 
   @ViewColumn()

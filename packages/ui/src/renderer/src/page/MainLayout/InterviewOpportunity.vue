@@ -32,14 +32,7 @@
           stripe
           border
         >
-          <ElTableColumn prop="bossName" label="BOSS" min-width="100" show-overflow-tooltip>
-            <template #default="{ row }">
-              <div flex items-center gap-2>
-                <el-avatar :size="24" :src="row.bossAvatar" />
-                <span>{{ row.bossName }}</span>
-              </div>
-            </template>
-          </ElTableColumn>
+          <ElTableColumn prop="bossName" label="BOSS" min-width="100" show-overflow-tooltip />
           <ElTableColumn prop="brandName" label="公司" min-width="120" show-overflow-tooltip />
           <ElTableColumn prop="jobName" label="职位" min-width="150" show-overflow-tooltip />
           <ElTableColumn prop="stage" label="面试阶段" min-width="120">
