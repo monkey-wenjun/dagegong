@@ -22,6 +22,8 @@ import { VBossChatRelation } from './entity/VBossChatRelation'
 import { ChatMessageRecord } from './entity/ChatMessageRecord'
 import { LlmModelUsageRecord } from './entity/LlmModelUsageRecord'
 import { JobHireStatusRecord } from './entity/JobHireStatusRecord'
+import { InterviewRecord } from './entity/InterviewRecord'
+import { VInterviewRecord } from './entity/VInterviewRecord'
 
 import {
   saveChatStartupRecord,
@@ -33,7 +35,13 @@ import {
   saveJobHireStatusRecord,
   saveBossChatRelationList,
   getBossChatRelationList,
-  saveCompanyInfo
+  saveCompanyInfo,
+  createInterviewRecord,
+  updateInterviewRecord,
+  deleteInterviewRecord,
+  getInterviewRecordList,
+  getInterviewRecordById,
+  checkIsInInterview
 } from "./handlers";
 import { UpdateChatStartupLogTable1729182577167 } from "./migrations/1729182577167-UpdateChatStartupLogTable";
 import minimist from 'minimist'
@@ -46,6 +54,8 @@ import { AddJobHireStatusTable1766466476822 } from "./migrations/1766466476822-A
 import { AddBossChatRelationTable1770000000000 } from "./migrations/1770000000000-AddBossChatRelationTable";
 import { AddVBossChatRelationView1770000000001 } from "./migrations/1770000000001-AddVBossChatRelationView";
 import { FixBossChatRelationNullable1770000000002 } from "./migrations/1770000000002-FixBossChatRelationNullable";
+import { AddInterviewRecordTable1770000000003 } from "./migrations/1770000000003-AddInterviewRecordTable";
+import { AddVInterviewRecordView1770000000004 } from "./migrations/1770000000004-AddVInterviewRecordView";
 import chunk from 'lodash/chunk'
 import * as typeorm from 'typeorm'
 
@@ -79,6 +89,8 @@ export function initDb(dbFilePath) {
       JobHireStatusRecord,
       BossChatRelation,
       VBossChatRelation,
+      InterviewRecord,
+      VInterviewRecord,
     ],
     migrations: [
       Init1000000000000,
@@ -89,7 +101,9 @@ export function initDb(dbFilePath) {
       AddJobHireStatusTable1766466476822,
       AddBossChatRelationTable1770000000000,
       AddVBossChatRelationView1770000000001,
-      FixBossChatRelationNullable1770000000002
+      FixBossChatRelationNullable1770000000002,
+      AddInterviewRecordTable1770000000003,
+      AddVInterviewRecordView1770000000004
     ],
     migrationsRun: true
   });
@@ -271,10 +285,18 @@ export { CompanyInfo } from './entity/CompanyInfo'
 export { UserInfo } from './entity/UserInfo'
 export { BossChatRelation } from './entity/BossChatRelation'
 export { VBossChatRelation } from './entity/VBossChatRelation'
+export { InterviewRecord, InterviewStage, InterviewSource } from './entity/InterviewRecord'
+export { VInterviewRecord } from './entity/VInterviewRecord'
 
 // Export handlers
 export {
   saveBossChatRelationList,
   getBossChatRelationList,
-  saveCompanyInfo
+  saveCompanyInfo,
+  createInterviewRecord,
+  updateInterviewRecord,
+  deleteInterviewRecord,
+  getInterviewRecordList,
+  getInterviewRecordById,
+  checkIsInInterview
 } from './handlers'

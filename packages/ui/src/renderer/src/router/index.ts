@@ -135,6 +135,13 @@ const routes: Array<RouteRecordRaw> = [
         }
       },
       {
+        path: 'InterviewOpportunity',
+        component: () => import('@renderer/page/MainLayout/InterviewOpportunity.vue'),
+        meta: {
+          title: '面试机会'
+        }
+      },
+      {
         path: 'RunningLog',
         component: () => import('@renderer/page/MainLayout/RunningLog.vue'),
         meta: {

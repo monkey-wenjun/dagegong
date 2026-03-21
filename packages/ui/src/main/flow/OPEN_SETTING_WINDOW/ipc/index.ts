@@ -21,6 +21,13 @@ import {
   getMarkAsNotSuitRecord,
   getBossChatRelationList
 } from '../utils/db/index'
+import {
+  createInterviewRecord,
+  updateInterviewRecord,
+  deleteInterviewRecord,
+  getInterviewRecordList,
+  checkIsInInterview
+} from '@dagegong/sqlite-plugin'
 import { PageReq } from '../../../../common/types/pagination'
 import { pipeWriteRegardlessError } from '../../utils/pipe'
 import { WriteStream } from 'node:fs'
@@ -587,6 +594,42 @@ export default async function initIpc() {
     // 打开BOSS直聘聊天页面并获取沟通列表（自动获取当前登录用户）
     const result = await syncBossChatRelations()
     return result
+  })
+
+  // Interview Record IPC handlers
+  ipcMain.handle('get-interview-record-list', async (ev, payload: PageReq & { stage?: string, encryptUserId?: string }) => {
+    const ds = await dbInitPromise
+    const result = await getInterviewRecordList(ds, {
+      pageNo: payload.pageNo,
+      pageSize: payload.pageSize,
+      stage: payload.stage as any,
+      encryptUserId: payload.encryptUserId
+    })
+    return { data: result }
+  })
+
+  ipcMain.handle('create-interview-record', async (ev, data) => {
+    const ds = await dbInitPromise
+    const result = await createInterviewRecord(ds, data)
+    return { data: result }
+  })
+
+  ipcMain.handle('update-interview-record', async (ev, id: number, data) => {
+    const ds = await dbInitPromise
+    const result = await updateInterviewRecord(ds, id, data)
+    return { data: result }
+  })
+
+  ipcMain.handle('delete-interview-record', async (ev, id: number) => {
+    const ds = await dbInitPromise
+    const result = await deleteInterviewRecord(ds, id)
+    return { success: result }
+  })
+
+  ipcMain.handle('check-is-in-interview', async (ev, encryptBossId: string, encryptJobId: string) => {
+    const ds = await dbInitPromise
+    const result = await checkIsInInterview(ds, encryptBossId, encryptJobId)
+    return { data: result }
   })
 
   let subProcessOfOpenBossSiteDefer: null | PromiseWithResolvers<ChildProcess> = null

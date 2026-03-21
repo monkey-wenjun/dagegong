@@ -564,3 +564,133 @@ export async function getBossChatRelationList(
     totalItemCount
   }
 }
+// Append Interview Record Handlers at the end of the file
+import { InterviewRecord, InterviewStage, InterviewSource } from "./entity/InterviewRecord";
+import { VInterviewRecord } from "./entity/VInterviewRecord";
+
+export interface CreateInterviewRecordData {
+  encryptBossId: string
+  encryptJobId: string
+  encryptUserId?: string
+  bossName: string
+  bossTitle?: string
+  brandName: string
+  jobName: string
+  stage?: InterviewStage
+  source?: InterviewSource
+  notes?: string
+  interviewTime?: Date
+  address?: string
+  contactPhone?: string
+  contactName?: string
+  lastChatText?: string
+  lastChatTime?: Date
+}
+
+export async function createInterviewRecord(
+  ds: DataSource,
+  data: CreateInterviewRecordData
+) {
+  const repo = ds.getRepository(InterviewRecord)
+  
+  // Check if already exists
+  const existing = await repo.findOne({
+    where: {
+      encryptBossId: data.encryptBossId,
+      encryptJobId: data.encryptJobId
+    }
+  })
+  
+  if (existing) {
+    throw new Error('该职位已在面试列表中')
+  }
+  
+  const record = new InterviewRecord()
+  Object.assign(record, data)
+  record.stage = data.stage || InterviewStage.PHONE_INTERVIEW
+  record.source = data.source || InterviewSource.FROM_CHAT
+  
+  return await repo.save(record)
+}
+
+export async function updateInterviewRecord(
+  ds: DataSource,
+  id: number,
+  data: Partial<CreateInterviewRecordData>
+) {
+  const repo = ds.getRepository(InterviewRecord)
+  const record = await repo.findOneBy({ id })
+  
+  if (!record) {
+    throw new Error('面试记录不存在')
+  }
+  
+  Object.assign(record, data)
+  return await repo.save(record)
+}
+
+export async function deleteInterviewRecord(
+  ds: DataSource,
+  id: number
+) {
+  const repo = ds.getRepository(InterviewRecord)
+  const result = await repo.delete({ id })
+  return result.affected > 0
+}
+
+export async function getInterviewRecordList(
+  ds: DataSource,
+  options: { 
+    pageNo?: number
+    pageSize?: number
+    stage?: InterviewStage
+    encryptUserId?: string
+  } = {}
+) {
+  const { pageNo = 1, pageSize = 100, stage, encryptUserId } = options
+  const repo = ds.getRepository(VInterviewRecord)
+  
+  const where: any = {}
+  if (stage) {
+    where.stage = stage
+  }
+  if (encryptUserId) {
+    where.encryptUserId = encryptUserId
+  }
+  
+  const [data, totalItemCount] = await repo.findAndCount({
+    where,
+    order: { updatedAt: 'DESC' },
+    skip: (pageNo - 1) * pageSize,
+    take: pageSize
+  })
+  
+  return {
+    data,
+    pageNo,
+    totalItemCount
+  }
+}
+
+export async function getInterviewRecordById(
+  ds: DataSource,
+  id: number
+) {
+  const repo = ds.getRepository(VInterviewRecord)
+  return await repo.findOneBy({ id })
+}
+
+export async function checkIsInInterview(
+  ds: DataSource,
+  encryptBossId: string,
+  encryptJobId: string
+) {
+  const repo = ds.getRepository(InterviewRecord)
+  const record = await repo.findOne({
+    where: {
+      encryptBossId,
+      encryptJobId
+    }
+  })
+  return !!record
+}

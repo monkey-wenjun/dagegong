@@ -97,7 +97,7 @@
             min-width="150"
             :formatter="formatUpdateTime"
           />
-          <ElTableColumn label="操作" fixed="right" width="150" align="center">
+          <ElTableColumn label="操作" fixed="right" width="220" align="center">
             <template #default="{ row }">
               <ElButton
                 link
@@ -111,6 +111,12 @@
                 size="small"
                 @click="handleViewJobOnline(row.encryptJobId)"
               >查看职位</ElButton>
+              <ElButton
+                link
+                type="success"
+                size="small"
+                @click="handleMarkAsInterview(row)"
+              >标记为面试</ElButton>
             </template>
           </ElTableColumn>
         </ElTable>
@@ -216,7 +222,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
-import { ElTable, ElTableColumn, ElButton, ElPagination, ElDrawer, ElTag, ElMessage, ElAvatar, ElSwitch, ElTooltip } from 'element-plus'
+import { ElTable, ElTableColumn, ElButton, ElPagination, ElDrawer, ElTag, ElMessage, ElMessageBox, ElAvatar, ElSwitch, ElTooltip } from 'element-plus'
 import { type VChatStartupLog } from '@dagegong/sqlite-plugin/src/entity/VChatStartupLog'
 import { type VBossChatRelation } from '@dagegong/sqlite-plugin/src/entity/VBossChatRelation'
 import { transformUtcDateToLocalDate } from '@dagegong/utils/date.mjs'
@@ -575,6 +581,51 @@ async function handleViewJobOnline(encryptJobId: string) {
   await electron.ipcRenderer.invoke('open-site-with-boss-cookie', {
     url: `https://www.zhipin.com/job_detail/${encryptJobId}.html`
   })
+}
+
+// 标记为面试
+async function handleMarkAsInterview(row: VBossChatRelation) {
+  try {
+    // Check if already in interview list
+    const checkResult = await electron.ipcRenderer.invoke('check-is-in-interview', row.encryptBossId, row.encryptJobId)
+    if (checkResult.data) {
+      ElMessage.warning('该职位已在面试列表中')
+      return
+    }
+    
+    // Confirm dialog
+    await ElMessageBox.confirm(
+      `确定将 "${row.brandName} - ${row.jobName}" 标记为面试机会吗？`,
+      '标记为面试',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+    
+    // Create interview record
+    const userInfo = await electron.ipcRenderer.invoke('get-user-info')
+    await electron.ipcRenderer.invoke('create-interview-record', {
+      encryptBossId: row.encryptBossId,
+      encryptJobId: row.encryptJobId,
+      encryptUserId: userInfo?.encryptUserId,
+      bossName: row.bossName,
+      bossTitle: row.bossTitle,
+      brandName: row.brandName,
+      jobName: row.jobName,
+      stage: 'phone_interview',
+      source: 'from_chat',
+      lastChatText: row.lastText,
+      lastChatTime: row.lastTime ? new Date(row.lastTime) : null
+    })
+    
+    ElMessage.success('已添加到面试列表')
+  } catch (err: any) {
+    if (err !== 'cancel') {
+      ElMessage.error(err.message || '标记失败')
+    }
+  }
 }
 
 // 查看快照
