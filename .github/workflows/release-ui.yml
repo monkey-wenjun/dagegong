@@ -25,7 +25,7 @@ jobs:
     
     - name: Install pnpm
       run: |
-        npm i pnpm@9 -g
+        npm i pnpm@8 -g
          
     - name: Patch pnpm
       uses: actions/github-script@v3
@@ -83,7 +83,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        npm i pnpm@9 -g
+        npm i pnpm@8 -g
         cd packages/ui
         pnpm i --force
 
@@ -118,7 +118,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        npm i pnpm@9 -g
+        npm i pnpm@8 -g
         cd packages/ui
         pnpm i --force
 
