@@ -150,7 +150,18 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElPagination, ElDialog, ElTag, ElMessage, ElMessageBox, ElAvatar, ElSelect, ElOption, ElForm, ElFormItem, ElInput, ElDatePicker } from 'element-plus'
 import type { VInterviewRecord } from '@dagegong/sqlite-plugin/dist/entity/VInterviewRecord'
-import { InterviewStage } from '@dagegong/sqlite-plugin/dist/entity/InterviewRecord'
+
+// 面试阶段枚举
+enum InterviewStage {
+  PHONE_INTERVIEW = 'phone_interview',
+  ONLINE_INTERVIEW = 'online_interview',
+  ONSITE_INTERVIEW = 'onsite_interview',
+  HR_INTERVIEW = 'hr_interview',
+  OFFER_NEGOTIATION = 'offer_negotiation',
+  OFFER_ACCEPTED = 'offer_accepted',
+  REJECTED = 'rejected',
+  WITHDRAWN = 'withdrawn',
+}
 import { PageReq, PagedRes } from '../../../../common/types/pagination'
 import dayjs from 'dayjs'
 
