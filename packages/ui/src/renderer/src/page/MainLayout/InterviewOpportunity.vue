@@ -98,8 +98,20 @@
     </div>
 
     <!-- Edit Dialog -->
-    <ElDialog v-model="editDialogVisible" title="编辑面试信息" width="500px">
+    <ElDialog v-model="editDialogVisible" title="编辑面试信息" width="550px">
       <ElForm :model="editForm" label-width="100px" size="small">
+        <ElFormItem label="BOSS">
+          <ElInput v-model="editForm.bossName" placeholder="请输入BOSS姓名" />
+        </ElFormItem>
+        <ElFormItem label="BOSS职位">
+          <ElInput v-model="editForm.bossTitle" placeholder="请输入BOSS职位" />
+        </ElFormItem>
+        <ElFormItem label="公司">
+          <ElInput v-model="editForm.brandName" placeholder="请输入公司名称" />
+        </ElFormItem>
+        <ElFormItem label="职位">
+          <ElInput v-model="editForm.jobName" placeholder="请输入职位名称" />
+        </ElFormItem>
         <ElFormItem label="面试阶段">
           <ElSelect v-model="editForm.stage" style="width: 100%">
             <ElOption
@@ -200,6 +212,10 @@ const isTableLoading = ref(false)
 const editDialogVisible = ref(false)
 const editForm = ref({
   id: 0,
+  bossName: '',
+  bossTitle: '',
+  brandName: '',
+  jobName: '',
   stage: InterviewStage.PHONE_INTERVIEW,
   interviewTime: null as Date | null,
   address: '',
@@ -271,6 +287,10 @@ const handlePageSizeChange = (newSize: number) => {
 function handleEdit(row: VInterviewRecord) {
   editForm.value = {
     id: row.id,
+    bossName: row.bossName || '',
+    bossTitle: row.bossTitle || '',
+    brandName: row.brandName || '',
+    jobName: row.jobName || '',
     stage: row.stage,
     interviewTime: row.interviewTime ? new Date(row.interviewTime) : null,
     address: row.address || '',
@@ -285,6 +305,10 @@ function handleEdit(row: VInterviewRecord) {
 async function handleSaveEdit() {
   try {
     await electron.ipcRenderer.invoke('update-interview-record', editForm.value.id, {
+      bossName: editForm.value.bossName,
+      bossTitle: editForm.value.bossTitle,
+      brandName: editForm.value.brandName,
+      jobName: editForm.value.jobName,
       stage: editForm.value.stage,
       interviewTime: editForm.value.interviewTime,
       address: editForm.value.address,
