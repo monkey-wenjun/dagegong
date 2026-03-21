@@ -654,7 +654,7 @@ export async function getInterviewRecordList(
   if (stage) {
     where.stage = stage
   }
-  if (encryptUserId) {
+  if (encryptUserId && encryptUserId.trim() !== '') {
     where.encryptUserId = encryptUserId
   }
   
