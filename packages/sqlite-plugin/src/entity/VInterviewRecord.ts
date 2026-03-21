@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { ViewEntity, ViewColumn } from 'typeorm';
 import { InterviewStage, InterviewSource } from './InterviewRecord';
 

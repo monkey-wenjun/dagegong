@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import * as typeorm from 'typeorm';
 const { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } = typeorm
 
