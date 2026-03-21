@@ -26,6 +26,13 @@ const { default: SqlitePlugin } = SqlitePluginModule
 
 process.on('SIGTERM', () => {
   console.log('收到SIGTERM信号，正在退出')
+  // 尝试关闭浏览器以加速退出
+  try {
+    const { closeBrowserWindow } = require('@dagegong/geek-auto-start-chat-with-boss/index.mjs')
+    closeBrowserWindow?.()
+  } catch (e) {
+    // 忽略错误
+  }
   process.exit(0)
 })
 

@@ -47,6 +47,12 @@ import { setDomainLocalStorage } from '@dagegong/utils/puppeteer/local-storage.m
 
 process.on('SIGTERM', () => {
   console.log('收到SIGTERM信号，正在退出')
+  // 尝试关闭浏览器以加速退出
+  try {
+    pageMapByName?.boss?.close()
+  } catch (e) {
+    // 忽略错误
+  }
   process.exit(0)
 })
 
