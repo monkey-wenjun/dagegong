@@ -2,8 +2,6 @@ appId: com.zhaogegongdada.ui
 productName: 找个工打打
 directories:
   buildResources: build
-icon: icon.ico
-
 files:
   # Include build output (must be explicit for entry file to work)
   - 'out/**'
@@ -79,13 +77,14 @@ extraResources:
 win:
   executableName: dagegong
   requestedExecutionLevel: asInvoker
-  icon: icon.ico
+  icon: build/icon.ico
 nsis:
   artifactName: dagegong_${version}_${arch}_setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  icon: build/icon.icns
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
@@ -96,6 +95,7 @@ mac:
 dmg:
   artifactName: dagegong_${version}_${arch}.${ext}
 linux:
+  icon: build/icon.png
   artifactName: dagegong_${version}_${arch}.${ext}
   maintainer: 找个工打打
   category: Utility
