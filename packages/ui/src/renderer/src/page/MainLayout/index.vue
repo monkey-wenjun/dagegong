@@ -10,6 +10,8 @@
         <RunDataRecordPart />
         <hr class="group-divider" />
         <InterviewPlanPart />
+        <hr class="group-divider" />
+        <DataAnalysisPart />
       </div>
       <div class="pt-16px pb-16px flex-0 font-size-12px">
         <ThemeSwitcher />
@@ -66,6 +68,7 @@ import BossPart from './LeftNavBar/BossPart.vue'
 import GlobalConfigPart from './LeftNavBar/GlabalConfigPart.vue'
 import RunDataRecordPart from './LeftNavBar/RunDataRecordPart.vue'
 import InterviewPlanPart from './LeftNavBar/InterviewPlanPart.vue'
+import DataAnalysisPart from './LeftNavBar/DataAnalysisPart.vue'
 import ThemeSwitcher from '../../components/ThemeSwitcher.vue'
 
 useRouter()
