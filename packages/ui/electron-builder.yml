@@ -79,8 +79,7 @@ extraResources:
 win:
   executableName: dagegong
   requestedExecutionLevel: asInvoker
-  signAndEditExecutable: false
-  icon: build/icon.ico
+  icon: icon.ico
 nsis:
   artifactName: dagegong_${version}_${arch}_setup.${ext}
   shortcutName: ${productName}
