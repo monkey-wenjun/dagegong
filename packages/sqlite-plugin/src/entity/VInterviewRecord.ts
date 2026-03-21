@@ -85,9 +85,6 @@ export class VInterviewRecord {
   salaryMonth?: number;
 
   @ViewColumn()
-  cityName?: string;
-
-  @ViewColumn()
   experienceName?: string;
 
   @ViewColumn()
