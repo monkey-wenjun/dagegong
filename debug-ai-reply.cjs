@@ -23,7 +23,9 @@ if (unreadList.length === 0) {
   console.log('   没有未读消息');
 } else {
   unreadList.forEach((r, i) => {
-    const updateTimeStr = r.updateTime ? new Date(r.updateTime * 1000).toLocaleString() : '未知';
+    // 修正时间转换：updateTime 是毫秒
+    const updateTimeMs = r.updateTime > 1000000000000 ? r.updateTime : r.updateTime * 1000;
+    const updateTimeStr = new Date(updateTimeMs).toLocaleString();
     console.log(`   [${i+1}] ${r.bossName}`);
     console.log(`       未读: ${r.unreadCount}, 最后是自己: ${r.lastIsSelf}`);
     console.log(`       最后消息: ${r.lastText?.substring(0, 30)}`);
@@ -40,7 +42,7 @@ const recentConvs = db.prepare(`
   FROM boss_chat_relation 
   WHERE updateTime > ?
   ORDER BY updateTime DESC
-`).all(Math.floor(sevenDaysAgo / 1000));
+`).all(Math.floor(sevenDaysAgo));  // 注意：updateTime 是毫秒，不用除1000
 
 console.log(`   最近7天对话数: ${recentConvs.length}`);
 
@@ -77,8 +79,15 @@ if (viewData.length === 0) {
   console.log('   视图中没有未读消息');
 } else {
   viewData.forEach((r, i) => {
-    console.log(`   [${i+1}] ${r.bossName}: unread=${r.unreadCount}, lastIsSelf=${r.lastIsSelf}`);
+    const timeMs = r.updateTime > 1000000000000 ? r.updateTime : r.updateTime * 1000;
+    const timeStr = new Date(timeMs).toLocaleString();
+    console.log(`   [${i+1}] ${r.bossName}: unread=${r.unreadCount}, lastIsSelf=${r.lastIsSelf}, time=${timeStr}`);
   });
 }
+
+// 6. 当前时间参考
+console.log('\n6. 当前时间:');
+console.log(`   ${new Date().toLocaleString()}`);
+console.log(`   7天前: ${new Date(sevenDaysAgo).toLocaleString()}`);
 
 console.log('\n========== 诊断完成 ==========');

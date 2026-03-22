@@ -289,7 +289,10 @@ const payloadHandler = {
       }
     })
 
-    return messagesWithStyle
+    // 统一返回格式
+    return {
+      data: messagesWithStyle
+    }
   }
 }
 
