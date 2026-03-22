@@ -42,6 +42,9 @@ const CHECK_INTERVAL = 2 * 60 * 1000 // 2分钟检查一次（更频繁）
 // 记录已回复的消息，防止重复回复（内存缓存）
 let repliedMessageIds = new Set<string>()
 
+// 记录正在处理中的消息，防止并发重复处理
+const processingMessageIds = new Set<string>()
+
 // 已回复记录文件路径
 const REPLIED_MESSAGES_FILE = 'ai-auto-replied-messages.json'
 
@@ -518,108 +521,126 @@ async function processReply(
     runningLogManager.logInfo(msg)
     return
   }
-
-  // 如果最后一条是自己发的，不需要回复
-  if (boss.lastIsSelf) {
-    const msg = `[AiAutoReply] ${boss.bossName} 的最后一条消息是自己发的，跳过`
+  
+  // 检查是否正在处理中（防止并发）
+  if (processingMessageIds.has(messageKey)) {
+    const msg = `[AiAutoReply] ${boss.bossName} 的消息正在处理中，跳过`
     console.log(msg)
     runningLogManager.logInfo(msg)
     return
   }
   
-  const detectMsg = `[AiAutoReply] 检测到 ${boss.bossName} 的新消息: ${boss.lastText}`
-  console.log(detectMsg)
-  runningLogManager.logInfo(detectMsg, { 
-    type: 'ai-detect', 
-    bossName: boss.bossName, 
-    bossId: boss.encryptBossId,
-    receivedMessage: boss.lastText 
-  })
-  
-  // 获取聊天记录作为上下文
-  const encryptUserId = await getCurrentUserId()
-  let chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
-  
-  if (encryptUserId) {
-    chatHistory = await getChatHistory(boss.encryptBossId, encryptUserId)
-  }
-  
-  // 调用AI生成回复
-  const callingMsg = `[AiAutoReply] 调用 AI 生成回复...`
-  console.log(callingMsg)
-  runningLogManager.logInfo(callingMsg, { 
-    type: 'ai-calling', 
-    bossName: boss.bossName,
-    receivedMessage: boss.lastText,
-    contextLength: chatHistory.length
-  })
-  
-  const reply = await callDifyApi(boss.lastText, config, chatHistory)
-  
-  if (!reply) {
-    const noReplyMsg = `[AiAutoReply] AI 未生成回复`
-    console.log(noReplyMsg)
-    runningLogManager.logInfo(noReplyMsg, { type: 'ai-no-reply', bossName: boss.bossName })
-    return
-  }
-  
-  const generatedMsg = `[AiAutoReply] AI 生成回复: ${reply.slice(0, 100)}${reply.length > 100 ? '...' : ''}`
-  console.log(generatedMsg)
-  runningLogManager.logInfo(generatedMsg, { 
-    type: 'ai-generated', 
-    bossName: boss.bossName, 
-    aiResponse: reply 
-  })
-  
-  // 随机延迟 3-10 秒，模拟人工
-  const delay = Math.floor(Math.random() * 8000) + 3000
-  const delayMsg = `[AiAutoReply] 等待 ${delay}ms 后发送...`
-  console.log(delayMsg)
-  runningLogManager.logInfo(delayMsg, { type: 'ai-delay', bossName: boss.bossName, delay })
-  await new Promise(r => setTimeout(r, delay))
-  
-  // 发送完整回复
-  console.log('[AiAutoReply] [ProcessReply] ====== 准备发送阶段 ======')
-  console.log('[AiAutoReply] [ProcessReply] BOSS:', boss.bossName)
-  console.log('[AiAutoReply] [ProcessReply] BOSS ID:', boss.encryptBossId)
-  console.log('[AiAutoReply] [ProcessReply] Job ID:', boss.encryptJobId || 'undefined')
-  console.log('[AiAutoReply] [ProcessReply] 回复内容:', reply)
-  console.log('[AiAutoReply] [ProcessReply] 回复长度:', reply.length)
-  
-  const sendingMsg = `[AiAutoReply] 发送回复给 ${boss.bossName}...`
-  console.log(sendingMsg)
-  runningLogManager.logInfo(sendingMsg, { 
-    type: 'ai-sending', 
-    bossName: boss.bossName,
-    replyContent: reply 
-  })
-  
-  console.log('[AiAutoReply] [ProcessReply] 调用 sendReply...')
-  const sent = await sendReply(boss.encryptBossId, boss.encryptJobId, reply)
-  console.log('[AiAutoReply] [ProcessReply] sendReply 返回:', sent)
-  
-  if (sent) {
-    repliedMessageIds.add(messageKey)
-    console.log(`[AiAutoReply] [ProcessReply] 已添加到已回复集合，当前数量: ${repliedMessageIds.size}`)
+  // 标记为正在处理
+  processingMessageIds.add(messageKey)
+  console.log(`[AiAutoReply] [ProcessReply] 标记为正在处理，当前处理中数量: ${processingMessageIds.size}`)
+
+  try {
+    // 如果最后一条是自己发的，不需要回复
+    if (boss.lastIsSelf) {
+      const msg = `[AiAutoReply] ${boss.bossName} 的最后一条消息是自己发的，跳过`
+      console.log(msg)
+      runningLogManager.logInfo(msg)
+      return
+    }
     
-    // 持久化保存已回复记录
-    await saveRepliedMessages(repliedMessageIds)
-    
-    const successMsg = `[AiAutoReply] 成功回复 ${boss.bossName}`
-    console.log(successMsg)
-    
-    runningLogManager.logAiReply({
-      bossName: boss.bossName,
+    const detectMsg = `[AiAutoReply] 检测到 ${boss.bossName} 的新消息: ${boss.lastText}`
+    console.log(detectMsg)
+    runningLogManager.logInfo(detectMsg, { 
+      type: 'ai-detect', 
+      bossName: boss.bossName, 
       bossId: boss.encryptBossId,
-      jobName: boss.jobName,
-      receivedMessage: boss.lastText,
-      replyContent: reply,
-      aiResponse: reply
+      receivedMessage: boss.lastText 
     })
-  } else {
-    const failMsg = `[AiAutoReply] 发送回复给 ${boss.bossName} 失败`
-    console.log(failMsg)
-    runningLogManager.logError(failMsg, { bossName: boss.bossName, bossId: boss.encryptBossId })
+    
+    // 获取聊天记录作为上下文
+    const encryptUserId = await getCurrentUserId()
+    let chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
+    
+    if (encryptUserId) {
+      chatHistory = await getChatHistory(boss.encryptBossId, encryptUserId)
+    }
+    
+    // 调用AI生成回复
+    const callingMsg = `[AiAutoReply] 调用 AI 生成回复...`
+    console.log(callingMsg)
+    runningLogManager.logInfo(callingMsg, { 
+      type: 'ai-calling', 
+      bossName: boss.bossName,
+      receivedMessage: boss.lastText,
+      contextLength: chatHistory.length
+    })
+    
+    const reply = await callDifyApi(boss.lastText, config, chatHistory)
+    
+    if (!reply) {
+      const noReplyMsg = `[AiAutoReply] AI 未生成回复`
+      console.log(noReplyMsg)
+      runningLogManager.logInfo(noReplyMsg, { type: 'ai-no-reply', bossName: boss.bossName })
+      return
+    }
+    
+    const generatedMsg = `[AiAutoReply] AI 生成回复: ${reply.slice(0, 100)}${reply.length > 100 ? '...' : ''}`
+    console.log(generatedMsg)
+    runningLogManager.logInfo(generatedMsg, { 
+      type: 'ai-generated', 
+      bossName: boss.bossName, 
+      aiResponse: reply 
+    })
+    
+    // 随机延迟 3-10 秒，模拟人工
+    const delay = Math.floor(Math.random() * 8000) + 3000
+    const delayMsg = `[AiAutoReply] 等待 ${delay}ms 后发送...`
+    console.log(delayMsg)
+    runningLogManager.logInfo(delayMsg, { type: 'ai-delay', bossName: boss.bossName, delay })
+    await new Promise(r => setTimeout(r, delay))
+    
+    // 发送完整回复
+    console.log('[AiAutoReply] [ProcessReply] ====== 准备发送阶段 ======')
+    console.log('[AiAutoReply] [ProcessReply] BOSS:', boss.bossName)
+    console.log('[AiAutoReply] [ProcessReply] BOSS ID:', boss.encryptBossId)
+    console.log('[AiAutoReply] [ProcessReply] Job ID:', boss.encryptJobId || 'undefined')
+    console.log('[AiAutoReply] [ProcessReply] 回复内容:', reply)
+    console.log('[AiAutoReply] [ProcessReply] 回复长度:', reply.length)
+    
+    const sendingMsg = `[AiAutoReply] 发送回复给 ${boss.bossName}...`
+    console.log(sendingMsg)
+    runningLogManager.logInfo(sendingMsg, { 
+      type: 'ai-sending', 
+      bossName: boss.bossName,
+      replyContent: reply 
+    })
+    
+    console.log('[AiAutoReply] [ProcessReply] 调用 sendReply...')
+    const sent = await sendReply(boss.encryptBossId, boss.encryptJobId, reply)
+    console.log('[AiAutoReply] [ProcessReply] sendReply 返回:', sent)
+    
+    if (sent) {
+      repliedMessageIds.add(messageKey)
+      console.log(`[AiAutoReply] [ProcessReply] 已添加到已回复集合，当前数量: ${repliedMessageIds.size}`)
+      
+      // 持久化保存已回复记录
+      await saveRepliedMessages(repliedMessageIds)
+      
+      const successMsg = `[AiAutoReply] 成功回复 ${boss.bossName}`
+      console.log(successMsg)
+      
+      runningLogManager.logAiReply({
+        bossName: boss.bossName,
+        bossId: boss.encryptBossId,
+        jobName: boss.jobName,
+        receivedMessage: boss.lastText,
+        replyContent: reply,
+        aiResponse: reply
+      })
+    } else {
+      const failMsg = `[AiAutoReply] 发送回复给 ${boss.bossName} 失败`
+      console.log(failMsg)
+      runningLogManager.logError(failMsg, { bossName: boss.bossName, bossId: boss.encryptBossId })
+    }
+  } finally {
+    // 无论成功失败，都移除处理中标记
+    processingMessageIds.delete(messageKey)
+    console.log(`[AiAutoReply] [ProcessReply] 移除处理中标记，当前处理中数量: ${processingMessageIds.size}`)
   }
 }
 
