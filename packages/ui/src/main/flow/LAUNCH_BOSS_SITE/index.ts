@@ -589,6 +589,14 @@ export async function launchBossSiteForReply(
   })
   console.log('[LaunchBossSite] 浏览器启动成功')
 
+  // 确保 debug 目录存在
+  const debugDir = path.join(app.getPath('userData'), 'debug')
+  await import('fs').then(fs => {
+    if (!fs.existsSync(debugDir)) {
+      fs.mkdirSync(debugDir, { recursive: true })
+    }
+  })
+
   try {
     console.log('[LaunchBossSite] 正在创建新页面...')
     const page = await browser.newPage()
@@ -708,13 +716,6 @@ export async function launchBossSiteForReply(
     console.log('[LaunchBossSite] 准备发送消息...')
     
     // 先截图查看页面状态
-    const debugDir = path.join(app.getPath('userData'), 'debug')
-    await import('fs').then(fs => {
-      if (!fs.existsSync(debugDir)) {
-        fs.mkdirSync(debugDir, { recursive: true })
-      }
-    })
-    
     const beforeScreenshotPath = path.join(debugDir, `reply-before-${Date.now()}.png`)
     await page.screenshot({ path: beforeScreenshotPath, fullPage: true })
     console.log('[LaunchBossSite] 发送前截图已保存:', beforeScreenshotPath)
