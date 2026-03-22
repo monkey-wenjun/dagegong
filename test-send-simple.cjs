@@ -172,10 +172,9 @@ function generateTestScript() {
   fs.writeFileSync(outputFile, testCode)
   console.log('')
   console.log('代码已保存到:', outputFile)
-})()
-`)
-  
-  console.log('')
+}
+
+function main() {
   console.log('========== 使用说明 ==========')
   console.log('')
   console.log('方式一：浏览器控制台测试（推荐）')
