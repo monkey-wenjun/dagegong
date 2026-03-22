@@ -591,7 +591,7 @@ async function processReply(
     const delay = Math.floor(Math.random() * 8000) + 3000
     const delayMsg = `[AiAutoReply] 等待 ${delay}ms 后发送...`
     console.log(delayMsg)
-    runningLogManager.logInfo(delayMsg, { type: 'ai-delay', bossName: boss.bossName, delay })
+    try { runningLogManager.logInfo(delayMsg, { type: 'ai-delay', bossName: boss.bossName, delay }) } catch (e) {}
     await new Promise(r => setTimeout(r, delay))
     
     // 发送完整回复
@@ -604,38 +604,48 @@ async function processReply(
     
     const sendingMsg = `[AiAutoReply] 发送回复给 ${boss.bossName}...`
     console.log(sendingMsg)
-    runningLogManager.logInfo(sendingMsg, { 
-      type: 'ai-sending', 
-      bossName: boss.bossName,
-      replyContent: reply 
-    })
+    try {
+      runningLogManager.logInfo(sendingMsg, { 
+        type: 'ai-sending', 
+        bossName: boss.bossName,
+        replyContent: reply 
+      })
+    } catch (e) {}
     
     console.log('[AiAutoReply] [ProcessReply] 调用 sendReply...')
-    const sent = await sendReply(boss.encryptBossId, boss.encryptJobId, reply)
-    console.log('[AiAutoReply] [ProcessReply] sendReply 返回:', sent)
+    let sent = false
+    try {
+      sent = await sendReply(boss.encryptBossId, boss.encryptJobId, reply)
+      console.log('[AiAutoReply] [ProcessReply] sendReply 返回:', sent)
+    } catch (err) {
+      console.error('[AiAutoReply] [ProcessReply] sendReply 抛出异常:', err)
+      sent = false
+    }
     
     if (sent) {
       repliedMessageIds.add(messageKey)
       console.log(`[AiAutoReply] [ProcessReply] 已添加到已回复集合，当前数量: ${repliedMessageIds.size}`)
       
       // 持久化保存已回复记录
-      await saveRepliedMessages(repliedMessageIds)
+      try { await saveRepliedMessages(repliedMessageIds) } catch (e) {}
       
       const successMsg = `[AiAutoReply] 成功回复 ${boss.bossName}`
       console.log(successMsg)
       
-      runningLogManager.logAiReply({
-        bossName: boss.bossName,
-        bossId: boss.encryptBossId,
-        jobName: boss.jobName,
-        receivedMessage: boss.lastText,
-        replyContent: reply,
-        aiResponse: reply
-      })
+      try {
+        runningLogManager.logAiReply({
+          bossName: boss.bossName,
+          bossId: boss.encryptBossId,
+          jobName: boss.jobName,
+          receivedMessage: boss.lastText,
+          replyContent: reply,
+          aiResponse: reply
+        })
+      } catch (e) {}
     } else {
       const failMsg = `[AiAutoReply] 发送回复给 ${boss.bossName} 失败`
       console.log(failMsg)
-      runningLogManager.logError(failMsg, { bossName: boss.bossName, bossId: boss.encryptBossId })
+      try { runningLogManager.logError(failMsg, { bossName: boss.bossName, bossId: boss.encryptBossId }) } catch (e) {}
     }
   } finally {
     // 无论成功失败，都移除处理中标记

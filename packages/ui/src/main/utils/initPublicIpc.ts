@@ -294,10 +294,9 @@ export default function initPublicIpc() {
   // 初始化自动同步 IPC 处理
   initAutoSyncIpc()
 
-  // 初始化 AI 自动回复 IPC
-  import('../features/ai-auto-reply-service').then(async ({ initAiAutoReplyIpc, startAiAutoReply }) => {
+  // 初始化 AI 自动回复 IPC（不自动启动，等待用户手动开启）
+  import('../features/ai-auto-reply-service').then(async ({ initAiAutoReplyIpc }) => {
     initAiAutoReplyIpc()
-    // 如果配置启用，自动启动服务
-    await startAiAutoReply()
+    // 注意：AI 自动回复服务不会自动启动，需要用户通过界面手动开启
   })
 }
