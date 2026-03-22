@@ -603,10 +603,8 @@ export async function launchBossSiteForReply(
     }
     console.log('[LaunchBossSite] Cookie 设置完成')
 
-    // 打开聊天页面
-    const chatUrl = encryptJobId
-      ? `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}&jobId=${encryptJobId}`
-      : `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}`
+    // 打开聊天页面 - 使用简洁的 URL，让页面自动加载
+    const chatUrl = 'https://www.zhipin.com/web/geek/chat'
     console.log('[LaunchBossSite] 正在打开聊天页面:', chatUrl)
 
     await page.goto(chatUrl, {
@@ -615,11 +613,84 @@ export async function launchBossSiteForReply(
     })
     console.log('[LaunchBossSite] 页面加载完成')
 
+    // 截图查看初始页面
+    const initialScreenshotPath = path.join(debugDir, `reply-initial-${Date.now()}.png`)
+    await page.screenshot({ path: initialScreenshotPath, fullPage: true })
+    console.log('[LaunchBossSite] 初始页面截图已保存:', initialScreenshotPath)
+
     // 等待页面加载
     console.log('[LaunchBossSite] 等待聊天界面...')
-    await page.waitForSelector('.chat-conversation', { timeout: 30000 })
+    await page.waitForSelector('.chat-conversation, .chat-list, .main-wrap', { timeout: 30000 })
     console.log('[LaunchBossSite] 聊天界面加载完成')
+    await new Promise((r) => setTimeout(r, 3000))
+    
+    // 在左侧列表中找到并点击目标 BOSS
+    console.log(`[LaunchBossSite] 在左侧列表中查找 BOSS: ${encryptBossId}`)
+    const foundBoss = await page.evaluate((targetBossId) => {
+      // 尝试多种选择器找到对话列表项
+      const selectors = [
+        '.chat-list .chat-item',
+        '.conversation-list .conversation-item',
+        '.friend-list .friend-item',
+        '[class*="chat"] [class*="item"]',
+        '.chat-record'
+      ]
+      
+      for (const selector of selectors) {
+        const items = document.querySelectorAll(selector)
+        console.log(`[LaunchBossSite] 选择器 ${selector} 找到 ${items.length} 个元素`)
+        
+        for (const item of items) {
+          // 检查是否包含目标 BOSS ID
+          const vueData = (item as any).__vue__ || (item as any).__VUE__
+          const itemBossId = vueData?.encryptBossId || vueData?.bossId || 
+                            item.getAttribute('data-boss-id') ||
+                            item.getAttribute('boss-id')
+          
+          if (itemBossId === targetBossId) {
+            // 找到目标 BOSS，点击它
+            (item as HTMLElement).click()
+            return { found: true, selector, bossId: itemBossId }
+          }
+        }
+      }
+      
+      // 如果没找到精确匹配，尝试文本匹配
+      const allItems = document.querySelectorAll('.chat-list .chat-item, .conversation-list .conversation-item, .friend-list .friend-item')
+      for (const item of allItems) {
+        const text = item.textContent || ''
+        // 如果文本包含某些关键词，也可以尝试点击
+        if (text.includes('期望薪资') || text.includes('薪资')) {
+          (item as HTMLElement).click()
+          return { found: true, selector: 'text-match', text: text.slice(0, 50) }
+        }
+      }
+      
+      return { found: false, totalItems: allItems.length }
+    }, encryptBossId)
+    
+    console.log('[LaunchBossSite] 查找 BOSS 结果:', foundBoss)
+    
+    if (!foundBoss.found) {
+      console.log('[LaunchBossSite] 未找到目标 BOSS，尝试点击第一个对话...')
+      // 尝试点击第一个对话
+      await page.evaluate(() => {
+        const firstItem = document.querySelector('.chat-list .chat-item, .conversation-list .conversation-item, .friend-list .friend-item')
+        if (firstItem) {
+          (firstItem as HTMLElement).click()
+          return true
+        }
+        return false
+      })
+    }
+    
+    // 等待对话加载
     await new Promise((r) => setTimeout(r, 2000))
+    
+    // 截图确认当前对话
+    const afterClickScreenshotPath = path.join(debugDir, `reply-after-click-${Date.now()}.png`)
+    await page.screenshot({ path: afterClickScreenshotPath, fullPage: true })
+    console.log('[LaunchBossSite] 点击后截图已保存:', afterClickScreenshotPath)
 
     // 检查是否登录
     console.log('[LaunchBossSite] 检查登录状态...')
@@ -648,9 +719,11 @@ export async function launchBossSiteForReply(
     await page.screenshot({ path: beforeScreenshotPath, fullPage: true })
     console.log('[LaunchBossSite] 发送前截图已保存:', beforeScreenshotPath)
     
+    // 查找输入框
     const chatInputSelector = '.chat-conversation .message-controls .chat-input'
     console.log('[LaunchBossSite] 查找输入框，选择器:', chatInputSelector)
-    const chatInputHandle = await page.$(chatInputSelector)
+    let chatInputHandle = await page.$(chatInputSelector)
+    
     if (!chatInputHandle) {
       // 尝试其他可能的选择器
       console.log('[LaunchBossSite] 未找到输入框，尝试备用选择器...')
@@ -658,19 +731,30 @@ export async function launchBossSiteForReply(
         '.chat-input',
         '[contenteditable="true"]',
         '.editor-input',
-        'div[role="textbox"]'
+        'div[role="textbox"]',
+        '.message-controls textarea',
+        '.chat-editor'
       ]
-      let foundInput = null
       for (const sel of alternativeSelectors) {
-        foundInput = await page.$(sel)
-        if (foundInput) {
+        chatInputHandle = await page.$(sel)
+        if (chatInputHandle) {
           console.log('[LaunchBossSite] 使用备用选择器找到输入框:', sel)
           break
         }
       }
-      if (!foundInput) {
-        throw new Error('未找到聊天输入框')
-      }
+    }
+    
+    if (!chatInputHandle) {
+      // 截图查看页面结构
+      const errorScreenshotPath = path.join(debugDir, `reply-error-no-input-${Date.now()}.png`)
+      await page.screenshot({ path: errorScreenshotPath, fullPage: true })
+      console.log('[LaunchBossSite] 未找到输入框，错误截图:', errorScreenshotPath)
+      
+      // 获取页面 HTML 帮助调试
+      const html = await page.content()
+      console.log('[LaunchBossSite] 页面 HTML 片段:', html.substring(0, 2000))
+      
+      throw new Error('未找到聊天输入框')
     }
     console.log('[LaunchBossSite] 找到聊天输入框')
 
@@ -683,6 +767,9 @@ export async function launchBossSiteForReply(
       if (el instanceof HTMLElement) {
         el.innerHTML = ''
         el.textContent = ''
+        if ((el as HTMLInputElement).value !== undefined) {
+          (el as HTMLInputElement).value = ''
+        }
       }
     })
     await new Promise((r) => setTimeout(r, 200))
@@ -698,30 +785,53 @@ export async function launchBossSiteForReply(
     
     console.log('[LaunchBossSite] 点击发送按钮...')
     const sendButtonSelector = '.chat-conversation .message-controls .chat-op .btn-send:not(.disabled)'
-    const sendButton = await page.$(sendButtonSelector)
+    let sendButton = await page.$(sendButtonSelector)
+    
     if (!sendButton) {
       console.log('[LaunchBossSite] 未找到发送按钮，尝试备用选择器...')
       const altButtonSelectors = [
         '.btn-send',
         '[class*="send"]',
-        'button:has-text("发送")'
+        'button:has-text("发送")',
+        '.message-controls button',
+        '.chat-op button'
       ]
-      let foundButton = null
       for (const sel of altButtonSelectors) {
-        foundButton = await page.$(sel)
-        if (foundButton) {
+        sendButton = await page.$(sel)
+        if (sendButton) {
           console.log('[LaunchBossSite] 使用备用选择器找到发送按钮:', sel)
           break
         }
       }
-      if (!foundButton) {
-        throw new Error('未找到发送按钮')
-      }
-      await foundButton.click()
-    } else {
-      console.log('[LaunchBossSite] 找到发送按钮，准备点击')
-      await sendButton.click()
     }
+    
+    if (!sendButton) {
+      // 尝试通过文本内容找到发送按钮
+      console.log('[LaunchBossSite] 尝试通过文本查找发送按钮...')
+      sendButton = await page.evaluateHandle(() => {
+        const buttons = document.querySelectorAll('button, div[role="button"]')
+        for (const btn of buttons) {
+          const text = btn.textContent?.trim()
+          if (text === '发送' || text?.includes('发送')) {
+            return btn
+          }
+        }
+        return null
+      })
+      if (sendButton) {
+        console.log('[LaunchBossSite] 通过文本找到发送按钮')
+      }
+    }
+    
+    if (!sendButton) {
+      const errorScreenshotPath = path.join(debugDir, `reply-error-no-button-${Date.now()}.png`)
+      await page.screenshot({ path: errorScreenshotPath, fullPage: true })
+      console.log('[LaunchBossSite] 未找到发送按钮，错误截图:', errorScreenshotPath)
+      throw new Error('未找到发送按钮')
+    }
+    
+    console.log('[LaunchBossSite] 找到发送按钮，准备点击')
+    await sendButton.click()
 
     // 等待消息发送成功
     console.log('[LaunchBossSite] 等待发送完成...')
