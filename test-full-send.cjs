@@ -123,30 +123,93 @@ async function testFullSend() {
     
     await page.screenshot({ path: path.join(debugDir, '02-after-search.png') })
     
-    // ====== 步骤 3：点击搜索结果 ======
-    console.log('\n[Test] 步骤 3：点击搜索结果...')
+    // ====== 步骤 3：抓取搜索后的 HTML 分析 ======
+    console.log('\n[Test] 步骤 3：抓取搜索后的 HTML 分析...')
     
-    // 查找并点击第一个对话项
-    const chatClicked = await page.evaluate(() => {
-      const selectors = [
-        '.chat-list .chat-item',
-        '.friend-list .friend-item',
-        '.conversation-item',
-        '.chat-user-item',
-        '[class*="list"] > [class*="item"]'
-      ]
+    // 保存 HTML
+    const htmlAfterSearch = await page.content()
+    fs.writeFileSync(path.join(debugDir, '02-after-search.html'), htmlAfterSearch)
+    console.log('[Test] 搜索后 HTML 已保存')
+    
+    // 分析搜索结果结构
+    const searchResultAnalysis = await page.evaluate(() => {
+      const results = []
       
-      for (const sel of selectors) {
-        const items = document.querySelectorAll(sel)
-        if (items.length > 0) {
-          items[0].click()
-          return { clicked: true, selector: sel, count: items.length }
+      // 查找所有可能包含搜索结果的结构
+      const containers = document.querySelectorAll('[class*="search"], [class*="result"], [class*="list"]')
+      for (const container of containers) {
+        const children = container.children
+        if (children.length > 0) {
+          results.push({
+            parentClass: container.className?.slice(0, 50),
+            parentTag: container.tagName,
+            childCount: children.length,
+            firstChildClass: children[0].className?.slice(0, 50),
+            firstChildTag: children[0].tagName,
+            firstChildHTML: children[0].outerHTML?.slice(0, 200)
+          })
         }
       }
-      return { clicked: false }
+      
+      // 特别查找包含"林先生"的元素
+      const allElements = document.querySelectorAll('*')
+      const bossElements = []
+      for (const el of allElements) {
+        if (el.textContent?.includes('林先生') && el.children.length === 0) {
+          let parent = el.parentElement
+          let depth = 0
+          while (parent && depth < 3) {
+            bossElements.push({
+              depth,
+              tag: parent.tagName,
+              class: parent.className?.slice(0, 50),
+              clickable: parent.onclick !== null || parent.tagName === 'A' || parent.tagName === 'BUTTON'
+            })
+            parent = parent.parentElement
+            depth++
+          }
+          break
+        }
+      }
+      
+      return { containerAnalysis: results.slice(0, 5), bossElements: bossElements.slice(0, 3) }
     })
     
-    console.log('点击结果:', chatClicked)
+    console.log('[Test] 搜索结果分析:', JSON.stringify(searchResultAnalysis, null, 2))
+    fs.writeFileSync(path.join(debugDir, 'search-analysis.json'), JSON.stringify(searchResultAnalysis, null, 2))
+    
+    // 尝试点击第一个结果（多种方式）
+    console.log('[Test] 尝试点击第一个搜索结果...')
+    
+    // 方式 1：直接点击
+    try {
+      await page.evaluate(() => {
+        // 查找搜索结果区域的第一项
+        const possibleParents = document.querySelectorAll('[class*="search"], [class*="result"]')
+        for (const parent of possibleParents) {
+          const firstItem = parent.querySelector('li, div[class*="item"], a')
+          if (firstItem) {
+            firstItem.click()
+            return { method: 'parent-first-item', className: firstItem.className }
+          }
+        }
+        
+        // 备用：查找所有 li 元素，点击第一个包含头像或名字的
+        const listItems = document.querySelectorAll('li')
+        for (const item of listItems) {
+          if (item.textContent?.includes('林先生') || item.querySelector('img')) {
+            item.click()
+            return { method: 'li-search', text: item.textContent?.slice(0, 30) }
+          }
+        }
+        
+        return { method: 'none' }
+      })
+      console.log('[Test] 已尝试点击')
+    } catch (e) {
+      console.log('[Test] 点击失败:', e.message)
+    }
+    
     await new Promise(r => setTimeout(r, 3000))
     await page.screenshot({ path: path.join(debugDir, '03-chat-opened.png') })
     

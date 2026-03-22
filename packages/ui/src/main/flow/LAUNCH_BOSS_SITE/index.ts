@@ -679,37 +679,11 @@ export async function launchBossSiteForReply(
     // ====== 步骤 3：点击第一个搜索结果 ======
     console.log('[LaunchBossSite] 步骤 3：点击搜索结果...')
     try {
-      // 尝试点击下拉菜单中的第一个结果
-      const firstResultClicked = await page.evaluate(() => {
-        // 查找搜索结果下拉菜单中的第一项
-        const selectors = [
-          '.search-result .chat-item',
-          '.search-result .friend-item',
-          '.search-result [class*="item"]',
-          '.list-warp .chat-item',
-          '.list-warp .friend-item',
-          // 更通用的选择器
-          '[class*="search"] [class*="item"]',
-          '.list-warp [class*="item"]'
-        ]
-        
-        for (const selector of selectors) {
-          const items = document.querySelectorAll(selector)
-          if (items.length > 0) {
-            (items[0] as HTMLElement).click()
-            return { clicked: true, selector, count: items.length }
-          }
-        }
-        return { clicked: false }
-      })
-      
-      console.log('[LaunchBossSite] 点击结果:', firstResultClicked)
-      
-      if (!firstResultClicked.clicked) {
-        // 如果上述方法失败，尝试直接点击坐标（第一个结果大概位置）
-        console.log('[LaunchBossSite] 尝试点击第一个结果的坐标...')
-        await page.click('#container > div > div > div.list-warp.v2 > div > div.boss-search-top', { offset: { x: 10, y: 80 } })
-      }
+      // 点击搜索结果中的第一个结果
+      console.log('[LaunchBossSite] 点击第一个搜索结果...')
+      const searchResultSelector = '.boss-search-result .search-ul .search-list'
+      await page.click(searchResultSelector)
+      console.log('[LaunchBossSite] 已点击搜索结果:', searchResultSelector)
       
       await new Promise((r) => setTimeout(r, 3000))
     } catch (e) {
@@ -802,7 +776,7 @@ export async function launchBossSiteForReply(
     await page.screenshot({ path: beforeScreenshotPath, fullPage: true })
     console.log('[LaunchBossSite] 发送前截图已保存:', beforeScreenshotPath)
     
-    // 查找输入框
+    // 查找输入框（使用测试确认的选择器）
     const chatInputSelector = '.chat-conversation .message-controls .chat-input'
     console.log('[LaunchBossSite] 查找输入框，选择器:', chatInputSelector)
     let chatInputHandle = await page.$(chatInputSelector)
@@ -867,7 +841,8 @@ export async function launchBossSiteForReply(
     console.log('[LaunchBossSite] 输入后截图已保存:', inputScreenshotPath)
     
     console.log('[LaunchBossSite] 点击发送按钮...')
-    const sendButtonSelector = '.chat-conversation .message-controls .chat-op .btn-send:not(.disabled)'
+    // 使用测试确认的选择器
+    const sendButtonSelector = '.chat-conversation .btn-send:not(.disabled)'
     let sendButton = await page.$(sendButtonSelector)
     
     if (!sendButton) {
