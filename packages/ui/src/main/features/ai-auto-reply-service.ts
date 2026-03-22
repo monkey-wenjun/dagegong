@@ -39,8 +39,38 @@ const defaultConfig: AiAutoReplyConfig = {
 let checkTimer: NodeJS.Timeout | null = null
 const CHECK_INTERVAL = 2 * 60 * 1000 // 2分钟检查一次（更频繁）
 
-// 记录已回复的消息，防止重复回复
-const repliedMessageIds = new Set<string>()
+// 记录已回复的消息，防止重复回复（内存缓存）
+let repliedMessageIds = new Set<string>()
+
+// 已回复记录文件路径
+const REPLIED_MESSAGES_FILE = 'ai-auto-replied-messages.json'
+
+// 加载已回复记录
+async function loadRepliedMessages(): Promise<Set<string>> {
+  try {
+    const data = readStorageFile(REPLIED_MESSAGES_FILE) as string[] || []
+    console.log(`[AiAutoReply] 加载已回复记录: ${data.length} 条`)
+    return new Set(data)
+  } catch {
+    console.log('[AiAutoReply] 没有已回复记录或加载失败')
+    return new Set()
+  }
+}
+
+// 保存已回复记录
+async function saveRepliedMessages(ids: Set<string>): Promise<void> {
+  try {
+    // 只保留最近 1000 条记录，防止文件过大
+    const arr = Array.from(ids)
+    if (arr.length > 1000) {
+      arr.splice(0, arr.length - 1000)
+    }
+    await import('@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs')
+      .then(m => m.writeStorageFile(REPLIED_MESSAGES_FILE, arr))
+  } catch (error) {
+    console.error('[AiAutoReply] 保存已回复记录失败:', error)
+  }
+}
 
 // 当前用户ID缓存
 let currentUserId: string | null = null
@@ -255,7 +285,8 @@ async function getUnreadBossesFromDB(): Promise<Array<{
       jobName: conv.jobName || '',
       lastText: conv.lastText || '',
       lastIsSelf: conv.lastIsSelf,
-      unreadCount: conv.unreadCount
+      unreadCount: conv.unreadCount,
+      updateTime: conv.updateTime  // 添加时间戳用于生成唯一键
     }))
   } catch (error) {
     console.error('[AiAutoReply] 查询数据库失败:', error)
@@ -469,14 +500,20 @@ async function processReply(
     lastText: string
     jobName?: string
     lastIsSelf?: boolean
+    updateTime?: number
   },
   config: AiAutoReplyConfig
 ): Promise<void> {
-  const messageKey = `${boss.encryptBossId}:${boss.lastText}`
+  // 使用 BOSS ID + 消息内容 + 时间戳 作为唯一键，避免重复回复
+  // 如果时间戳不存在，则使用当前时间
+  const timeKey = boss.updateTime || Date.now()
+  const messageKey = `${boss.encryptBossId}:${timeKey}:${boss.lastText?.slice(0, 50)}`
+  
+  console.log(`[AiAutoReply] [ProcessReply] 生成消息键: ${boss.encryptBossId?.slice(0, 10)}...:${timeKey}:${boss.lastText?.slice(0, 30)}`)
   
   // 检查是否已回复
   if (repliedMessageIds.has(messageKey)) {
-    const msg = `[AiAutoReply] 已回复过 ${boss.bossName} 的这条消息`
+    const msg = `[AiAutoReply] 已回复过 ${boss.bossName} 的这条消息，跳过`
     console.log(msg)
     runningLogManager.logInfo(msg)
     return
@@ -563,6 +600,11 @@ async function processReply(
   
   if (sent) {
     repliedMessageIds.add(messageKey)
+    console.log(`[AiAutoReply] [ProcessReply] 已添加到已回复集合，当前数量: ${repliedMessageIds.size}`)
+    
+    // 持久化保存已回复记录
+    await saveRepliedMessages(repliedMessageIds)
+    
     const successMsg = `[AiAutoReply] 成功回复 ${boss.bossName}`
     console.log(successMsg)
     
@@ -574,14 +616,6 @@ async function processReply(
       replyContent: reply,
       aiResponse: reply
     })
-    
-    // 限制缓存大小
-    if (repliedMessageIds.size > 500) {
-      const firstKey = repliedMessageIds.values().next().value
-      if (firstKey) {
-        repliedMessageIds.delete(firstKey)
-      }
-    }
   } else {
     const failMsg = `[AiAutoReply] 发送回复给 ${boss.bossName} 失败`
     console.log(failMsg)
@@ -697,6 +731,9 @@ export async function startAiAutoReply(): Promise<void> {
   }
   
   console.log('[AiAutoReply] 启动服务（基于本地数据库），检查间隔:', CHECK_INTERVAL / 60000, '分钟')
+  
+  // 加载已回复记录
+  repliedMessageIds = await loadRepliedMessages()
   
   // 首次启动时运行数据库调试
   try {
