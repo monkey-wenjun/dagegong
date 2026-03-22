@@ -524,22 +524,31 @@ async function getBossChatRelationList() {
   try {
     isTableLoading.value = true
     const encryptUserId = await getCurrentUserId()
+    console.log('[DEBUG] 获取沟通记录，用户ID:', encryptUserId)
 
-    const { data: res } = (await electron.ipcRenderer.invoke('get-boss-chat-relation-list', {
+    const result = await electron.ipcRenderer.invoke('get-boss-chat-relation-list', {
       pageNo: pagination.value.pageNo,
       pageSize: pagination.value.pageSize,
       encryptUserId
-    })) as { data: PagedRes<VBossChatRelation> }
+    })
+    console.log('[DEBUG] 沟通记录返回:', result)
 
-    tableData.value = res.data
+    // 适配两种可能的数据结构
+    const res = result.data || result
+    console.log('[DEBUG] 处理后的数据:', {
+      dataLength: res?.data?.length,
+      totalItemCount: res?.totalItemCount
+    })
+
+    tableData.value = res.data || []
     pagination.value = {
-      totalItemCount: res.totalItemCount,
-      pageNo: res.pageNo,
+      totalItemCount: res.totalItemCount || 0,
+      pageNo: res.pageNo || 1,
       pageSize: pagination.value.pageSize
     }
-    bossRelationCount.value = res.totalItemCount
+    bossRelationCount.value = res.totalItemCount || 0
   } catch (err) {
-    console.error(err)
+    console.error('[DEBUG] 获取沟通记录失败:', err)
     ElMessage.error('获取沟通记录失败')
   } finally {
     isTableLoading.value = false

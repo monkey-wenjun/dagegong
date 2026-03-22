@@ -607,7 +607,13 @@ export default async function initIpc() {
   ipcMain.handle(
     'get-boss-chat-relation-list',
     async (ev, payload: PageReq & { encryptUserId?: string }) => {
+      console.log('[DEBUG] get-boss-chat-relation-list called with:', payload)
       const a = await getBossChatRelationList(payload)
+      console.log('[DEBUG] get-boss-chat-relation-list returning:', {
+        dataLength: a?.data?.length,
+        totalItemCount: a?.totalItemCount,
+        pageNo: a?.pageNo
+      })
       return a
     }
   )
