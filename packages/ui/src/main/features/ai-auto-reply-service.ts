@@ -339,15 +339,19 @@ async function callDifyApi(
   config: AiAutoReplyConfig,
   chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
 ): Promise<string | null> {
+  console.log('[AiAutoReply] [CallDifyApi] ====== 开始调用 Dify API ======')
+  console.log('[AiAutoReply] [CallDifyApi] 原始消息:', message)
+  console.log('[AiAutoReply] [CallDifyApi] 消息长度:', message.length)
+  console.log('[AiAutoReply] [CallDifyApi] API URL:', config.apiUrl)
+  console.log('[AiAutoReply] [CallDifyApi] API Key 存在:', !!config.apiKey)
+  console.log('[AiAutoReply] [CallDifyApi] 历史消息数:', chatHistory?.length || 0)
+  
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000)
 
-    console.log('[AiAutoReply] 调用 AI API，消息:', message.slice(0, 50) + '...')
-    if (chatHistory?.length) {
-      console.log(`[AiAutoReply] 包含 ${chatHistory.length} 条历史消息作为上下文`)
-    }
-
+    console.log('[AiAutoReply] [CallDifyApi] 构建请求...')
+    
     // 构建带上下文的 query
     let query = message
     if (chatHistory && chatHistory.length > 0) {
@@ -358,42 +362,69 @@ async function callDifyApi(
       
       query = `以下是我与 BOSS 的历史对话：\n\n${context}\n\n现在 BOSS 说: "${message}"\n\n请基于以上对话上下文，给出一个自然、得体的回复。`
     }
+    
+    console.log('[AiAutoReply] [CallDifyApi] 最终 Query 长度:', query.length)
+    console.log('[AiAutoReply] [CallDifyApi] 最终 Query 预览:', query.substring(0, 150) + '...')
+    
+    const requestBody = {
+      inputs: {},
+      query: query,
+      response_mode: 'blocking',
+      conversation_id: '',
+      user: 'dagegong-auto-reply'
+    }
+    console.log('[AiAutoReply] [CallDifyApi] 请求体:', JSON.stringify(requestBody).substring(0, 200) + '...')
 
+    console.log('[AiAutoReply] [CallDifyApi] 发送 fetch 请求...')
     const response = await fetch(config.apiUrl, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        inputs: {},
-        query: query,
-        response_mode: 'blocking',
-        conversation_id: '',
-        user: 'dagegong-auto-reply'
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal
     })
 
     clearTimeout(timeoutId)
 
+    console.log('[AiAutoReply] [CallDifyApi] 收到响应:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      contentType: response.headers.get('content-type')
+    })
+
     if (!response.ok) {
       const errorText = await response.text()
+      console.error('[AiAutoReply] [CallDifyApi] HTTP 错误:', response.status, errorText)
       throw new Error(`HTTP ${response.status}: ${errorText || '请求失败'}`)
     }
 
     const contentType = response.headers.get('content-type') || ''
 
     if (contentType.includes('text/event-stream') || contentType.includes('stream')) {
-      console.log('[AiAutoReply] 检测到 streaming 响应')
+      console.log('[AiAutoReply] [CallDifyApi] 检测到 streaming 响应，开始解析...')
       const fullAnswer = await parseDifyStream(response)
+      console.log('[AiAutoReply] [CallDifyApi] Stream 解析完成，答案长度:', fullAnswer.length)
+      console.log('[AiAutoReply] [CallDifyApi] ====== 调用成功 ======')
       return fullAnswer.trim() || null
     }
 
+    console.log('[AiAutoReply] [CallDifyApi] 解析 JSON 响应...')
     const data = await response.json()
-    return data.answer?.trim() || null
+    console.log('[AiAutoReply] [CallDifyApi] 响应数据:', JSON.stringify(data, null, 2).substring(0, 300))
+    
+    const answer = data.answer?.trim()
+    console.log('[AiAutoReply] [CallDifyApi] 提取的答案:', answer ? answer.substring(0, 100) + '...' : '无')
+    console.log('[AiAutoReply] [CallDifyApi] ====== 调用成功 ======')
+    return answer || null
   } catch (error) {
-    console.error('[AiAutoReply] AI API 调用失败:', error)
+    console.error('[AiAutoReply] [CallDifyApi] ====== 调用失败 ======')
+    console.error('[AiAutoReply] [CallDifyApi] 错误信息:', error)
+    if (error instanceof Error) {
+      console.error('[AiAutoReply] [CallDifyApi] 错误堆栈:', error.stack)
+    }
     return null
   }
 }
@@ -404,12 +435,27 @@ async function sendReply(
   encryptJobId: string | undefined,
   message: string
 ): Promise<boolean> {
+  console.log('[AiAutoReply] [SendReply] ====== 开始发送回复 ======')
+  console.log('[AiAutoReply] [SendReply] BOSS ID:', encryptBossId?.substring(0, 20) + '...')
+  console.log('[AiAutoReply] [SendReply] Job ID:', encryptJobId?.substring(0, 20) + '...' || 'undefined')
+  console.log('[AiAutoReply] [SendReply] 消息内容:', message)
+  console.log('[AiAutoReply] [SendReply] 消息长度:', message.length)
+  
   try {
+    console.log('[AiAutoReply] [SendReply] 正在导入 launchBossSiteForReply...')
     const { launchBossSiteForReply } = await import('../flow/LAUNCH_BOSS_SITE/index')
+    console.log('[AiAutoReply] [SendReply] 导入成功，准备调用...')
+    
     await launchBossSiteForReply(encryptBossId, encryptJobId, message)
+    
+    console.log('[AiAutoReply] [SendReply] ====== 发送回复成功 ======')
     return true
   } catch (error) {
-    console.error('[AiAutoReply] 发送回复失败:', error)
+    console.error('[AiAutoReply] [SendReply] ====== 发送回复失败 ======')
+    console.error('[AiAutoReply] [SendReply] 错误信息:', error)
+    if (error instanceof Error) {
+      console.error('[AiAutoReply] [SendReply] 错误堆栈:', error.stack)
+    }
     return false
   }
 }
@@ -496,6 +542,13 @@ async function processReply(
   await new Promise(r => setTimeout(r, delay))
   
   // 发送完整回复
+  console.log('[AiAutoReply] [ProcessReply] ====== 准备发送阶段 ======')
+  console.log('[AiAutoReply] [ProcessReply] BOSS:', boss.bossName)
+  console.log('[AiAutoReply] [ProcessReply] BOSS ID:', boss.encryptBossId)
+  console.log('[AiAutoReply] [ProcessReply] Job ID:', boss.encryptJobId || 'undefined')
+  console.log('[AiAutoReply] [ProcessReply] 回复内容:', reply)
+  console.log('[AiAutoReply] [ProcessReply] 回复长度:', reply.length)
+  
   const sendingMsg = `[AiAutoReply] 发送回复给 ${boss.bossName}...`
   console.log(sendingMsg)
   runningLogManager.logInfo(sendingMsg, { 
@@ -504,7 +557,9 @@ async function processReply(
     replyContent: reply 
   })
   
+  console.log('[AiAutoReply] [ProcessReply] 调用 sendReply...')
   const sent = await sendReply(boss.encryptBossId, boss.encryptJobId, reply)
+  console.log('[AiAutoReply] [ProcessReply] sendReply 返回:', sent)
   
   if (sent) {
     repliedMessageIds.add(messageKey)

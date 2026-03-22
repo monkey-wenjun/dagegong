@@ -563,42 +563,65 @@ export async function launchBossSiteForReply(
   encryptJobId: string | undefined,
   message: string
 ): Promise<void> {
+  console.log('[LaunchBossSite] ====== launchBossSiteForReply 开始 ======')
+  console.log('[LaunchBossSite] 参数:', {
+    encryptBossId: encryptBossId?.substring(0, 20) + '...',
+    encryptJobId: encryptJobId?.substring(0, 20) + '...' || 'undefined',
+    messageLength: message.length,
+    messagePreview: message.substring(0, 50) + '...'
+  })
+  
   const { puppeteer } = await initPuppeteer()
+  console.log('[LaunchBossSite] Puppeteer 初始化完成')
+  
   const browserInfo = await getAnyAvailablePuppeteerExecutable()
   if (!browserInfo) {
     throw new Error('未找到可用的浏览器')
   }
+  console.log('[LaunchBossSite] 浏览器可执行文件:', browserInfo.executablePath)
 
+  console.log('[LaunchBossSite] 正在启动浏览器...')
   const browser = await puppeteer.launch({
-    headless: true, // 使用无头模式
+    headless: true,
     executablePath: browserInfo.executablePath,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   })
+  console.log('[LaunchBossSite] 浏览器启动成功')
 
   try {
+    console.log('[LaunchBossSite] 正在创建新页面...')
     const page = await browser.newPage()
+    console.log('[LaunchBossSite] 页面创建成功')
 
     // 设置cookie
+    console.log('[LaunchBossSite] 正在设置 Cookie...')
     const cookies = readStorageFile('boss-cookies.json') || []
+    console.log('[LaunchBossSite] Cookie 数量:', cookies.length)
     for (const cookie of cookies) {
       await page.setCookie(cookie)
     }
+    console.log('[LaunchBossSite] Cookie 设置完成')
 
     // 打开聊天页面
     const chatUrl = encryptJobId
       ? `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}&jobId=${encryptJobId}`
       : `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}`
+    console.log('[LaunchBossSite] 正在打开聊天页面:', chatUrl)
 
     await page.goto(chatUrl, {
       waitUntil: 'networkidle2',
       timeout: 60000
     })
+    console.log('[LaunchBossSite] 页面加载完成')
 
     // 等待页面加载
+    console.log('[LaunchBossSite] 等待聊天界面...')
     await page.waitForSelector('.chat-conversation', { timeout: 30000 })
+    console.log('[LaunchBossSite] 聊天界面加载完成')
     await new Promise((r) => setTimeout(r, 2000))
 
     // 检查是否登录
+    console.log('[LaunchBossSite] 检查登录状态...')
     const isLoggedIn = await page.evaluate(() => {
       const hasLoginForm = document.querySelector('.login-wrap, .login-form')
       return !hasLoginForm
@@ -607,28 +630,43 @@ export async function launchBossSiteForReply(
     if (!isLoggedIn) {
       throw new Error('BOSS直聘 Cookie 已过期')
     }
+    console.log('[LaunchBossSite] 登录状态正常')
 
     // 发送消息
+    console.log('[LaunchBossSite] 准备发送消息...')
     const chatInputSelector = '.chat-conversation .message-controls .chat-input'
     const chatInputHandle = await page.$(chatInputSelector)
     if (!chatInputHandle) {
       throw new Error('未找到聊天输入框')
     }
+    console.log('[LaunchBossSite] 找到聊天输入框')
 
+    console.log('[LaunchBossSite] 点击输入框...')
     await chatInputHandle.click()
     await new Promise((r) => setTimeout(r, 500))
+    
+    console.log('[LaunchBossSite] 输入消息内容...')
     await chatInputHandle.type(message, { delay: 50 })
     await new Promise((r) => setTimeout(r, 1000))
-
+    
+    console.log('[LaunchBossSite] 点击发送按钮...')
     const sendButtonSelector =
       '.chat-conversation .message-controls .chat-op .btn-send:not(.disabled)'
     await page.click(sendButtonSelector)
 
     // 等待消息发送成功
+    console.log('[LaunchBossSite] 等待发送完成...')
     await new Promise((r) => setTimeout(r, 2000))
 
-    console.log('[LaunchBossSite] 消息发送成功:', message)
+    console.log('[LaunchBossSite] ====== 消息发送成功 ======')
+    console.log('[LaunchBossSite] 发送内容:', message.substring(0, 100) + '...')
+  } catch (error) {
+    console.error('[LaunchBossSite] ====== 发送过程中出错 ======')
+    console.error('[LaunchBossSite] 错误:', error)
+    throw error
   } finally {
+    console.log('[LaunchBossSite] 正在关闭浏览器...')
     await browser.close()
+    console.log('[LaunchBossSite] 浏览器已关闭')
   }
 }
