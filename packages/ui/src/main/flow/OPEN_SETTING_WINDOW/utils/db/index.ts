@@ -43,7 +43,8 @@ const createWorkerPromise = async (data) => {
     worker!.on('message', function handler(data) {
       const { _uuid, ...payload } = data ?? {}
       if (_uuid === uuid) {
-        resolve(payload)
+        // Worker 返回的是 { data: result }，解包后直接返回 result
+        resolve(payload.data)
         worker?.off('message', handler)
       }
     })
@@ -136,6 +137,5 @@ export const getChatMessageList = async ({
     encryptBossId,
     encryptUserId
   })
-  // worker 返回的是 { data: result } 结构
-  return res.data || []
+  return res || []
 }
