@@ -526,27 +526,31 @@ async function getBossChatRelationList() {
     const encryptUserId = await getCurrentUserId()
     console.log('[DEBUG] 获取沟通记录，用户ID:', encryptUserId)
 
-    const result = await electron.ipcRenderer.invoke('get-boss-chat-relation-list', {
+    const res = await electron.ipcRenderer.invoke('get-boss-chat-relation-list', {
       pageNo: pagination.value.pageNo,
       pageSize: pagination.value.pageSize,
       encryptUserId
     })
-    console.log('[DEBUG] 沟通记录返回:', result)
+    console.log('[DEBUG] 沟通记录返回:', res)
 
-    // 适配两种可能的数据结构
-    const res = result.data || result
+    // res 应该是 { data, pageNo, totalItemCount }
+    const data = res?.data || []
+    const totalItemCount = res?.totalItemCount || 0
+    const pageNo = res?.pageNo || 1
+    
     console.log('[DEBUG] 处理后的数据:', {
-      dataLength: res?.data?.length,
-      totalItemCount: res?.totalItemCount
+      dataLength: data.length,
+      totalItemCount: totalItemCount,
+      pageNo: pageNo
     })
 
-    tableData.value = res.data || []
+    tableData.value = data
     pagination.value = {
-      totalItemCount: res.totalItemCount || 0,
-      pageNo: res.pageNo || 1,
+      totalItemCount: totalItemCount,
+      pageNo: pageNo,
       pageSize: pagination.value.pageSize
     }
-    bossRelationCount.value = res.totalItemCount || 0
+    bossRelationCount.value = totalItemCount
   } catch (err) {
     console.error('[DEBUG] 获取沟通记录失败:', err)
     ElMessage.error('获取沟通记录失败')

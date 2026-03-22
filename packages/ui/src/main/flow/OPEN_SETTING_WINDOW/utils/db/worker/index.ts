@@ -202,6 +202,8 @@ const payloadHandler = {
     pageSize,
     encryptUserId
   }: Partial<PageReq> & { encryptUserId?: string } = {}): Promise<PagedRes<VBossChatRelation>> {
+    console.log('[Worker] getBossChatRelationList 参数:', { pageNo, pageSize, encryptUserId: encryptUserId?.substring(0, 20) + '...' })
+    
     if (!pageNo) {
       pageNo = 1
     }
@@ -230,10 +232,14 @@ const payloadHandler = {
       ? [encryptUserId] 
       : []
     
+    console.log('[Worker] SQL:', { dataQuery: dataQuery.trim(), dataParams, countParams })
+    
     const [rawData, countResult] = await Promise.all([
       dataSource!.query(dataQuery, dataParams),
       dataSource!.query(countQuery, countParams)
     ])
+    
+    console.log('[Worker] 查询结果:', { dataLength: rawData.length, totalItemCount: countResult[0]?.count })
     
     return {
       data: rawData as VBossChatRelation[],
