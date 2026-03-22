@@ -78,21 +78,36 @@ function isLoggedIn(): boolean {
 
 // 获取当前用户ID
 async function getCurrentUserId(): Promise<string | null> {
-  if (currentUserId) return currentUserId
+  if (currentUserId) {
+    console.log('[AiAutoReply] 使用缓存的用户ID:', currentUserId)
+    return currentUserId
+  }
+  
+  console.log('[AiAutoReply] 正在获取当前用户ID...')
   
   try {
     // 从对话列表获取用户ID
+    console.log('[AiAutoReply] 调用 getBossChatRelationList...')
     const result = await getBossChatRelationList({
       pageNo: 1,
       pageSize: 1
     })
     
-    const conversations = result.data || []
+    console.log('[AiAutoReply] getBossChatRelationList 返回:', {
+      hasResult: !!result,
+      hasData: !!(result?.data),
+      dataLength: result?.data?.length,
+      totalItemCount: result?.totalItemCount
+    })
+    
+    const conversations = result?.data || []
     if (conversations.length > 0) {
       currentUserId = conversations[0].encryptUserId
       console.log('[AiAutoReply] 当前用户ID:', currentUserId)
       return currentUserId
     }
+    
+    console.log('[AiAutoReply] 从对话列表未获取到用户ID，conversations为空')
     return null
   } catch (error) {
     console.error('[AiAutoReply] 获取用户ID失败:', error)
@@ -113,7 +128,14 @@ async function getUnreadBossesFromDB(): Promise<Array<{
 }>> {
   console.log('[AiAutoReply] 从本地数据库查询需要回复的对话...')
   
-  const encryptUserId = await getCurrentUserId()
+  let encryptUserId: string | null = null
+  try {
+    encryptUserId = await getCurrentUserId()
+  } catch (e) {
+    console.error('[AiAutoReply] getCurrentUserId 抛出异常:', e)
+    return []
+  }
+  
   if (!encryptUserId) {
     console.log('[AiAutoReply] 未找到当前用户ID，跳过')
     return []
