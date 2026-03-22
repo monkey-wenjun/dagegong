@@ -628,9 +628,32 @@ export async function launchBossSiteForReply(
 
     // 等待页面加载
     console.log('[LaunchBossSite] 等待聊天界面...')
-    await page.waitForSelector('.chat-conversation, .chat-list, .main-wrap', { timeout: 30000 })
+    await page.waitForSelector('.chat-conversation, .chat-list, .main-wrap, .list-warp', { timeout: 30000 })
     console.log('[LaunchBossSite] 聊天界面加载完成')
     await new Promise((r) => setTimeout(r, 3000))
+    
+    // ====== 步骤 1：点击"未读"标签过滤未读消息 ======
+    console.log('[LaunchBossSite] 步骤 1：点击"未读"标签...')
+    try {
+      const unreadSelector = '#container > div > div > div.list-warp.v2 > div > div.label-list > ul > li:nth-child(2) > span'
+      await page.click(unreadSelector)
+      console.log('[LaunchBossSite] 已点击未读标签')
+      await new Promise((r) => setTimeout(r, 2000))
+    } catch (e) {
+      console.log('[LaunchBossSite] 点击未读标签失败:', e.message)
+    }
+    
+    // ====== 步骤 2：在搜索框中搜索 BOSS ======
+    console.log(`[LaunchBossSite] 步骤 2：搜索 BOSS ${encryptBossId.slice(0, 10)}...`)
+    try {
+      const searchSelector = '#container > div > div > div.list-warp.v2 > div > div.boss-search-top > div > input'
+      await page.click(searchSelector)
+      await page.type(searchSelector, encryptBossId.slice(0, 10), { delay: 50 })
+      console.log('[LaunchBossSite] 已输入搜索词')
+      await new Promise((r) => setTimeout(r, 2000))
+    } catch (e) {
+      console.log('[LaunchBossSite] 搜索失败:', e.message)
+    }
     
     // 在左侧列表中找到并点击目标 BOSS
     console.log(`[LaunchBossSite] 在左侧列表中查找 BOSS: ${encryptBossId}`)
