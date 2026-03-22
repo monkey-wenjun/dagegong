@@ -768,6 +768,77 @@ export async function launchBossSiteForReply(
     }
     console.log('[LaunchBossSite] 登录状态正常')
 
+    // ====== 从页面读取最后一条消息 ======
+    console.log('[LaunchBossSite] 从页面读取最后一条消息...')
+    const lastMessageInfo = await page.evaluate(() => {
+      const selectors = [
+        '.chat-conversation .message-item:last-child .message-content',
+        '.chat-conversation .message-item:last-child .text-content',
+        '.chat-conversation [class*="message"]:last-child [class*="content"]'
+      ]
+      
+      for (const sel of selectors) {
+        const el = document.querySelector(sel)
+        if (el?.textContent) {
+          const isSelf = el.closest('.sent') !== null || el.classList.contains('sent')
+          return {
+            text: el.textContent.trim(),
+            selector: sel,
+            isSelf
+          }
+        }
+      }
+      return null
+    })
+    
+    console.log('[LaunchBossSite] 页面最后消息:', lastMessageInfo)
+    
+    if (!lastMessageInfo || lastMessageInfo.isSelf) {
+      console.log('[LaunchBossSite] 没有新消息或最后一条是自己发的，跳过')
+      return
+    }
+    
+    // ====== 调用 Dify API 生成回复 ======
+    console.log('[LaunchBossSite] 调用 Dify API 生成回复...')
+    
+    // 读取 Dify 配置
+    const { readConfigFile } = await import('@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs')
+    const aiConfig = readConfigFile('ai-auto-reply.json') || {}
+    
+    let replyMessage = message // 默认使用传入的消息
+    
+    if (aiConfig.apiUrl && aiConfig.apiKey) {
+      try {
+        const response = await fetch(aiConfig.apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${aiConfig.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            inputs: {},
+            query: `BOSS 说: "${lastMessageInfo.text}"\n\n请给出一个专业、得体的回复。`,
+            response_mode: 'blocking',
+            conversation_id: '',
+            user: 'dagegong-auto-reply'
+          })
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          const aiReply = data.answer || data.message || data.content
+          if (aiReply) {
+            replyMessage = aiReply.trim()
+            console.log('[LaunchBossSite] AI 生成回复:', replyMessage.substring(0, 100) + '...')
+          }
+        }
+      } catch (e) {
+        console.log('[LaunchBossSite] Dify 调用失败，使用默认回复:', e.message)
+      }
+    } else {
+      console.log('[LaunchBossSite] 未配置 Dify，使用传入的消息')
+    }
+
     // 发送消息
     console.log('[LaunchBossSite] 准备发送消息...')
     
@@ -832,7 +903,7 @@ export async function launchBossSiteForReply(
     await new Promise((r) => setTimeout(r, 200))
     
     console.log('[LaunchBossSite] 输入消息内容...')
-    await chatInputHandle.type(message, { delay: 50 })
+    await chatInputHandle.type(replyMessage, { delay: 50 })
     await new Promise((r) => setTimeout(r, 1000))
     
     // 截图检查输入内容
@@ -901,7 +972,7 @@ export async function launchBossSiteForReply(
     console.log('[LaunchBossSite] 发送后截图已保存:', afterScreenshotPath)
 
     console.log('[LaunchBossSite] ====== 消息发送成功 ======')
-    console.log('[LaunchBossSite] 发送内容:', message.substring(0, 100) + '...')
+    console.log('[LaunchBossSite] 发送内容:', replyMessage.substring(0, 100) + '...')
   } catch (error) {
     console.error('[LaunchBossSite] ====== 发送过程中出错 ======')
     console.error('[LaunchBossSite] 错误:', error)
