@@ -1552,11 +1552,25 @@ export async function syncBossChatHistory(
         
         console.log('[SyncChatHistory] 从页面获取的 securityId:', securityIdFromPage ? '有' : '无')
         
+        // 获取数据库中的最大消息 ID，用于获取最新消息
+        const chatMsgRepo = ds.getRepository(ChatMessageRecord)
+        const maxMidResult = await chatMsgRepo
+          .createQueryBuilder()
+          .select('MAX(mid)', 'maxMid')
+          .where('(encryptFromUserId = :bossId OR encryptToUserId = :bossId)', { bossId: encryptBossId })
+          .getRawOne()
+        const maxMid = maxMidResult?.maxMid || '0'
+        console.log('[SyncChatHistory] 数据库中最大消息 ID:', maxMid)
+        
+        // 分两次获取：先获取最新的50条，如果不够再获取更早的
+        let allMessages: any[] = []
+        
+        // 第一次：获取最新的200条消息
         const historyResponse = await page.evaluate(async (bossId, jobId, secId) => {
           const params = new URLSearchParams({
             bossId: bossId,
-            maxMsgId: '0',
-            c: '50',
+            maxMsgId: '999999999999999',  // 使用一个足够大的值获取最新消息
+            c: '200',  // 增加数量限制
             page: '1',
             src: '0'
           })
@@ -1578,16 +1592,53 @@ export async function syncBossChatHistory(
           return res.json()
         }, encryptBossId, encryptJobId, securityIdFromPage)
         
-        console.log('[SyncChatHistory] 主动调用 API 结果:', {
-          code: historyResponse?.code,
-          message: historyResponse?.message,
-          hasMessages: !!historyResponse?.zpData?.messages,
-          messageCount: historyResponse?.zpData?.messages?.length || 0
-        })
-        
         if (historyResponse?.code === 0 && historyResponse?.zpData?.messages) {
-          historyMsgData = historyResponse.zpData.messages
-          console.log(`[SyncChatHistory] 主动调用获取到 ${historyMsgData.length} 条消息`)
+          allMessages = historyResponse.zpData.messages
+          console.log(`[SyncChatHistory] 第一次调用获取到 ${allMessages.length} 条消息`)
+          
+          // 如果获取到200条，可能还有更多，尝试获取更早的
+          if (allMessages.length >= 200) {
+            const minMid = Math.min(...allMessages.map((m: any) => parseInt(m.mid) || 0))
+            console.log('[SyncChatHistory] 尝试获取更多消息，当前最小 ID:', minMid)
+            
+            const historyResponse2 = await page.evaluate(async (bossId, jobId, secId, minMsgId) => {
+              const params = new URLSearchParams({
+                bossId: bossId,
+                maxMsgId: String(minMsgId),  // 获取比最小 ID 更小的消息（更早的）
+                c: '200',
+                page: '1',
+                src: '0'
+              })
+              if (jobId) {
+                params.append('jobId', jobId)
+              }
+              if (secId) {
+                params.append('securityId', secId)
+              }
+              
+              const res = await fetch(`https://www.zhipin.com/wapi/zpchat/geek/historyMsg?${params.toString()}`, {
+                method: 'GET',
+                headers: {
+                  'accept': 'application/json, text/plain, */*',
+                  'x-requested-with': 'XMLHttpRequest'
+                },
+                credentials: 'include'
+              })
+              return res.json()
+            }, encryptBossId, encryptJobId, securityIdFromPage, minMid)
+            
+            if (historyResponse2?.code === 0 && historyResponse2?.zpData?.messages) {
+              const moreMessages = historyResponse2.zpData.messages
+              console.log(`[SyncChatHistory] 第二次调用获取到 ${moreMessages.length} 条消息`)
+              allMessages = [...allMessages, ...moreMessages]
+            }
+          }
+        }
+        
+        // 设置最终结果
+        if (allMessages.length > 0) {
+          historyMsgData = allMessages
+          console.log(`[SyncChatHistory] 总共获取到 ${historyMsgData.length} 条消息`)
         } else if (historyResponse?.code !== 0) {
           console.error('[SyncChatHistory] 主动调用 API 返回错误:', historyResponse?.message || historyResponse)
         }

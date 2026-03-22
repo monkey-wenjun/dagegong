@@ -248,28 +248,48 @@ const payloadHandler = {
     encryptBossId: string
     encryptUserId?: string
   }): Promise<ChatMessageRecord[]> {
-    const repository = dataSource!.getRepository(ChatMessageRecord)!
+    // 使用原始 SQL 查询，避免 TypeORM where 数组条件的问题
+    let query: string
+    let params: any[]
 
-    // 如果提供了 encryptUserId，查询与该 BOSS 的聊天记录（双向）
-    // 如果没有提供，查询与该 BOSS 相关的所有聊天记录
-    const whereCondition = encryptUserId
-      ? [
-          { encryptFromUserId: encryptUserId, encryptToUserId: encryptBossId },
-          { encryptFromUserId: encryptBossId, encryptToUserId: encryptUserId }
-        ]
-      : [
-          { encryptFromUserId: encryptBossId },
-          { encryptToUserId: encryptBossId }
-        ]
+    if (encryptUserId) {
+      // 查询双向聊天记录
+      query = `
+        SELECT * FROM chat_message_record 
+        WHERE (encryptFromUserId = ? AND encryptToUserId = ?) 
+           OR (encryptFromUserId = ? AND encryptToUserId = ?)
+        ORDER BY time ASC
+      `
+      params = [encryptUserId, encryptBossId, encryptBossId, encryptUserId]
+    } else {
+      // 查询与该 BOSS 相关的所有记录
+      query = `
+        SELECT * FROM chat_message_record 
+        WHERE encryptFromUserId = ? OR encryptToUserId = ?
+        ORDER BY time ASC
+      `
+      params = [encryptBossId, encryptBossId]
+    }
 
     const messages = await measureExecutionTime(
-      repository.find({
-        where: whereCondition as any,
-        order: { time: 'ASC' }
-      })
+      dataSource!.query(query, params)
     )
 
-    return messages
+    // 为每条消息添加 style 字段（sent/received）
+    const messagesWithStyle = messages.map((msg: any) => {
+      // 如果有当前用户ID，判断是否是自己发送的
+      // 否则根据消息方向判断（假设消息来自 BOSS 的是 received）
+      const isSent = encryptUserId 
+        ? msg.encryptFromUserId === encryptUserId
+        : msg.encryptFromUserId !== encryptBossId
+      
+      return {
+        ...msg,
+        style: isSent ? 'sent' : 'received' as 'sent' | 'received'
+      }
+    })
+
+    return messagesWithStyle
   }
 }
 
