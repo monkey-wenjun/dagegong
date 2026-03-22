@@ -162,9 +162,17 @@ async function getUnreadBossesFromDB(): Promise<Array<{
       bossName: c.bossName,
       unreadCount: c.unreadCount,
       lastIsSelf: c.lastIsSelf,
+      lastIsSelfType: typeof c.lastIsSelf,
       lastText: c.lastText?.slice(0, 20),
       updateTime: c.updateTime
     })))
+    
+    // 检查是否有未读消息的记录
+    const unreadConvs = conversations.filter((c: any) => c.unreadCount > 0)
+    console.log(`[AiAutoReply] 未读消息对话数: ${unreadConvs.length}`)
+    unreadConvs.forEach((c: any) => {
+      console.log(`[AiAutoReply] 未读: ${c.bossName}, unread=${c.unreadCount}, lastIsSelf=${c.lastIsSelf}(${typeof c.lastIsSelf})`)
+    })
     
     // 不过滤时间，先看所有数据
     console.log(`[AiAutoReply] 不过滤时间，总对话数: ${conversations.length}`)
@@ -192,9 +200,16 @@ async function getUnreadBossesFromDB(): Promise<Array<{
     })
     
     // 过滤出需要回复的对话
+    console.log(`[AiAutoReply] 开始过滤需要回复的对话，总记录数: ${recentConversations.length}`)
     const needReply = recentConversations.filter((conv: any) => {
       // 注意：lastIsSelf 可能是数字 0/1 或布尔值
-      const isLastFromSelf = conv.lastIsSelf === true || conv.lastIsSelf === 1
+      const lastIsSelfValue = conv.lastIsSelf
+      const isLastFromSelf = lastIsSelfValue === true || lastIsSelfValue === 1
+      
+      // 调试日志
+      if (conv.unreadCount > 0) {
+        console.log(`[AiAutoReply] 检查 ${conv.bossName}: unread=${conv.unreadCount}, lastIsSelf=${lastIsSelfValue}(${typeof lastIsSelfValue}), isLastFromSelf=${isLastFromSelf}`)
+      }
       
       // 有未读消息，且最后一条不是自己的
       if (conv.unreadCount > 0 && !isLastFromSelf) {
