@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import path from 'path'
 import { initPuppeteer } from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 import {
   readStorageFile,
@@ -634,10 +635,42 @@ export async function launchBossSiteForReply(
 
     // 发送消息
     console.log('[LaunchBossSite] 准备发送消息...')
+    
+    // 先截图查看页面状态
+    const debugDir = path.join(app.getPath('userData'), 'debug')
+    await import('fs').then(fs => {
+      if (!fs.existsSync(debugDir)) {
+        fs.mkdirSync(debugDir, { recursive: true })
+      }
+    })
+    
+    const beforeScreenshotPath = path.join(debugDir, `reply-before-${Date.now()}.png`)
+    await page.screenshot({ path: beforeScreenshotPath, fullPage: true })
+    console.log('[LaunchBossSite] 发送前截图已保存:', beforeScreenshotPath)
+    
     const chatInputSelector = '.chat-conversation .message-controls .chat-input'
+    console.log('[LaunchBossSite] 查找输入框，选择器:', chatInputSelector)
     const chatInputHandle = await page.$(chatInputSelector)
     if (!chatInputHandle) {
-      throw new Error('未找到聊天输入框')
+      // 尝试其他可能的选择器
+      console.log('[LaunchBossSite] 未找到输入框，尝试备用选择器...')
+      const alternativeSelectors = [
+        '.chat-input',
+        '[contenteditable="true"]',
+        '.editor-input',
+        'div[role="textbox"]'
+      ]
+      let foundInput = null
+      for (const sel of alternativeSelectors) {
+        foundInput = await page.$(sel)
+        if (foundInput) {
+          console.log('[LaunchBossSite] 使用备用选择器找到输入框:', sel)
+          break
+        }
+      }
+      if (!foundInput) {
+        throw new Error('未找到聊天输入框')
+      }
     }
     console.log('[LaunchBossSite] 找到聊天输入框')
 
@@ -645,18 +678,59 @@ export async function launchBossSiteForReply(
     await chatInputHandle.click()
     await new Promise((r) => setTimeout(r, 500))
     
+    console.log('[LaunchBossSite] 清空输入框...')
+    await chatInputHandle.evaluate(el => {
+      if (el instanceof HTMLElement) {
+        el.innerHTML = ''
+        el.textContent = ''
+      }
+    })
+    await new Promise((r) => setTimeout(r, 200))
+    
     console.log('[LaunchBossSite] 输入消息内容...')
     await chatInputHandle.type(message, { delay: 50 })
     await new Promise((r) => setTimeout(r, 1000))
     
+    // 截图检查输入内容
+    const inputScreenshotPath = path.join(debugDir, `reply-input-${Date.now()}.png`)
+    await page.screenshot({ path: inputScreenshotPath, fullPage: true })
+    console.log('[LaunchBossSite] 输入后截图已保存:', inputScreenshotPath)
+    
     console.log('[LaunchBossSite] 点击发送按钮...')
-    const sendButtonSelector =
-      '.chat-conversation .message-controls .chat-op .btn-send:not(.disabled)'
-    await page.click(sendButtonSelector)
+    const sendButtonSelector = '.chat-conversation .message-controls .chat-op .btn-send:not(.disabled)'
+    const sendButton = await page.$(sendButtonSelector)
+    if (!sendButton) {
+      console.log('[LaunchBossSite] 未找到发送按钮，尝试备用选择器...')
+      const altButtonSelectors = [
+        '.btn-send',
+        '[class*="send"]',
+        'button:has-text("发送")'
+      ]
+      let foundButton = null
+      for (const sel of altButtonSelectors) {
+        foundButton = await page.$(sel)
+        if (foundButton) {
+          console.log('[LaunchBossSite] 使用备用选择器找到发送按钮:', sel)
+          break
+        }
+      }
+      if (!foundButton) {
+        throw new Error('未找到发送按钮')
+      }
+      await foundButton.click()
+    } else {
+      console.log('[LaunchBossSite] 找到发送按钮，准备点击')
+      await sendButton.click()
+    }
 
     // 等待消息发送成功
     console.log('[LaunchBossSite] 等待发送完成...')
-    await new Promise((r) => setTimeout(r, 2000))
+    await new Promise((r) => setTimeout(r, 3000))
+    
+    // 截图确认发送成功
+    const afterScreenshotPath = path.join(debugDir, `reply-after-${Date.now()}.png`)
+    await page.screenshot({ path: afterScreenshotPath, fullPage: true })
+    console.log('[LaunchBossSite] 发送后截图已保存:', afterScreenshotPath)
 
     console.log('[LaunchBossSite] ====== 消息发送成功 ======')
     console.log('[LaunchBossSite] 发送内容:', message.substring(0, 100) + '...')
