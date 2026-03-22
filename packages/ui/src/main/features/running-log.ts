@@ -15,6 +15,7 @@ export interface LogItem {
   receivedMessage?: string
   replyContent?: string
   aiResponse?: string
+  isReject?: boolean
 }
 
 class RunningLogManager {
@@ -140,17 +141,20 @@ class RunningLogManager {
     receivedMessage: string
     replyContent: string
     aiResponse?: string
+    isReject?: boolean
   }) {
+    const isRejectTag = data.isReject ? '[婉拒] ' : ''
     this.addLog({
       timestamp: Date.now(),
       type: 'ai-reply',
-      message: `AI 回复 ${data.bossName}: ${data.replyContent.slice(0, 50)}${data.replyContent.length > 50 ? '...' : ''}`,
+      message: `${isRejectTag}AI 回复 ${data.bossName}: ${data.replyContent.slice(0, 50)}${data.replyContent.length > 50 ? '...' : ''}`,
       bossName: data.bossName,
       bossId: data.bossId,
       jobName: data.jobName,
       receivedMessage: data.receivedMessage,
       replyContent: data.replyContent,
-      aiResponse: data.aiResponse
+      aiResponse: data.aiResponse,
+      isReject: data.isReject
     })
   }
 }

@@ -74,6 +74,61 @@
         </el-form>
       </el-card>
 
+      <!-- DeepSeek 配置区域 -->
+      <el-card class="max-w-800px mt-4">
+        <template #header>
+          <div class="card-header">
+            <span>DeepSeek 对话总结（可选）</span>
+            <el-switch
+              v-model="config.enableDeepSeekSummary"
+              active-text="启用"
+              inactive-text="停用"
+            />
+          </div>
+        </template>
+
+        <el-alert
+          title="功能说明"
+          description="启用后，AI 会自动分析对话历史，识别保险销售等不需要的岗位并自动婉拒，同时提取关键信息生成更智能的回复。需要在 llm.json 中配置 DeepSeek API 密钥。"
+          type="info"
+          show-icon
+          :closable="false"
+          class="mb-4"
+        />
+
+        <el-form :model="config" label-width="120px" size="default">
+          <el-form-item label="API 地址">
+            <el-input v-model="config.deepSeekApiUrl" placeholder="https://api.deepseek.com/v1" />
+          </el-form-item>
+
+          <el-form-item label="API Key">
+            <el-input
+              v-model="config.deepSeekApiKey"
+              type="password"
+              placeholder="请输入 DeepSeek API Key"
+              show-password
+            />
+          </el-form-item>
+
+          <el-form-item label="模型">
+            <el-input v-model="config.deepSeekModel" placeholder="deepseek-chat" />
+          </el-form-item>
+
+          <el-form-item label="提示词模板">
+            <el-input
+              v-model="config.deepSeekPrompt"
+              type="textarea"
+              :rows="15"
+              placeholder="请输入提示词模板，使用 {messages} 作为消息占位符"
+            />
+          </el-form-item>
+
+          <el-form-item>
+            <el-button @click="config.deepSeekPrompt = defaultDeepSeekPrompt">恢复默认模板</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
       <!-- 测试区域 -->
       <el-card class="max-w-800px mt-4">
         <template #header>
@@ -113,12 +168,49 @@ interface AiAutoReplyConfig {
   enabled: boolean
   apiUrl: string
   apiKey: string
+  enableDeepSeekSummary: boolean
+  deepSeekApiUrl: string
+  deepSeekApiKey: string
+  deepSeekModel: string
+  deepSeekPrompt: string
 }
+
+const defaultDeepSeekPrompt = `请分析以下招聘对话记录，并提取关键信息。
+
+【对话记录】
+{messages}
+
+【分析任务】
+1. 首先检查对话内容是否涉及"保险销售"相关岗位（如：保险代理人、保险销售、销售代表、业务经理等保险行业销售性质岗位）
+2. 如果涉及保险销售岗位，设置 shouldReject 为 true，并生成婉拒回复
+3. 如果不涉及保险销售，正常总结对话
+
+【输出格式】
+必须输出以下 JSON 格式：
+{
+  "shouldReject": false/true,
+  "rejectReason": "如果 shouldReject 为 true，填写原因，如'保险销售岗位'",
+  "rejectReply": "如果 shouldReject 为 true，生成一段委婉拒绝的回复（礼貌表示不感兴趣）",
+  "summary": "一句话总结对话状态",
+  "keyPoints": ["关键信息点1", "关键信息点2", "关键信息点3"],
+  "advantages": ["候选人应该强调的优势1", "优势2"]
+}
+
+注意：
+- 只有确定是保险销售岗位时才设置 shouldReject: true
+- 婉拒回复要礼貌、简洁，不要伤害对方
+- 如果不涉及保险销售，shouldReject 为 false，reject 相关字段可为空
+- 只输出 JSON，不要其他内容`
 
 const defaultConfig: AiAutoReplyConfig = {
   enabled: false,
   apiUrl: 'http://192.168.1.29/v1/chat-messages',  // HTTP 默认端口 80
-  apiKey: ''
+  apiKey: '',
+  enableDeepSeekSummary: false,
+  deepSeekApiUrl: 'https://api.deepseek.com/v1',
+  deepSeekApiKey: '',
+  deepSeekModel: 'deepseek-chat',
+  deepSeekPrompt: defaultDeepSeekPrompt
 }
 
 const config = ref<AiAutoReplyConfig>({ ...defaultConfig })
@@ -141,19 +233,32 @@ async function loadConfig() {
 // 保存配置
 async function saveConfig() {
   if (!config.value.apiUrl) {
-    ElMessage.warning('请填写 API 地址')
+    ElMessage.warning('请填写 Dify API 地址')
     return
   }
   if (!config.value.apiKey) {
-    ElMessage.warning('请填写 API Key')
+    ElMessage.warning('请填写 Dify API Key')
     return
+  }
+  
+  // 如果启用了 DeepSeek，检查配置
+  if (config.value.enableDeepSeekSummary) {
+    if (!config.value.deepSeekApiKey) {
+      ElMessage.warning('请填写 DeepSeek API Key')
+      return
+    }
   }
 
   isSaving.value = true
   try {
     await electron.ipcRenderer.invoke('save-ai-auto-reply-config', {
       apiUrl: config.value.apiUrl,
-      apiKey: config.value.apiKey
+      apiKey: config.value.apiKey,
+      enableDeepSeekSummary: config.value.enableDeepSeekSummary,
+      deepSeekApiUrl: config.value.deepSeekApiUrl,
+      deepSeekApiKey: config.value.deepSeekApiKey,
+      deepSeekModel: config.value.deepSeekModel,
+      deepSeekPrompt: config.value.deepSeekPrompt
     })
     ElMessage.success('配置保存成功')
   } catch (err) {

@@ -169,13 +169,7 @@ const routes: Array<RouteRecordRaw> = [
           title: '求职全局设置'
         }
       },
-      {
-        path: 'ai-auto-reply',
-        redirect: '/main/GeekAutoStartChatWithBoss',
-        meta: {
-          title: 'AI 自动回复'
-        }
-      }
+      // AI 自动回复配置已集成到 AI 自动找工作页面
     ]
   },
   {

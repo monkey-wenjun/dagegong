@@ -26,13 +26,46 @@ interface AiAutoReplyConfig {
   enabled: boolean
   apiUrl: string
   apiKey: string
+  // 对话总结配置（使用 llm.json 中配置的模型）
+  enableSummary: boolean
+  summaryPrompt: string
 }
+
+// 默认提示词模板
+const defaultSummaryPrompt = `请分析以下招聘对话记录，并提取关键信息。
+
+【对话记录】
+{messages}
+
+【分析任务】
+1. 首先检查对话内容是否涉及"保险销售"相关岗位（如：保险代理人、保险销售、销售代表、业务经理等保险行业销售性质岗位）
+2. 如果涉及保险销售岗位，设置 shouldReject 为 true，并生成婉拒回复
+3. 如果不涉及保险销售，正常总结对话
+
+【输出格式】
+必须输出以下 JSON 格式：
+{
+  "shouldReject": false/true,
+  "rejectReason": "如果 shouldReject 为 true，填写原因，如'保险销售岗位'",
+  "rejectReply": "如果 shouldReject 为 true，生成一段委婉拒绝的回复（礼貌表示不感兴趣）",
+  "summary": "一句话总结对话状态",
+  "keyPoints": ["关键信息点1", "关键信息点2", "关键信息点3"],
+  "advantages": ["候选人应该强调的优势1", "优势2"]
+}
+
+注意：
+- 只有确定是保险销售岗位时才设置 shouldReject: true
+- 婉拒回复要礼貌、简洁，不要伤害对方
+- 如果不涉及保险销售，shouldReject 为 false，reject 相关字段可为空
+- 只输出 JSON，不要其他内容`
 
 // 默认配置
 const defaultConfig: AiAutoReplyConfig = {
   enabled: false,
   apiUrl: 'http://192.168.1.29/v1/chat-messages',
-  apiKey: ''
+  apiKey: '',
+  enableSummary: false,
+  summaryPrompt: defaultSummaryPrompt
 }
 
 // 服务状态
@@ -57,6 +90,18 @@ async function loadRepliedMessages(): Promise<Set<string>> {
   } catch {
     console.log('[AiAutoReply] 没有已回复记录或加载失败')
     return new Set()
+  }
+}
+
+// 清除已回复记录缓存（用于调试或重置）
+export async function clearRepliedMessagesCache(): Promise<void> {
+  try {
+    repliedMessageIds.clear()
+    await import('@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs')
+      .then(m => m.writeStorageFile(REPLIED_MESSAGES_FILE, []))
+    console.log('[AiAutoReply] 已清空回复缓存')
+  } catch (error) {
+    console.error('[AiAutoReply] 清空缓存失败:', error)
   }
 }
 
@@ -93,7 +138,12 @@ async function saveConfig(config: Partial<AiAutoReplyConfig>): Promise<void> {
   try {
     const currentConfig = getConfig()
     const newConfig = { ...currentConfig, ...config }
+    console.log('[AiAutoReply] 保存配置:', { 
+      enableSummary: newConfig.enableSummary,
+      summaryPromptLength: newConfig.summaryPrompt?.length 
+    })
     await writeConfigFile('ai-auto-reply.json', newConfig)
+    console.log('[AiAutoReply] 配置保存成功')
   } catch (error) {
     console.error('[AiAutoReply] 保存配置失败:', error)
   }
@@ -367,38 +417,22 @@ async function parseDifyStream(response: Response): Promise<string> {
   return fullAnswer
 }
 
-// 调用 Dify API
-async function callDifyApi(
-  message: string,
-  config: AiAutoReplyConfig,
-  chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+// 调用 Dify API（直接传入 query）
+async function callDifyApiWithQuery(
+  query: string,
+  config: AiAutoReplyConfig
 ): Promise<string | null> {
   console.log('[AiAutoReply] [CallDifyApi] ====== 开始调用 Dify API ======')
-  console.log('[AiAutoReply] [CallDifyApi] 原始消息:', message)
-  console.log('[AiAutoReply] [CallDifyApi] 消息长度:', message.length)
+  console.log('[AiAutoReply] [CallDifyApi] Query 长度:', query.length)
+  console.log('[AiAutoReply] [CallDifyApi] Query 预览:', query.substring(0, 150) + '...')
   console.log('[AiAutoReply] [CallDifyApi] API URL:', config.apiUrl)
   console.log('[AiAutoReply] [CallDifyApi] API Key 存在:', !!config.apiKey)
-  console.log('[AiAutoReply] [CallDifyApi] 历史消息数:', chatHistory?.length || 0)
   
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000)
 
     console.log('[AiAutoReply] [CallDifyApi] 构建请求...')
-    
-    // 构建带上下文的 query
-    let query = message
-    if (chatHistory && chatHistory.length > 0) {
-      const context = chatHistory.map(h => {
-        const role = h.role === 'user' ? 'BOSS' : '我'
-        return `${role}: ${h.content}`
-      }).join('\n')
-      
-      query = `以下是我与 BOSS 的历史对话：\n\n${context}\n\n现在 BOSS 说: "${message}"\n\n请基于以上对话上下文，给出一个自然、得体的回复。`
-    }
-    
-    console.log('[AiAutoReply] [CallDifyApi] 最终 Query 长度:', query.length)
-    console.log('[AiAutoReply] [CallDifyApi] 最终 Query 预览:', query.substring(0, 150) + '...')
     
     const requestBody = {
       inputs: {},
@@ -459,6 +493,139 @@ async function callDifyApi(
     if (error instanceof Error) {
       console.error('[AiAutoReply] [CallDifyApi] 错误堆栈:', error.stack)
     }
+    return null
+  }
+}
+
+// LLM 总结结果接口
+interface LlmSummaryResult {
+  shouldReject: boolean
+  rejectReason?: string
+  rejectReply?: string
+  summary: string
+  keyPoints: string[]
+  advantages: string[]
+}
+
+// LLM 配置接口
+interface LlmConfig {
+  id: string
+  providerCompleteApiUrl: string
+  providerApiSecret: string
+  model: string
+  enabled: boolean
+}
+
+// 从 llm.json 获取启用的 LLM 配置
+function getLlmConfig(): LlmConfig | null {
+  try {
+    const llmConfigList = readConfigFile('llm.json') as LlmConfig[] || []
+    // 找到第一个启用的配置
+    const enabledConfig = llmConfigList.find(c => c.enabled)
+    return enabledConfig || llmConfigList[0] || null
+  } catch (error) {
+    console.error('[AiAutoReply] 读取 llm.json 失败:', error)
+    return null
+  }
+}
+
+// 调用 LLM API 进行对话总结
+async function callLlmSummary(
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  config: AiAutoReplyConfig
+): Promise<LlmSummaryResult | null> {
+  if (!config.enableSummary) {
+    console.log('[AiAutoReply] [LLM总结] 未启用，跳过总结')
+    return null
+  }
+
+  // 从 llm.json 获取 LLM 配置
+  const llmConfig = getLlmConfig()
+  if (!llmConfig) {
+    console.log('[AiAutoReply] [LLM总结] 未找到 LLM 配置，跳过总结')
+    return null
+  }
+
+  console.log('[AiAutoReply] [LLM总结] ====== 开始调用 LLM 总结 ======')
+  console.log('[AiAutoReply] [LLM总结] 对话轮数:', messages.length)
+  console.log('[AiAutoReply] [LLM总结] 使用模型:', llmConfig.model)
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+
+    // 格式化消息
+    const messagesText = messages.map(m => {
+      const role = m.role === 'user' ? 'BOSS' : '我'
+      return `${role}: ${m.content}`
+    }).join('\n')
+
+    // 替换提示词模板
+    const prompt = (config.summaryPrompt || defaultSummaryPrompt).replace('{messages}', messagesText)
+
+    // 构建 API URL
+    const apiUrl = llmConfig.providerCompleteApiUrl.endsWith('/v1')
+      ? `${llmConfig.providerCompleteApiUrl}/chat/completions`
+      : `${llmConfig.providerCompleteApiUrl}/v1/chat/completions`
+
+    console.log('[AiAutoReply] [LLM总结] API URL:', apiUrl)
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${llmConfig.providerApiSecret}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: llmConfig.model,
+        messages: [
+          { role: 'system', content: '你是一个专业的对话分析助手。' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7
+      }),
+      signal: controller.signal
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[AiAutoReply] [LLM总结] HTTP 错误:', response.status, errorText)
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+    const content = data.choices?.[0]?.message?.content || ''
+
+    console.log('[AiAutoReply] [LLM总结] 原始回复:', content.slice(0, 200))
+
+    // 解析 JSON
+    try {
+      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim()
+      const result: LlmSummaryResult = JSON.parse(cleanContent)
+      
+      if (result.shouldReject) {
+        console.log('[AiAutoReply] [LLM总结] ⚠️ 检测到需要拒绝:', result.rejectReason)
+      } else {
+        console.log('[AiAutoReply] [LLM总结] 总结结果:', result.summary)
+      }
+      
+      console.log('[AiAutoReply] [LLM总结] ====== 调用成功 ======')
+      return result
+    } catch (parseError) {
+      console.error('[AiAutoReply] [LLM总结] JSON 解析失败:', parseError)
+      // 返回一个默认结果
+      return {
+        shouldReject: false,
+        summary: content.slice(0, 100),
+        keyPoints: [],
+        advantages: []
+      }
+    }
+  } catch (error) {
+    console.error('[AiAutoReply] [LLM总结] ====== 调用失败 ======')
+    console.error('[AiAutoReply] [LLM总结] 错误:', error)
     return null
   }
 }
@@ -560,6 +727,75 @@ async function processReply(
       chatHistory = await getChatHistory(boss.encryptBossId, encryptUserId)
     }
     
+    // LLM 总结阶段
+    let summaryResult: LlmSummaryResult | null = null
+    if (config.enableSummary && chatHistory.length > 0) {
+      const summaryMsg = `[AiAutoReply] 调用 LLM 总结对话...`
+      console.log(summaryMsg)
+      runningLogManager.logInfo(summaryMsg, { 
+        type: 'ai-summary-calling', 
+        bossName: boss.bossName,
+        contextLength: chatHistory.length
+      })
+      
+      summaryResult = await callLlmSummary(chatHistory, config)
+      
+      if (summaryResult) {
+        if (summaryResult.shouldReject) {
+          const rejectMsg = `[AiAutoReply] LLM 建议婉拒: ${summaryResult.rejectReason}`
+          console.log(rejectMsg)
+          runningLogManager.logInfo(rejectMsg, { 
+            type: 'ai-summary-reject', 
+            bossName: boss.bossName,
+            rejectReason: summaryResult.rejectReason,
+            rejectReply: summaryResult.rejectReply
+          })
+        } else {
+          const summaryMsg = `[AiAutoReply] LLM 总结: ${summaryResult.summary}`
+          console.log(summaryMsg)
+          runningLogManager.logInfo(summaryMsg, { 
+            type: 'ai-summary-result', 
+            bossName: boss.bossName,
+            summary: summaryResult.summary,
+            keyPoints: summaryResult.keyPoints,
+            advantages: summaryResult.advantages
+          })
+        }
+      }
+    }
+    
+    // 如果需要婉拒，直接发送婉拒回复
+    if (summaryResult?.shouldReject && summaryResult.rejectReply) {
+      const rejectReply = summaryResult.rejectReply
+      const generatedMsg = `[AiAutoReply] 使用 DeepSeek 建议的婉拒回复: ${rejectReply.slice(0, 100)}${rejectReply.length > 100 ? '...' : ''}`
+      console.log(generatedMsg)
+      runningLogManager.logInfo(generatedMsg, { 
+        type: 'ai-generated-reject', 
+        bossName: boss.bossName, 
+        aiResponse: rejectReply 
+      })
+      
+      // 随机延迟后发送婉拒回复
+      const delay = Math.floor(Math.random() * 5000) + 3000
+      await new Promise(r => setTimeout(r, delay))
+      
+      const sent = await sendReply(boss.encryptBossId, boss.encryptJobId, rejectReply)
+      if (sent) {
+        repliedMessageIds.add(messageKey)
+        await saveRepliedMessages(repliedMessageIds)
+        runningLogManager.logAiReply({
+          bossName: boss.bossName,
+          bossId: boss.encryptBossId,
+          jobName: boss.jobName,
+          receivedMessage: boss.lastText,
+          replyContent: rejectReply,
+          aiResponse: rejectReply,
+          isReject: true
+        })
+      }
+      return
+    }
+    
     // 调用AI生成回复
     const callingMsg = `[AiAutoReply] 调用 AI 生成回复...`
     console.log(callingMsg)
@@ -570,7 +806,42 @@ async function processReply(
       contextLength: chatHistory.length
     })
     
-    const reply = await callDifyApi(boss.lastText, config, chatHistory)
+    // 构建带 LLM 总结的 query
+    let query = boss.lastText
+    if (summaryResult && !summaryResult.shouldReject) {
+      const context = chatHistory.map(h => {
+        const role = h.role === 'user' ? 'BOSS' : '我'
+        return `${role}: ${h.content}`
+      }).join('\n')
+      
+      query = `【对话背景】
+${summaryResult.summary}
+
+关键信息：
+${summaryResult.keyPoints?.map(p => `- ${p}`).join('\n') || '无'}
+
+【历史对话】
+${context}
+
+【最新消息】
+BOSS 说："${boss.lastText}"
+
+请基于以上背景，给出一个专业、得体且针对性的回复。回复要：
+1. 体现对岗位的了解和兴趣
+2. 回应 BOSS 的具体问题
+3. 展示匹配的优势（${summaryResult.advantages?.join('、') || '沟通能力强'}）
+4. 保持礼貌和专业`
+    } else if (chatHistory.length > 0) {
+      // 没有 DeepSeek 总结，使用普通上下文
+      const context = chatHistory.map(h => {
+        const role = h.role === 'user' ? 'BOSS' : '我'
+        return `${role}: ${h.content}`
+      }).join('\n')
+      
+      query = `以下是我与 BOSS 的历史对话：\n\n${context}\n\n现在 BOSS 说: "${boss.lastText}"\n\n请基于以上对话上下文，给出一个自然、得体的回复。`
+    }
+    
+    const reply = await callDifyApiWithQuery(query, config)
     
     if (!reply) {
       const noReplyMsg = `[AiAutoReply] AI 未生成回复`
@@ -804,7 +1075,12 @@ export function initAiAutoReplyIpc(): void {
   // 获取配置
   ipcMain.handle('get-ai-auto-reply-config', () => {
     try {
-      return getConfig()
+      const config = getConfig()
+      console.log('[AiAutoReply] 获取配置:', { 
+        enableSummary: config.enableSummary,
+        summaryPromptLength: config.summaryPrompt?.length 
+      })
+      return config
     } catch (error) {
       console.error('[AiAutoReply] 获取配置失败:', error)
       throw error
@@ -814,12 +1090,20 @@ export function initAiAutoReplyIpc(): void {
   // 保存配置
   ipcMain.handle('save-ai-auto-reply-config', async (_, config: Partial<AiAutoReplyConfig>) => {
     try {
+      console.log('[AiAutoReply] 收到保存请求:', { 
+        enableSummary: config.enableSummary,
+        summaryPromptLength: config.summaryPrompt?.length 
+      })
       await saveConfig(config)
-      if (getConfig().enabled) {
+      const savedConfig = getConfig()
+      console.log('[AiAutoReply] 保存后配置:', { 
+        enableSummary: savedConfig.enableSummary 
+      })
+      if (savedConfig.enabled) {
         stopAiAutoReply()
         await startAiAutoReply()
       }
-      return getConfig()
+      return savedConfig
     } catch (error) {
       console.error('[AiAutoReply] 保存配置失败:', error)
       throw error
@@ -839,6 +1123,17 @@ export function initAiAutoReplyIpc(): void {
       return getConfig()
     } catch (error) {
       console.error('[AiAutoReply] 设置启用状态失败:', error)
+      throw error
+    }
+  })
+
+  // 清除已回复消息缓存
+  ipcMain.handle('clear-ai-auto-reply-cache', async () => {
+    try {
+      await clearRepliedMessagesCache()
+      return { success: true }
+    } catch (error) {
+      console.error('[AiAutoReply] 清除缓存失败:', error)
       throw error
     }
   })

@@ -1948,14 +1948,12 @@
                 <el-button
                   type="primary"
                   :loading="isAiAutoReplySaving"
-                  :disabled="aiAutoReplyConfig.enabled"
                   @click="saveAiAutoReplyConfig"
                 >
                   保存配置
                 </el-button>
                 <el-button
                   @click="loadAiAutoReplyConfig"
-                  :disabled="aiAutoReplyConfig.enabled"
                 >
                   重置
                 </el-button>
@@ -1987,6 +1985,36 @@
                     :type="aiAutoReplyTestResult.startsWith('❌') ? 'error' : 'success'"
                     :closable="false"
                   />
+                </el-form-item>
+              </template>
+
+              <!-- LLM 对话总结配置 -->
+              <el-divider />
+              <div mb12px font-size-14px font-weight-500>对话总结（可选）</div>
+              
+              <el-form-item>
+                <el-checkbox v-model="aiAutoReplyConfig.enableSummary">
+                  启用对话总结
+                </el-checkbox>
+                <div font-size-12px mt4px style="color: #666;">
+                  启用后，AI 会使用<a @click="$router.push('/main-layout/llm-config')" style="color: var(--el-color-primary); cursor: pointer;">大语言模型设置</a>中配置的模型来分析对话历史并提取关键信息，帮助生成更智能的回复
+                </div>
+              </el-form-item>
+
+              <template v-if="aiAutoReplyConfig.enableSummary">
+                <el-form-item label="提示词模板">
+                  <el-input
+                    v-model="aiAutoReplyConfig.summaryPrompt"
+                    type="textarea"
+                    :rows="10"
+                    placeholder="请输入提示词模板，使用 {messages} 作为消息占位符"
+                  />
+                </el-form-item>
+
+                <el-form-item>
+                  <el-button @click="aiAutoReplyConfig.summaryPrompt = defaultSummaryPrompt">
+                    恢复默认模板
+                  </el-button>
                 </el-form-item>
               </template>
             </el-form>
@@ -2918,12 +2946,43 @@ interface AiAutoReplyConfig {
   enabled: boolean
   apiUrl: string
   apiKey: string
+  enableSummary: boolean
+  summaryPrompt: string
 }
+
+const defaultSummaryPrompt = `请分析以下招聘对话记录，并提取关键信息。
+
+【对话记录】
+{messages}
+
+【分析任务】
+1. 首先检查对话内容是否涉及"保险销售"相关岗位（如：保险代理人、保险销售、销售代表、业务经理等保险行业销售性质岗位）
+2. 如果涉及保险销售岗位，设置 shouldReject 为 true，并生成婉拒回复
+3. 如果不涉及保险销售，正常总结对话
+
+【输出格式】
+必须输出以下 JSON 格式：
+{
+  "shouldReject": false/true,
+  "rejectReason": "如果 shouldReject 为 true，填写原因，如'保险销售岗位'",
+  "rejectReply": "如果 shouldReject 为 true，生成一段委婉拒绝的回复（礼貌表示不感兴趣）",
+  "summary": "一句话总结对话状态",
+  "keyPoints": ["关键信息点1", "关键信息点2", "关键信息点3"],
+  "advantages": ["候选人应该强调的优势1", "优势2"]
+}
+
+注意：
+- 只有确定是保险销售岗位时才设置 shouldReject: true
+- 婉拒回复要礼貌、简洁，不要伤害对方
+- 如果不涉及保险销售，shouldReject 为 false，reject 相关字段可为空
+- 只输出 JSON，不要其他内容`
 
 const defaultAiAutoReplyConfig: AiAutoReplyConfig = {
   enabled: false,
   apiUrl: 'http://192.168.1.29/v1/chat-messages',
-  apiKey: ''
+  apiKey: '',
+  enableSummary: false,
+  summaryPrompt: defaultSummaryPrompt
 }
 
 const aiAutoReplyConfig = ref<AiAutoReplyConfig>({ ...defaultAiAutoReplyConfig })
@@ -2936,7 +2995,11 @@ const aiAutoReplyTestResult = ref('')
 async function loadAiAutoReplyConfig() {
   try {
     const result = await electron.ipcRenderer.invoke('get-ai-auto-reply-config')
+    console.log('[LoadConfig] 加载配置:', result)
     aiAutoReplyConfig.value = { ...defaultAiAutoReplyConfig, ...result }
+    console.log('[LoadConfig] 合并后配置:', {
+      enableSummary: aiAutoReplyConfig.value.enableSummary
+    })
   } catch (err) {
     console.error('加载 AI 自动回复配置失败:', err)
   }
@@ -2945,20 +3008,27 @@ async function loadAiAutoReplyConfig() {
 // 保存 AI 自动回复配置
 async function saveAiAutoReplyConfig() {
   if (!aiAutoReplyConfig.value.apiUrl) {
-    ElMessage.warning('请填写 API 地址')
+    ElMessage.warning('请填写 Dify API 地址')
     return
   }
   if (!aiAutoReplyConfig.value.apiKey) {
-    ElMessage.warning('请填写 API Key')
+    ElMessage.warning('请填写 Dify API Key')
     return
   }
 
   isAiAutoReplySaving.value = true
   try {
-    await electron.ipcRenderer.invoke('save-ai-auto-reply-config', {
-      apiUrl: aiAutoReplyConfig.value.apiUrl,
-      apiKey: aiAutoReplyConfig.value.apiKey
+    console.log('[SaveConfig] 保存配置:', {
+      enableSummary: aiAutoReplyConfig.value.enableSummary,
+      summaryPromptLength: aiAutoReplyConfig.value.summaryPrompt?.length
     })
+    const result = await electron.ipcRenderer.invoke('save-ai-auto-reply-config', {
+      apiUrl: aiAutoReplyConfig.value.apiUrl,
+      apiKey: aiAutoReplyConfig.value.apiKey,
+      enableSummary: aiAutoReplyConfig.value.enableSummary,
+      summaryPrompt: aiAutoReplyConfig.value.summaryPrompt
+    })
+    console.log('[SaveConfig] 保存结果:', result)
     ElMessage.success('AI 自动回复配置保存成功')
   } catch (err) {
     console.error('保存配置失败:', err)
@@ -2972,12 +3042,12 @@ async function saveAiAutoReplyConfig() {
 async function handleAiAutoReplyToggle(enabled: boolean) {
   if (enabled) {
     if (!aiAutoReplyConfig.value.apiUrl) {
-      ElMessage.warning('请填写 API 地址')
+      ElMessage.warning('请填写 Dify API 地址')
       aiAutoReplyConfig.value.enabled = false
       return
     }
     if (!aiAutoReplyConfig.value.apiKey) {
-      ElMessage.warning('请填写 API Key')
+      ElMessage.warning('请填写 Dify API Key')
       aiAutoReplyConfig.value.enabled = false
       return
     }

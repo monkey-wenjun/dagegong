@@ -75,7 +75,7 @@
       <div ref="tableContainerEl" class="h-100% of-hidden">
         <!-- 空状态提示 -->
         <div
-          v-if="!isTableLoading && activeTab === 'boss' && syncedUserList.length === 0"
+          v-if="!isTableLoading && activeTab === 'boss' && tableData.length === 0"
           class="empty-state"
           style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;"
         >
@@ -98,7 +98,7 @@
 
         <!-- BOSS沟通记录 -->
         <ElTable
-          v-if="activeTab === 'boss' && syncedUserList.length > 0"
+          v-if="activeTab === 'boss' && tableData.length > 0"
           ref="tableRef"
           :max-height="tableMaxHeight"
           :data="tableData"
@@ -566,18 +566,18 @@ async function getBossChatRelationList() {
 async function getAutoStartChatRecord() {
   try {
     isTableLoading.value = true
-    const { data: res } = (await electron.ipcRenderer.invoke('get-auto-start-chat-record', {
+    const res = (await electron.ipcRenderer.invoke('get-auto-start-chat-record', {
       pageNo: pagination.value.pageNo,
       pageSize: pagination.value.pageSize
-    })) as { data: PagedRes<VChatStartupLog> }
+    })) as PagedRes<VChatStartupLog>
 
-    tableData.value = res.data
+    tableData.value = res.data || []
     pagination.value = {
-      totalItemCount: res.totalItemCount,
-      pageNo: res.pageNo,
+      totalItemCount: res.totalItemCount || 0,
+      pageNo: res.pageNo || 1,
       pageSize: pagination.value.pageSize
     }
-    autoStartChatCount.value = res.totalItemCount
+    autoStartChatCount.value = res.totalItemCount || 0
   } catch (err) {
     console.error(err)
     ElMessage.error('获取开聊记录失败')

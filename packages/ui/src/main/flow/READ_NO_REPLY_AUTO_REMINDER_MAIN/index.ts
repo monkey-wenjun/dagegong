@@ -523,6 +523,39 @@ const mainLoop = async () => {
   // 确保浏览器配置已初始化
   await initBrowserConfig()
   
+  // Cookie 格式检查
+  const { checkCookieListFormat } = await import('../../../common/utils/cookie')
+  const bossCookies = readStorageFile('boss-cookies.json')
+  runningLogManager.logInfo('开始 Cookie 格式检查')
+  const isCookieValid = checkCookieListFormat(bossCookies)
+  if (!isCookieValid) {
+    runningLogManager.logError('Cookie 格式检查失败')
+    sendToDaemon({
+      type: 'worker-to-gui-message',
+      data: {
+        type: 'prerequisite-step-by-step-checkstep-by-step-check',
+        step: {
+          id: 'basic-cookie-check',
+          status: 'rejected'
+        },
+        runRecordId
+      }
+    })
+    throw new Error('LOGIN_STATUS_INVALID')
+  }
+  runningLogManager.logInfo('Cookie 格式检查通过')
+  sendToDaemon({
+    type: 'worker-to-gui-message',
+    data: {
+      type: 'prerequisite-step-by-step-checkstep-by-step-check',
+      step: {
+        id: 'basic-cookie-check',
+        status: 'fulfilled'
+      },
+      runRecordId
+    }
+  })
+  
   if (browser) {
     try {
       const cp = browser.process()

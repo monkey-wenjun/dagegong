@@ -2300,8 +2300,17 @@ export async function mainLoop (hooks, recoveryOptions = {}) {
       console.log('[Browser] 以无头模式启动浏览器')
     }
     
-    console.log('[DEBUG] Launching browser with executable path:', process.env.PUPPETEER_EXECUTABLE_PATH)
-    browser = await puppeteer.launch({
+    // 根据操作系统自动检测 Chrome 路径
+    const PLATFORM_CHROME_PATHS = {
+      win32: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      linux: '/usr/bin/google-chrome',
+      darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    }
+    
+    const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || PLATFORM_CHROME_PATHS[process.platform]
+    console.log('[DEBUG] Launching browser with executable path:', chromePath)
+    
+    const launchOptions = {
       headless: headlessMode ? 'new' : false,
       ignoreHTTPSErrors: true,
       ignoreDefaultArgs: ['--enable-automation'],
@@ -2346,7 +2355,14 @@ export async function mainLoop (hooks, recoveryOptions = {}) {
         '--disable-features=site-per-process', // 减少内存使用
         '--max_old_space_size=4096', // 增加 V8 堆内存限制
       ]
-    })
+    }
+    
+    // 如果检测到 Chrome 路径，添加到启动选项
+    if (chromePath) {
+      launchOptions.executablePath = chromePath
+    }
+    
+    browser = await puppeteer.launch(launchOptions)
     console.log('[DEBUG] Browser launched successfully')
     hooks.puppeteerLaunched?.call(browser)
     page = (await browser.pages())[0]

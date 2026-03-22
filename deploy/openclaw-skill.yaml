@@ -1,0 +1,113 @@
+# OpenClaw Skill 定义文件
+# 用于在 OpenClaw 中注册 Dagegong CLI 技能
+
+name: dagegong-job-agent
+version: 1.0.0
+description: BOSS 直聘自动投递助手 - 支持职位搜索、自动投递、AI 沟通
+category: job-search
+icon: 💼
+
+# 触发器定义
+triggers:
+  - type: command
+    name: apply
+    description: 投递简历
+    patterns:
+      - "帮我投递{limit}封简历关于{keyword}的"
+      - "投递{limit}个{keyword}职位"
+      - "找{limit}个{keyword}工作"
+      - "申请{limit}个{keyword}岗位"
+    parameters:
+      limit:
+        type: number
+        default: 100
+        description: 投递数量
+        extract_pattern: "(?:(\\d+))|(?:\\d+|一百|两百|几十|几个)"
+        transform: |
+          const numMap = { '一百': 100, '两百': 200, '几十': 50, '几个': 5 };
+          return numMap[match] || parseInt(match) || 100;
+      keyword:
+        type: string
+        default: "运维开发"
+        description: 职位关键词
+        extract_pattern: "(?:关于|个)?(.+?)(?:的|职位|工作|岗位|$)"
+    
+  - type: command
+    name: stats
+    description: 查看投递统计
+    patterns:
+      - "查看今日投递情况"
+      - "今天投递了多少"
+      - "投递统计"
+      - "最近投递记录"
+    
+  - type: scheduled
+    name: daily_report
+    description: 每日投递报告
+    schedule: "0 21 * * *"  # 每天 21:00
+    timezone: "Asia/Shanghai"
+
+# 执行配置
+execution:
+  type: cli
+  working_dir: /home/wenjun/dagegong-cli
+  env:
+    NODE_ENV: production
+    PUPPETEER_CACHE_DIR: /home/wenjun/.cache/puppeteer
+  
+  commands:
+    apply:
+      cmd: "node bin/cli.mjs apply"
+      args:
+        - "{keyword}"
+        - "--limit"
+        - "{limit}"
+        - "--city"
+        - "北京"
+        - "--feishu"
+        - "${FEISHU_WEBHOOK}"
+      timeout: 3600  # 1小时超时
+      
+    stats:
+      cmd: "node bin/cli.mjs stats"
+      args:
+        - "--today"
+      timeout: 60
+      
+    daily_report:
+      cmd: "node bin/cli.mjs stats"
+      args:
+        - "--today"
+      timeout: 60
+
+# 通知配置
+notifications:
+  feishu:
+    enabled: true
+    webhook: "${FEISHU_WEBHOOK}"
+    template: |
+      {
+        "msg_type": "post",
+        "content": {
+          "post": {
+            "zh_cn": {
+              "title": "💼 Dagegong 投递报告",
+              "content": [
+                [{"tag": "text", "text": "{{message}}"}]
+              ]
+            }
+          }
+        }
+      }
+
+# 权限配置
+permissions:
+  - filesystem: /home/wenjun/.dagegong-cli
+  - filesystem: /home/wenjun/.cache/puppeteer
+  - network: ["zhipin.com", "www.zhipin.com", "open.feishu.cn"]
+  
+# 资源限制
+resources:
+  memory: 2G
+  cpu: 2
+  disk: 5G

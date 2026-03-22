@@ -23,7 +23,8 @@ const defaultConfigFileContentMap = {
   'common-job-condition-config.json': JSON.stringify(defaultCommonJobConditionConfig),
   'daily-stats-notification.json': JSON.stringify(defaultDailyStatsNotificationConfig)
 }
-const runtimeFolderPath = path.join(os.homedir(), '.dagegong')
+// 允许通过环境变量配置运行时目录（CLI 模式使用 ~/.dagegong-cli）
+const runtimeFolderPath = process.env.DAGEGONG_RUNTIME_DIR || path.join(os.homedir(), '.dagegong')
 export const configFolderPath = path.join(
   runtimeFolderPath,
   'config'
