@@ -116,7 +116,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { ElDialog, ElAvatar, ElEmpty, ElSkeleton, ElImage, ElButton, ElMessage } from 'element-plus'
-import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord'
+import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord.js'
 import dayjs from 'dayjs'
 
 interface Props {
@@ -167,19 +167,38 @@ const messageContainer = ref<HTMLElement>()
 
 // 加载聊天记录
 async function loadChatMessages() {
-  if (!props.bossInfo?.encryptBossId || !props.encryptUserId) {
+  if (!props.bossInfo?.encryptBossId) {
     messages.value = []
     return
   }
+  
+  console.log('[ChatHistory] Loading messages for:', {
+    encryptBossId: props.bossInfo?.encryptBossId,
+    encryptUserId: props.encryptUserId || '(empty)'
+  })
 
   loading.value = true
   syncFailedReason.value = ''
   try {
+    // encryptUserId 可以为空，后端会查询与该 BOSS 相关的所有消息
     const result = await electron.ipcRenderer.invoke('get-chat-message-list', {
       encryptBossId: props.bossInfo.encryptBossId,
-      encryptUserId: props.encryptUserId
+      encryptUserId: props.encryptUserId || ''
     })
-    messages.value = result.data || []
+    // 过滤掉无效的消息项
+    messages.value = (result.data || []).filter((msg: ChatMessageRecord | null | undefined) => msg != null)
+
+    // 如果本地没有数据，自动尝试同步
+    if (messages.value.length === 0 && props.canSync) {
+      console.log('[ChatHistory] 本地无数据，自动尝试同步...')
+      await autoSyncChatHistory()
+      // 重新加载
+      const result2 = await electron.ipcRenderer.invoke('get-chat-message-list', {
+        encryptBossId: props.bossInfo.encryptBossId,
+        encryptUserId: props.encryptUserId || ''
+      })
+      messages.value = (result2.data || []).filter((msg: ChatMessageRecord | null | undefined) => msg != null)
+    }
 
     // 滚动到底部
     nextTick(() => {
@@ -191,6 +210,28 @@ async function loadChatMessages() {
     messages.value = []
   } finally {
     loading.value = false
+  }
+}
+
+// 自动同步聊天记录（不显示加载状态）
+async function autoSyncChatHistory() {
+  if (!props.bossInfo?.encryptBossId) return
+  
+  try {
+    const result = await electron.ipcRenderer.invoke('sync-boss-chat-history', {
+      encryptBossId: props.bossInfo.encryptBossId,
+      encryptJobId: props.bossInfo.encryptJobId,
+      encryptUserId: props.encryptUserId || ''
+    })
+
+    if (result.success) {
+      console.log(`[ChatHistory] 自动同步成功，${result.data.syncedCount} 条消息`)
+    } else {
+      console.log('[ChatHistory] 自动同步失败:', result.error)
+      syncFailedReason.value = result.error || '同步失败'
+    }
+  } catch (err) {
+    console.error('[ChatHistory] 自动同步出错:', err)
   }
 }
 
@@ -257,6 +298,8 @@ function scrollToBottom() {
 function shouldShowTime(msg: ChatMessageRecord, index: number): boolean {
   if (index === 0) return true
   const prevMsg = messages.value[index - 1]
+  // 修复：检查 prevMsg 是否存在，以及 msg 是否存在
+  if (!prevMsg || !msg) return false
   if (!prevMsg.time || !msg.time) return false
 
   const prevTime = dayjs(prevMsg.time).valueOf()

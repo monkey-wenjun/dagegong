@@ -615,9 +615,11 @@ export default async function initIpc() {
     'get-chat-message-list',
     async (
       ev,
-      { encryptBossId, encryptUserId }: { encryptBossId: string; encryptUserId: string }
+      { encryptBossId, encryptUserId }: { encryptBossId: string; encryptUserId?: string }
     ) => {
+      console.log('[DEBUG] get-chat-message-list called with:', { encryptBossId, encryptUserId: encryptUserId || '(empty)' })
       const a = await getChatMessageList({ encryptBossId, encryptUserId })
+      console.log('[DEBUG] get-chat-message-list returning', a.length, 'messages')
       return { data: a }
     }
   )
@@ -1107,8 +1109,9 @@ export default async function initIpc() {
 // 同步BOSS直聘沟通列表
 import { initDb } from '@dagegong/sqlite-plugin'
 import { getPublicDbFilePath } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { saveBossChatRelationList } from '@dagegong/sqlite-plugin/dist/handlers'
-import { BossChatRelation } from '@dagegong/sqlite-plugin/dist/entity/BossChatRelation'
+import { saveBossChatRelationList } from '@dagegong/sqlite-plugin/dist/handlers.js'
+import { BossChatRelation } from '@dagegong/sqlite-plugin/dist/entity/BossChatRelation.js'
+import { UserInfo } from '@dagegong/sqlite-plugin/dist/entity/UserInfo.js'
 
 import { initPuppeteer } from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 import { getAnyAvailablePuppeteerExecutable } from '../../DOWNLOAD_DEPENDENCIES/utils/puppeteer-executable/index'
@@ -1409,8 +1412,10 @@ async function syncBossChatRelations() {
 }
 
 // 同步单个 BOSS 的聊天记录
-import { saveChatMessageRecord } from '@dagegong/sqlite-plugin/dist/handlers'
-import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord'
+import { saveChatMessageRecord } from '@dagegong/sqlite-plugin/dist/handlers.js'
+import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord.js'
+import { UserInfo } from '@dagegong/sqlite-plugin/dist/entity/UserInfo.js'
+import { initPuppeteer } from '@dagegong/geek-auto-start-chat-with-boss/index.mjs'
 
 export async function syncBossChatHistory(
   encryptBossId: string,
@@ -1466,25 +1471,133 @@ export async function syncBossChatHistory(
       ? `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}&jobId=${encryptJobId}`
       : `https://www.zhipin.com/web/geek/chat?bossId=${encryptBossId}`
 
+    // 设置响应拦截，捕获 historyMsg 接口数据
+    let historyMsgData: any = null
+    let userInfoFromPage: any = null
+    let bossInfoFromPage: any = null
+    let historyMsgRequestReceived = false
+
+    page.on('response', async (response) => {
+      const url = response.url()
+      
+      // 拦截 historyMsg 接口
+      if (url.includes('wapi/zpchat/geek/historyMsg')) {
+        historyMsgRequestReceived = true
+        console.log('[SyncChatHistory] Intercepted historyMsg response:', url)
+        try {
+          const data = await response.json()
+          console.log('[SyncChatHistory] API response code:', data.code, 'has messages:', !!data.zpData?.messages)
+          if (data.code === 0 && data.zpData?.messages) {
+            historyMsgData = data.zpData.messages
+            console.log(`[SyncChatHistory] Got ${historyMsgData.length} messages from API`)
+          } else if (data.code !== 0) {
+            console.error('[SyncChatHistory] API returned error:', data)
+          }
+        } catch (e) {
+          console.error('[SyncChatHistory] Failed to parse historyMsg response:', e)
+        }
+      }
+    })
+
+    console.log('[SyncChatHistory] Navigating to:', chatUrl)
     await page.goto(chatUrl, {
       waitUntil: 'networkidle2',
       timeout: 60000
     })
 
     // 等待页面加载
-    await page
-      .waitForSelector('.main-wrap, .chat-container, .chat-conversation', {
+    const mainContainer = await page
+      .waitForSelector('.main-wrap, .chat-container, .chat-conversation, #chat-page', {
         timeout: 30000
       })
       .catch(() => {
         console.log('[SyncChatHistory] Main container not found')
+        return null
       })
+    
+    console.log('[SyncChatHistory] Main container found:', !!mainContainer)
 
-    // 等待 Vue 应用初始化
-    await new Promise((r) => setTimeout(r, 3000))
+    // 等待 API 请求完成（最多等待 15 秒）
+    console.log('[SyncChatHistory] Waiting for historyMsg API...')
+    for (let i = 0; i < 30; i++) {
+      if (historyMsgData && historyMsgData.length > 0) {
+        console.log('[SyncChatHistory] API data received, breaking wait loop')
+        break
+      }
+      await new Promise((r) => setTimeout(r, 500))
+    }
+    
+    console.log('[SyncChatHistory] API data received:', historyMsgRequestReceived, 'messages count:', historyMsgData?.length || 0)
+
+    // 如果没有拦截到 API 数据，主动调用 API 获取
+    if (!historyMsgData || historyMsgData.length === 0) {
+      console.log('[SyncChatHistory] 尝试主动调用 historyMsg API...')
+      try {
+        // 尝试从页面获取 securityId
+        const securityIdFromPage = await page.evaluate(() => {
+          try {
+            // 尝试从 URL 获取
+            const urlParams = new URLSearchParams(window.location.search)
+            const urlSecurityId = urlParams.get('securityId')
+            if (urlSecurityId) return urlSecurityId
+            
+            // 尝试从 Vue 数据获取
+            const chatRecord = document.querySelector('.chat-record')
+            const vueData = (chatRecord as any)?.__vue__
+            return vueData?.securityId || vueData?.conversation$?.securityId || null
+          } catch (e) {
+            return null
+          }
+        })
+        
+        console.log('[SyncChatHistory] 从页面获取的 securityId:', securityIdFromPage ? '有' : '无')
+        
+        const historyResponse = await page.evaluate(async (bossId, jobId, secId) => {
+          const params = new URLSearchParams({
+            bossId: bossId,
+            maxMsgId: '0',
+            c: '50',
+            page: '1',
+            src: '0'
+          })
+          if (jobId) {
+            params.append('jobId', jobId)
+          }
+          if (secId) {
+            params.append('securityId', secId)
+          }
+          
+          const res = await fetch(`https://www.zhipin.com/wapi/zpchat/geek/historyMsg?${params.toString()}`, {
+            method: 'GET',
+            headers: {
+              'accept': 'application/json, text/plain, */*',
+              'x-requested-with': 'XMLHttpRequest'
+            },
+            credentials: 'include'
+          })
+          return res.json()
+        }, encryptBossId, encryptJobId, securityIdFromPage)
+        
+        console.log('[SyncChatHistory] 主动调用 API 结果:', {
+          code: historyResponse?.code,
+          message: historyResponse?.message,
+          hasMessages: !!historyResponse?.zpData?.messages,
+          messageCount: historyResponse?.zpData?.messages?.length || 0
+        })
+        
+        if (historyResponse?.code === 0 && historyResponse?.zpData?.messages) {
+          historyMsgData = historyResponse.zpData.messages
+          console.log(`[SyncChatHistory] 主动调用获取到 ${historyMsgData.length} 条消息`)
+        } else if (historyResponse?.code !== 0) {
+          console.error('[SyncChatHistory] 主动调用 API 返回错误:', historyResponse?.message || historyResponse)
+        }
+      } catch (apiErr) {
+        console.error('[SyncChatHistory] 主动调用 API 失败:', apiErr)
+      }
+    }
 
     // 检查是否登录并获取当前用户信息
-    const userInfo = await page.evaluate(() => {
+    const pageUserInfo = await page.evaluate(() => {
       try {
         // 尝试从 Vue store 获取用户信息
         const mainWrap = document.querySelector('.main-wrap, #app, #container')
@@ -1504,100 +1617,258 @@ export async function syncBossChatHistory(
       }
     })
 
-    if (!userInfo?.encryptUserId) {
-      await browser.close()
-      return { success: false, error: '未获取到当前用户信息，请确保BOSS直聘 Cookie 有效' }
-    }
-
-    // 使用从页面获取的用户ID
-    const currentUserId = encryptUserId || userInfo.encryptUserId
-    console.log('[SyncChatHistory] Current user ID:', currentUserId)
-
-    // 保存用户信息到数据库（如果不存在）
-    const ds = await dbInitPromise
-    const { UserInfo } = await import('@dagegong/sqlite-plugin/dist/entity/UserInfo')
-    const userInfoRepository = ds.getRepository(UserInfo)
-    const existingUser = await userInfoRepository.findOneBy({
-      encryptUserId: userInfo.encryptUserId
-    })
-    if (!existingUser) {
-      const newUser = new UserInfo()
-      newUser.encryptUserId = userInfo.encryptUserId
-      newUser.name = userInfo.name || ''
-      await userInfoRepository.save(newUser)
-      console.log('[SyncChatHistory] Saved new user:', userInfo.encryptUserId)
-    }
-
-    // 等待聊天内容加载
-    console.log('[SyncChatHistory] Waiting for chat messages...')
-    try {
-      await page.waitForFunction(
-        () => {
-          const chatRecord = document.querySelector('.message-content .chat-record')
-          const vueData = (chatRecord as any)?.__vue__
-          return vueData?.list$?.length > 0 || vueData?.records$?.length > 0
-        },
-        { timeout: 20000 }
-      )
-    } catch (waitError) {
-      console.log('[SyncChatHistory] Chat messages wait timeout')
-    }
-
-    // 获取聊天记录
-    console.log('[SyncChatHistory] Getting chat messages...')
-    const rawChatRecordList = await page.evaluate(() => {
-      try {
-        const chatRecord = document.querySelector('.message-content .chat-record')
-        const vueData = (chatRecord as any)?.__vue__
-
-        // 尝试获取 list$ 或 records$
-        const messages = vueData?.list$ || vueData?.records$ || []
-
-        // 过滤只保留 sent 和 received 类型的消息
-        return messages.filter((msg: any) => ['sent', 'received'].includes(msg.style))
-      } catch (e) {
-        console.error('Error getting chat messages:', e)
-        return []
-      }
-    })
-
-    console.log(`[SyncChatHistory] Got ${rawChatRecordList.length} messages`)
-
-    if (rawChatRecordList.length === 0) {
-      await browser.close()
-      return { success: false, error: '未获取到聊天记录' }
-    }
-
     // 获取 BOSS 信息
-    const bossInfo = await page.evaluate(() => {
+    const pageBossInfo = await page.evaluate(() => {
       try {
         const chatConversation = document.querySelector('.chat-conversation')
         const vueData = (chatConversation as any)?.__vue__
-        return vueData?.conversation$?.bossInfo || null
+        return vueData?.conversation$?.bossInfo || vueData?.selectedFriend$ || null
       } catch (e) {
         return null
       }
     })
 
+    userInfoFromPage = pageUserInfo
+    bossInfoFromPage = pageBossInfo
+
+    console.log('[SyncChatHistory] User info from page:', userInfoFromPage?.encryptUserId)
+    console.log('[SyncChatHistory] Boss info from page:', bossInfoFromPage?.encryptBossId || bossInfoFromPage?.uid)
+
+    // 确定当前用户ID
+    const currentUserId = encryptUserId || userInfoFromPage?.encryptUserId
+    if (!currentUserId) {
+      await browser.close()
+      return { success: false, error: '未获取到当前用户信息，请确保BOSS直聘 Cookie 有效' }
+    }
+
+    console.log('[SyncChatHistory] Current user ID:', currentUserId)
+
+    // 保存用户信息到数据库
+    const ds = await dbInitPromise
+    const userInfoRepository = ds.getRepository(UserInfo)
+    const existingUser = await userInfoRepository.findOneBy({
+      encryptUserId: currentUserId
+    })
+    if (!existingUser) {
+      const newUser = new UserInfo()
+      newUser.encryptUserId = currentUserId
+      newUser.name = userInfoFromPage?.name || ''
+      await userInfoRepository.save(newUser)
+      console.log('[SyncChatHistory] Saved new user:', currentUserId)
+    }
+
+    // 如果没有从 API 拦截到数据，尝试从 DOM 获取
+    let rawChatRecordList: any[] = historyMsgData || []
+    
+    if (rawChatRecordList.length === 0) {
+      console.log('[SyncChatHistory] No data from API, trying DOM...')
+      
+      // 先等待一段时间让页面渲染
+      await new Promise((r) => setTimeout(r, 3000))
+      
+      // 等待聊天内容加载
+      try {
+        await page.waitForFunction(
+          () => {
+            // 尝试多种可能的选择器
+            const selectors = [
+              '.message-content .chat-record',
+              '.chat-conversation .chat-record', 
+              '.chat-record',
+              '[class*="chat"] [class*="record"]',
+              '.message-list',
+              '.chat-message-list'
+            ]
+            for (const selector of selectors) {
+              const el = document.querySelector(selector)
+              if (el) {
+                const vueData = (el as any)?.__vue__ || (el as any)?.__VUE__
+                if (vueData?.list$?.length > 0 || vueData?.records$?.length > 0) return true
+              }
+            }
+            return false
+          },
+          { timeout: 15000 }
+        )
+        console.log('[SyncChatHistory] Chat messages loaded in DOM')
+      } catch (waitError) {
+        console.log('[SyncChatHistory] Chat messages wait timeout or not found')
+      }
+
+      // 从 DOM 获取聊天记录 - 尝试多种选择器
+      const domMessages = await page.evaluate(() => {
+        try {
+          // 首先尝试获取 Vue 组件数据
+          const selectors = [
+            '.message-content .chat-record',
+            '.chat-conversation .chat-record',
+            '.chat-record',
+            '.message-list',
+            '.chat-message-list',
+            '[class*="chat"] [class*="message"]'
+          ]
+          
+          for (const selector of selectors) {
+            const elements = document.querySelectorAll(selector)
+            console.log(`[SyncChatHistory] Selector "${selector}" found ${elements.length} elements`)
+            
+            if (elements.length > 0) {
+              const el = elements[0]
+              const vueData = (el as any)?.__vue__ || (el as any)?.__VUE__
+              
+              if (vueData?.list$?.length > 0) {
+                console.log(`[SyncChatHistory] Found list$ with ${vueData.list$.length} items`)
+                return vueData.list$
+              }
+              if (vueData?.records$?.length > 0) {
+                console.log(`[SyncChatHistory] Found records$ with ${vueData.records$.length} items`)
+                return vueData.records$
+              }
+            }
+          }
+          
+          // 尝试从页面全局变量获取
+          const win = window as any
+          if (win.__CHAT_MESSAGES__?.length > 0) {
+            return win.__CHAT_MESSAGES__
+          }
+          
+          return []
+        } catch (e) {
+          console.error('Error getting chat messages from DOM:', e)
+          return []
+        }
+      })
+      
+      console.log(`[SyncChatHistory] DOM messages raw count: ${domMessages.length}`)
+      rawChatRecordList = domMessages.filter((msg: any) => {
+        const hasValidStyle = ['sent', 'received'].includes(msg.style)
+        const hasValidType = msg.type || msg.body?.type
+        return hasValidStyle || hasValidType
+      })
+      console.log(`[SyncChatHistory] DOM messages after filter: ${rawChatRecordList.length}`)
+    }
+
+    console.log(`[SyncChatHistory] Got ${rawChatRecordList.length} messages`)
+
+    if (rawChatRecordList.length === 0) {
+      // 尝试截图以便调试
+      try {
+        const debugDir = path.join(app.getPath('userData'), 'debug')
+        await import('fs').then(fs => {
+          if (!fs.existsSync(debugDir)) {
+            fs.mkdirSync(debugDir, { recursive: true })
+          }
+        })
+        const screenshotPath = path.join(debugDir, `sync-chat-debug-${Date.now()}.png`)
+        await page.screenshot({ path: screenshotPath, fullPage: true })
+        console.log('[SyncChatHistory] Debug screenshot saved to:', screenshotPath)
+      } catch (e) {
+        console.error('[SyncChatHistory] Failed to take screenshot:', e)
+      }
+      
+      await browser.close()
+      
+      // 根据失败原因给出更具体的错误提示
+      if (!historyMsgRequestReceived) {
+        return { 
+          success: false, 
+          error: '未获取到聊天记录：未能拦截到历史消息 API 请求，可能是页面加载失败或 Cookie 已过期，请检查 BOSS 直聘 Cookie 是否有效' 
+        }
+      }
+      
+      return { 
+        success: false, 
+        error: '未获取到聊天记录：API 返回为空且无法从页面 DOM 获取数据，可能是 BOSS 直聘页面结构已变更' 
+      }
+    }
+
+    // 获取 BOSS 信息
+    const bossInfo = bossInfoFromPage
+
     // 转换并保存聊天记录
+    // 判断数据来源：API 格式 (有 body 字段) 或 DOM 格式 (有 isSelf 字段)
+    const isApiFormat = rawChatRecordList[0]?.body !== undefined
+    console.log('[SyncChatHistory] Data format:', isApiFormat ? 'API' : 'DOM')
+    console.log('[SyncChatHistory] First message mid:', rawChatRecordList[0]?.mid)
+
     const chatRecordList: ChatMessageRecord[] = rawChatRecordList.map((it: any) => {
       const mappedItem = new ChatMessageRecord()
+      // 使用 API 返回的 mid 作为主键
       mappedItem.mid = it.mid
-      mappedItem.encryptFromUserId = it.isSelf
-        ? currentUserId
-        : bossInfo?.encryptBossId || encryptBossId
-      mappedItem.encryptToUserId = it.isSelf
-        ? bossInfo?.encryptBossId || encryptBossId
-        : currentUserId
-      mappedItem.style = it.isSelf ? 'sent' : 'received'
-      mappedItem.type = it.type || 'text'
-      mappedItem.time = it.time ? new Date(it.time) : null
-      mappedItem.text = it.text
-      if (it.type === 'image' && it.image?.originImage?.url) {
-        mappedItem.imageUrl = it.image.originImage.url
-        mappedItem.imageHeight = it.image.originImage.height
-        mappedItem.imageWidth = it.image.originImage.width
+      
+      if (isApiFormat) {
+        // API 格式转换
+        const fromUid = String(it.from?.uid || '')
+        const toUid = String(it.to?.uid || '')
+        const isSelf = fromUid === currentUserId
+        
+        mappedItem.encryptFromUserId = fromUid || (isSelf ? currentUserId : bossInfo?.encryptBossId || encryptBossId)
+        mappedItem.encryptToUserId = toUid || (isSelf ? bossInfo?.encryptBossId || encryptBossId : currentUserId)
+        mappedItem.style = isSelf ? 'sent' : 'received'
+        
+        // body.type: 1=文本, 3=系统消息/职位卡片(有jobDesc), 4=简历交换, 8=职位卡片, 12=附件简历
+        const bodyType = it.body?.type
+        if (bodyType === 1) {
+          // 普通文本消息
+          mappedItem.type = 'text'
+          mappedItem.text = it.body?.text || ''
+        } else if (bodyType === 3 && it.body?.jobDesc) {
+          // 职位卡片（系统消息形式）
+          mappedItem.type = 'job_card'
+          mappedItem.text = `[职位] ${it.body.jobDesc.title || ''} - ${it.body.jobDesc.company || ''}`.trim()
+        } else if (bodyType === 3) {
+          // 其他系统消息
+          mappedItem.type = 'system'
+          mappedItem.text = it.pushText || it.body?.headTitle || '[系统消息]'
+        } else if (bodyType === 4) {
+          // 简历交换请求/发送
+          mappedItem.type = 'resume_exchange'
+          if (it.body?.action?.extend) {
+            try {
+              const extendData = JSON.parse(decodeURIComponent(it.body.action.extend))
+              mappedItem.text = `[简历] ${extendData.resumeName || '发送了简历'}`
+            } catch {
+              mappedItem.text = it.pushText || '[简历交换]'
+            }
+          } else {
+            mappedItem.text = it.pushText || '[简历交换]'
+          }
+        } else if (bodyType === 8) {
+          // 职位卡片
+          mappedItem.type = 'job_card'
+          mappedItem.text = it.body?.jobDesc ? `[职位] ${it.body.jobDesc.title || ''} - ${it.body.jobDesc.company || ''}`.trim() : '[职位卡片]'
+        } else if (bodyType === 12) {
+          // 附件简历
+          mappedItem.type = 'resume_attachment'
+          mappedItem.text = it.body?.hyperLink?.text || it.pushText || '[附件简历]'
+        } else {
+          // 其他类型，尝试使用 pushText 或 body.text
+          mappedItem.type = 'text'
+          mappedItem.text = it.pushText || it.body?.text || `[消息类型${bodyType}]`
+        }
+        
+        mappedItem.time = it.time ? new Date(it.time) : null
+      } else {
+        // DOM 格式转换
+        mappedItem.encryptFromUserId = it.isSelf
+          ? currentUserId
+          : bossInfo?.encryptBossId || encryptBossId
+        mappedItem.encryptToUserId = it.isSelf
+          ? bossInfo?.encryptBossId || encryptBossId
+          : currentUserId
+        mappedItem.style = it.isSelf ? 'sent' : 'received'
+        mappedItem.type = it.type || 'text'
+        mappedItem.time = it.time ? new Date(it.time) : null
+        mappedItem.text = it.text
+        
+        if (it.type === 'image' && it.image?.originImage?.url) {
+          mappedItem.imageUrl = it.image.originImage.url
+          mappedItem.imageHeight = it.image.originImage.height
+          mappedItem.imageWidth = it.image.originImage.width
+        }
       }
+      
       return mappedItem
     })
 

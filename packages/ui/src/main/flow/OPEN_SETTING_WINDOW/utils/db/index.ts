@@ -129,12 +129,13 @@ export const getChatMessageList = async ({
   encryptUserId
 }: {
   encryptBossId: string
-  encryptUserId: string
+  encryptUserId?: string
 }) => {
   const res = await createWorkerPromise({
     type: 'getChatMessageList',
     encryptBossId,
     encryptUserId
   })
-  return res
+  // worker 返回的是 { data: result } 结构
+  return res.data || []
 }

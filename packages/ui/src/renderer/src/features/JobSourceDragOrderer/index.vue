@@ -221,7 +221,7 @@ import { computed, ref } from 'vue'
 import draggable from 'vuedraggable'
 import { ElMessage as Message } from 'element-plus'
 import { gtagRenderer } from '@renderer/utils/gtag'
-import { JobSource } from '@dagegong/sqlite-plugin/src/enums'
+import { JobSource } from '@dagegong/sqlite-plugin/dist/enums.js'
 const props = defineProps({
   modelValue: {
     type: Array

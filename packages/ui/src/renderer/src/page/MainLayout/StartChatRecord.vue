@@ -32,16 +32,17 @@
         <el-tag v-if="lastSyncTime" type="success" size="small">
           上次同步: {{ formatSyncTime(lastSyncTime) }}
         </el-tag>
-        <el-tooltip
-          v-if="autoSyncStatus.isEnabled && autoSyncStatus.nextSyncTime"
-          placement="bottom"
-          content="每5分钟自动同步一次"
-        >
-          <el-tag type="warning" size="small">
-            <template #icon><i class="i-mdi-timer-outline" /></template>
-            下次同步: {{ formatNextSyncTime(autoSyncStatus.nextSyncTime) }}
-          </el-tag>
-        </el-tooltip>
+        <div v-if="autoSyncStatus.isEnabled && autoSyncStatus.nextSyncTime" style="display: inline-block;">
+          <el-tooltip
+            placement="bottom"
+            content="每5分钟自动同步一次"
+          >
+            <el-tag type="warning" size="small">
+              <template #icon><i class="i-mdi-timer-outline" /></template>
+              下次同步: {{ formatNextSyncTime(autoSyncStatus.nextSyncTime) }}
+            </el-tag>
+          </el-tooltip>
+        </div>
       </div>
       <div flex gap8 flex-items-center>
         <el-switch
@@ -136,7 +137,7 @@
             min-width="150"
             :formatter="formatUpdateTime"
           />
-          <ElTableColumn label="操作" fixed="right" width="220" align="center">
+          <ElTableColumn label="操作" fixed="right" width="260" align="center">
             <template #default="{ row }">
               <ElButton link type="primary" size="small" @click="handleOpenLocalChat(row)"
                 >打开聊天</ElButton
@@ -150,6 +151,9 @@
               >
               <ElButton link type="success" size="small" @click="handleMarkAsInterview(row)"
                 >标记为面试</ElButton
+              >
+              <ElButton link type="danger" size="small" @click="handleBlockCompany(row)"
+                >拉黑企业</ElButton
               >
             </template>
           </ElTableColumn>
@@ -291,8 +295,8 @@ import {
   ElSwitch,
   ElTooltip
 } from 'element-plus'
-import { type VChatStartupLog } from '@dagegong/sqlite-plugin/dist/entity/VChatStartupLog'
-import { type VBossChatRelation } from '@dagegong/sqlite-plugin/dist/entity/VBossChatRelation'
+import { type VChatStartupLog } from '@dagegong/sqlite-plugin/dist/entity/VChatStartupLog.js'
+import { type VBossChatRelation } from '@dagegong/sqlite-plugin/dist/entity/VBossChatRelation.js'
 import { transformUtcDateToLocalDate } from '@dagegong/utils/date.mjs'
 import { PageReq, PagedRes } from '../../../../common/types/pagination'
 import JobInfoSnapshot from '../../features/JobInfoSnapshot/index.vue'
@@ -708,14 +712,11 @@ const currentUserId = ref('')
 async function handleOpenLocalChat(row: VBossChatRelation) {
   console.log('[StartChatRecord] Opening chat for row:', row)
 
-  // 获取当前用户ID
+  // 获取当前用户ID（如果不为空，查询会更精确；为空也能查询）
   if (!currentUserId.value) {
     const userId = await getCurrentUserId()
-    if (!userId) {
-      ElMessage.warning('请先点击页面顶部的"同步BOSS沟通记录"按钮获取聊天数据')
-      return
-    }
-    currentUserId.value = userId
+    currentUserId.value = userId || ''
+    console.log('[StartChatRecord] Got current user ID:', currentUserId.value || '(empty)')
   }
 
   console.log('[StartChatRecord] Current user ID:', currentUserId.value)
@@ -804,6 +805,72 @@ async function handleMarkAsInterview(row: VBossChatRelation) {
   } catch (err: any) {
     if (err !== 'cancel') {
       ElMessage.error(err.message || '标记失败')
+    }
+  }
+}
+
+// 拉黑企业（添加到全局黑名单）
+async function handleBlockCompany(row: VBossChatRelation) {
+  try {
+    if (!row.brandName) {
+      ElMessage.warning('该公司信息不完整，无法拉黑')
+      return
+    }
+
+    // 确认对话框
+    await ElMessageBox.confirm(
+      `确定将 "${row.brandName}" 加入全局黑名单吗？\n\n加入后：\n1. AI自动找工作时将避开该公司\n2. 已读不回自动复聊时不会提醒该公司\n3. 该公司将被全局屏蔽`,
+      '拉黑企业',
+      {
+        confirmButtonText: '确定拉黑',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    // 获取当前配置
+    const configResult = await electron.ipcRenderer.invoke('read-config-file', 'boss.json')
+    const config = configResult || {}
+    
+    // 获取当前黑名单正则
+    let currentBlockList = config.blockCompanyNameRegExpStr || ''
+    
+    // 转义正则特殊字符
+    const escapeRegExp = (str: string) => {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    }
+    
+    const escapedCompanyName = escapeRegExp(row.brandName)
+    
+    // 检查是否已存在
+    if (currentBlockList.includes(escapedCompanyName)) {
+      ElMessage.warning(`"${row.brandName}" 已在黑名单中`)
+      return
+    }
+    
+    // 添加到黑名单（使用 | 分隔）
+    const newBlockList = currentBlockList 
+      ? `${currentBlockList}|${escapedCompanyName}`
+      : escapedCompanyName
+    
+    // 保存配置
+    await electron.ipcRenderer.invoke('write-config-file', 'boss.json', {
+      ...config,
+      blockCompanyNameRegExpStr: newBlockList
+    })
+
+    ElMessage.success(`已将 "${row.brandName}" 加入黑名单`)
+    
+    // 记录日志
+    console.log('[BlockCompany] 已添加公司到黑名单:', {
+      company: row.brandName,
+      escapedName: escapedCompanyName,
+      newBlockList
+    })
+  } catch (err: any) {
+    if (err !== 'cancel') {
+      console.error('[BlockCompany] 拉黑失败:', err)
+      ElMessage.error(err.message || '拉黑失败')
     }
   }
 }

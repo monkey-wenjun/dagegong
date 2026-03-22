@@ -1,4 +1,4 @@
-import { saveGptCompletionRequestRecord } from '@dagegong/sqlite-plugin/dist/handlers'
+import { saveGptCompletionRequestRecord } from '@dagegong/sqlite-plugin/dist/handlers.js'
 
 export enum RequestSceneEnum {
   testing = 1,

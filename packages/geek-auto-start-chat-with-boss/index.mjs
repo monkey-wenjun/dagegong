@@ -469,19 +469,22 @@ const GreetingMessageMode = {
   CUSTOM: 1,       // 使用固定自定义消息
   AI_GENERATED: 2  // 使用 AI 根据 JD 和简历自动生成
 }
-const greetingMessageConfig = {
-  mode: Number(readConfigFile('boss.json').greetingMessageMode ?? GreetingMessageMode.DEFAULT),
-  customMessage: readConfigFile('boss.json').greetingMessage ?? '',
-  customPrompt: readConfigFile('boss.json').greetingMessagePrompt ?? ''
+// 打招呼消息配置 - 改为函数动态读取，确保获取最新配置
+function getGreetingMessageConfig() {
+  const config = readConfigFile('boss.json')
+  const result = {
+    mode: Number(config.greetingMessageMode ?? GreetingMessageMode.DEFAULT),
+    customMessage: config.greetingMessage ?? '',
+    customPrompt: config.greetingMessagePrompt ?? ''
+  }
+  console.log('[GreetingConfig] 动态读取配置:', {
+    mode: result.mode,
+    customMessageLength: result.customMessage?.length ?? 0,
+    customMessagePreview: result.customMessage?.substring(0, 50),
+    hasCustomPrompt: !!result.customPrompt
+  })
+  return result
 }
-
-// 打印打招呼消息配置（调试用）
-console.log('[GreetingConfig] 打招呼消息配置:', {
-  mode: greetingMessageConfig.mode,
-  modeType: typeof greetingMessageConfig.mode,
-  customMessageLength: greetingMessageConfig.customMessage?.length ?? 0,
-  hasCustomPrompt: !!greetingMessageConfig.customPrompt
-})
 
 /**
  * @type { import('puppeteer').Browser }
@@ -566,7 +569,8 @@ async function generateGreetingMessageWithAI(jobData, resumeData) {
 职位描述：${jobDesc}`
     
     // 使用自定义 prompt 或默认 prompt
-    const promptTemplate = greetingMessageConfig.customPrompt?.trim() || DEFAULT_GREETING_PROMPT
+    const config = getGreetingMessageConfig()
+    const promptTemplate = config.customPrompt?.trim() || DEFAULT_GREETING_PROMPT
     const prompt = promptTemplate
       .replace(/{{JOB_DESCRIPTION}}/g, jdContent)
       .replace(/{{RESUME_CONTENT}}/g, resumeContent)
@@ -2069,13 +2073,14 @@ async function toRecommendPage (hooks) {
             // 根据模式发送打招呼消息
             let messageToSend = null
             
+            const greetingMessageConfig = getGreetingMessageConfig()
             hooks.logInfo?.(`[Chat] 当前打招呼模式: ${greetingMessageConfig.mode} (0=默认, 1=自定义, 2=AI生成)`)
             
             switch (greetingMessageConfig.mode) {
               case GreetingMessageMode.CUSTOM:
                 // 使用固定自定义消息
                 messageToSend = greetingMessageConfig.customMessage?.trim() || null
-                hooks.logInfo?.(`[Chat] 自定义模式: 消息长度=${greetingMessageConfig.customMessage?.length ?? 0}, 有效=${!!messageToSend}`)
+                hooks.logInfo?.(`[Chat] 自定义模式: 消息内容="${greetingMessageConfig.customMessage}", 长度=${greetingMessageConfig.customMessage?.length ?? 0}, 有效=${!!messageToSend}`)
                 if (messageToSend) {
                   hooks.logInfo?.('[Chat] 准备发送固定自定义打招呼消息...')
                 }

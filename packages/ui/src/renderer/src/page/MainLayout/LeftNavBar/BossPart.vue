@@ -84,34 +84,6 @@
           <QuestionFilled w-1em h-1em mr10px />
         </el-tooltip>
       </RouterLink>
-      <RouterLink to="./ai-auto-reply">
-        AI自动回复
-        <el-tooltip placement="right" :enterable="false">
-          <template #content>
-            <div w-480px>
-              <div>自动检测 HR 发来的新消息，使用 AI 智能生成并发送回复</div>
-              <br />
-              <div>功能特点</div>
-              <ul m0 pl2em>
-                <li>定时轮询检查未读消息</li>
-                <li>自动调用 AI 生成专业回复</li>
-                <li>支持黑白名单过滤</li>
-                <li>可设置回复延迟和每日限额</li>
-                <li>支持自定义系统提示词</li>
-              </ul>
-              <br />
-              <div>适用场景</div>
-              <ul m0 pl2em>
-                <li>HR 主动询问技术问题</li>
-                <li>HR 约面试时间</li>
-                <li>HR 询问薪资期望</li>
-                <li>其他求职相关沟通</li>
-              </ul>
-            </div>
-          </template>
-          <QuestionFilled w-1em h-1em mr10px />
-        </el-tooltip>
-      </RouterLink>
     </div>
   </div>
 </template>

@@ -1899,6 +1899,98 @@
               </div>
             </div>
           </el-card>
+
+          <!-- AI 自动回复配置 -->
+          <el-card class="config-section">
+            <template #header>
+              <div class="card-header">
+                <div flex flex-items-center gap8>
+                  <span>AI 自动回复</span>
+                  <el-tooltip placement="right" :enterable="false">
+                    <template #content>
+                      <div w-400px>
+                        <div>开启后，系统会每30秒检查一次沟通记录。当检测到有HR发来新消息（未读且最后一条不是自己的消息）时，会自动调用Dify AI生成并发送回复。</div>
+                      </div>
+                    </template>
+                    <QuestionFilled w-1em h-1em />
+                  </el-tooltip>
+                </div>
+                <el-switch
+                  v-model="aiAutoReplyConfig.enabled"
+                  :loading="isAiAutoReplySaving"
+                  active-text="启用"
+                  inactive-text="停用"
+                  @change="handleAiAutoReplyToggle"
+                />
+              </div>
+            </template>
+
+            <el-form :model="aiAutoReplyConfig" label-width="100px" size="default">
+              <el-form-item label="API 地址">
+                <el-input
+                  v-model="aiAutoReplyConfig.apiUrl"
+                  placeholder="http://192.168.1.29/v1/chat-messages"
+                  :disabled="aiAutoReplyConfig.enabled"
+                />
+              </el-form-item>
+
+              <el-form-item label="API Key">
+                <el-input
+                  v-model="aiAutoReplyConfig.apiKey"
+                  type="password"
+                  placeholder="请输入 Dify API Key"
+                  show-password
+                  :disabled="aiAutoReplyConfig.enabled"
+                />
+              </el-form-item>
+
+              <el-form-item>
+                <el-button
+                  type="primary"
+                  :loading="isAiAutoReplySaving"
+                  :disabled="aiAutoReplyConfig.enabled"
+                  @click="saveAiAutoReplyConfig"
+                >
+                  保存配置
+                </el-button>
+                <el-button
+                  @click="loadAiAutoReplyConfig"
+                  :disabled="aiAutoReplyConfig.enabled"
+                >
+                  重置
+                </el-button>
+                <el-button
+                  type="success"
+                  :loading="isAiAutoReplyTesting"
+                  :disabled="!aiAutoReplyConfig.apiUrl || !aiAutoReplyConfig.apiKey"
+                  @click="testAiAutoReplyApi"
+                >
+                  测试 API
+                </el-button>
+              </el-form-item>
+
+              <!-- 测试区域 -->
+              <template v-if="aiAutoReplyTestMessage || aiAutoReplyTestResult">
+                <el-divider />
+                <el-form-item label="测试消息">
+                  <el-input
+                    v-model="aiAutoReplyTestMessage"
+                    type="textarea"
+                    :rows="2"
+                    placeholder="输入HR的消息，测试AI回复效果..."
+                  />
+                </el-form-item>
+
+                <el-form-item v-if="aiAutoReplyTestResult">
+                  <el-alert
+                    :title="aiAutoReplyTestResult"
+                    :type="aiAutoReplyTestResult.startsWith('❌') ? 'error' : 'success'"
+                    :closable="false"
+                  />
+                </el-form-item>
+              </template>
+            </el-form>
+          </el-card>
         </el-form>
       </div>
       <div class="pb10px pt10px form-footer-bar">
@@ -1977,7 +2069,7 @@ import {
   StrategyScopeOptionWhenMarkJobNotMatch,
   SalaryCalculateWay,
   JobDetailRegExpMatchLogic
-} from '@dagegong/sqlite-plugin/src/enums'
+} from '@dagegong/sqlite-plugin/dist/enums.js'
 import { debounce } from 'lodash'
 import mittBus from '../../../utils/mitt'
 import CityChooser from './components/CityChooser.vue'
@@ -2820,6 +2912,218 @@ const fillCommonConfigField = (field) => {
     formContent.value[field] = sourceValue
   }
 }
+
+// ==================== AI 自动回复 ====================
+interface AiAutoReplyConfig {
+  enabled: boolean
+  apiUrl: string
+  apiKey: string
+}
+
+const defaultAiAutoReplyConfig: AiAutoReplyConfig = {
+  enabled: false,
+  apiUrl: 'http://192.168.1.29/v1/chat-messages',
+  apiKey: ''
+}
+
+const aiAutoReplyConfig = ref<AiAutoReplyConfig>({ ...defaultAiAutoReplyConfig })
+const isAiAutoReplySaving = ref(false)
+const isAiAutoReplyTesting = ref(false)
+const aiAutoReplyTestMessage = ref('你好，我对这个职位很感兴趣')
+const aiAutoReplyTestResult = ref('')
+
+// 加载 AI 自动回复配置
+async function loadAiAutoReplyConfig() {
+  try {
+    const result = await electron.ipcRenderer.invoke('get-ai-auto-reply-config')
+    aiAutoReplyConfig.value = { ...defaultAiAutoReplyConfig, ...result }
+  } catch (err) {
+    console.error('加载 AI 自动回复配置失败:', err)
+  }
+}
+
+// 保存 AI 自动回复配置
+async function saveAiAutoReplyConfig() {
+  if (!aiAutoReplyConfig.value.apiUrl) {
+    ElMessage.warning('请填写 API 地址')
+    return
+  }
+  if (!aiAutoReplyConfig.value.apiKey) {
+    ElMessage.warning('请填写 API Key')
+    return
+  }
+
+  isAiAutoReplySaving.value = true
+  try {
+    await electron.ipcRenderer.invoke('save-ai-auto-reply-config', {
+      apiUrl: aiAutoReplyConfig.value.apiUrl,
+      apiKey: aiAutoReplyConfig.value.apiKey
+    })
+    ElMessage.success('AI 自动回复配置保存成功')
+  } catch (err) {
+    console.error('保存配置失败:', err)
+    ElMessage.error('保存配置失败')
+  } finally {
+    isAiAutoReplySaving.value = false
+  }
+}
+
+// 启用/禁用 AI 自动回复
+async function handleAiAutoReplyToggle(enabled: boolean) {
+  if (enabled) {
+    if (!aiAutoReplyConfig.value.apiUrl) {
+      ElMessage.warning('请填写 API 地址')
+      aiAutoReplyConfig.value.enabled = false
+      return
+    }
+    if (!aiAutoReplyConfig.value.apiKey) {
+      ElMessage.warning('请填写 API Key')
+      aiAutoReplyConfig.value.enabled = false
+      return
+    }
+  }
+
+  isAiAutoReplySaving.value = true
+  try {
+    await electron.ipcRenderer.invoke('set-ai-auto-reply-enabled', enabled)
+    ElMessage.success(enabled ? 'AI 自动回复已启动' : 'AI 自动回复已停止')
+  } catch (err: any) {
+    console.error('操作失败:', err)
+    const errorMsg = err?.message || err?.toString() || '未知错误'
+    ElMessage.error(`操作失败: ${errorMsg}`)
+    aiAutoReplyConfig.value.enabled = !enabled
+  } finally {
+    isAiAutoReplySaving.value = false
+  }
+}
+
+// 解析 Dify streaming 响应
+async function parseAiAutoReplyStreamingResponse(response: Response): Promise<string> {
+  const reader = response.body?.getReader()
+  if (!reader) {
+    throw new Error('无法读取响应流')
+  }
+
+  let fullAnswer = ''
+  const decoder = new TextDecoder()
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    const chunk = decoder.decode(value, { stream: true })
+    const lines = chunk.split('\n')
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6)
+        if (data === '[DONE]') continue
+
+        try {
+          const parsed = JSON.parse(data)
+          if (parsed.answer) {
+            fullAnswer = parsed.answer
+          } else if (parsed.event === 'message' && parsed.data?.answer) {
+            fullAnswer = parsed.data.answer
+          }
+        } catch {
+          // 忽略解析失败的行
+        }
+      }
+    }
+  }
+
+  return fullAnswer
+}
+
+// 测试 AI 自动回复 API
+async function testAiAutoReplyApi() {
+  if (!aiAutoReplyConfig.value.apiUrl) {
+    ElMessage.warning('请填写 API 地址')
+    return
+  }
+  if (!aiAutoReplyConfig.value.apiKey) {
+    ElMessage.warning('请填写 API Key')
+    return
+  }
+  if (!aiAutoReplyTestMessage.value.trim()) {
+    aiAutoReplyTestMessage.value = '你好，我对这个职位很感兴趣'
+  }
+
+  isAiAutoReplyTesting.value = true
+  aiAutoReplyTestResult.value = '请求中...'
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+
+    const response = await fetch(aiAutoReplyConfig.value.apiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${aiAutoReplyConfig.value.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: {},
+        query: aiAutoReplyTestMessage.value,
+        response_mode: 'blocking',
+        conversation_id: '',
+        user: 'test'
+      }),
+      signal: controller.signal
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`HTTP ${response.status}: ${errorText || '请求失败'}`)
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+
+    if (contentType.includes('text/event-stream') || contentType.includes('application/stream')) {
+      aiAutoReplyTestResult.value = '解析流式响应...'
+      const answer = await parseAiAutoReplyStreamingResponse(response)
+      if (answer) {
+        aiAutoReplyTestResult.value = answer
+        ElMessage.success('测试成功')
+      } else {
+        throw new Error('无法从流式响应中解析答案')
+      }
+    } else {
+      const data = await response.json()
+      if (data.answer) {
+        aiAutoReplyTestResult.value = data.answer
+        ElMessage.success('测试成功')
+      } else if (data.message) {
+        throw new Error(data.message)
+      } else {
+        aiAutoReplyTestResult.value = `响应: ${JSON.stringify(data, null, 2)}`
+        ElMessage.warning('未找到 answer 字段')
+      }
+    }
+  } catch (err: any) {
+    console.error('测试失败:', err)
+    let errorMsg = '未知错误'
+
+    if (err.name === 'AbortError') {
+      errorMsg = '请求超时，请检查 API 地址是否正确'
+    } else if (err instanceof Error) {
+      errorMsg = err.message
+    } else {
+      errorMsg = String(err)
+    }
+
+    aiAutoReplyTestResult.value = `❌ 错误: ${errorMsg}`
+    ElMessage.error(`测试失败: ${errorMsg}`)
+  } finally {
+    isAiAutoReplyTesting.value = false
+  }
+}
+
+// 页面加载时读取配置
+loadAiAutoReplyConfig()
 </script>
 
 <style scoped lang="scss">

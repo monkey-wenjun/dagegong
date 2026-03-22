@@ -171,7 +171,7 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: 'ai-auto-reply',
-        component: () => import('@renderer/page/MainLayout/AiAutoReply.vue'),
+        redirect: '/main/GeekAutoStartChatWithBoss',
         meta: {
           title: 'AI 自动回复'
         }

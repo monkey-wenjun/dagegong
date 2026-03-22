@@ -661,7 +661,7 @@
 
 <script setup lang="tsx">
 import { gtagRenderer as baseGtagRenderer } from '@renderer/utils/gtag'
-import { JobDetailRegExpMatchLogic, SalaryCalculateWay } from '@dagegong/sqlite-plugin/src/enums'
+import { JobDetailRegExpMatchLogic, SalaryCalculateWay } from '@dagegong/sqlite-plugin/dist/enums.js'
 import CityChooser from '../MainLayout/GeekAutoStartChatWithBoss/components/CityChooser.vue'
 import { QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
 

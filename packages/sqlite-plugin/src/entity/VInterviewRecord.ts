@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { ViewEntity, ViewColumn } from 'typeorm';
-import { InterviewStage, InterviewSource } from './InterviewRecord';
+import { InterviewStage, InterviewSource } from './InterviewRecord.js';
 
 @ViewEntity({
   expression: `

@@ -20,6 +20,7 @@ import { CookieInvalidHandlePlugin } from '../../features/cookie-invalid-handle-
 import initPublicIpc from '../../utils/initPublicIpc'
 import { getLastUsedAndAvailableBrowser } from '../DOWNLOAD_DEPENDENCIES/utils/browser-history'
 import { configWithBrowserAssistant } from '../../features/config-with-browser-assistant'
+import { loginWithCookieAssistant } from '../../features/login-with-cookie-assistant'
 import { runningLogManager } from '../../features/running-log'
 import { getBrowserConfig } from '../../features/browser-config'
 const { default: SqlitePlugin } = SqlitePluginModule
@@ -96,7 +97,7 @@ const runAutoChat = async () => {
     app.exit(AUTO_CHAT_ERROR_EXIT_CODE.PUPPETEER_IS_NOT_EXECUTABLE)
     return
   }
-  runningLogManager.logInfo('Puppeteer 可执行程序检查通过', { executablePath: puppeteerExecutable.executablePath })
+  runningLogManager.logInfo('可执行程序检查通过', { executablePath: puppeteerExecutable.executablePath })
   sendToDaemon({
     type: 'worker-to-gui-message',
     data: {
@@ -300,13 +301,30 @@ const runAutoChat = async () => {
       
       if (err instanceof Error) {
         if (err.message.includes('LOGIN_STATUS_INVALID')) {
-          await dialog.showMessageBox({
-            type: `error`,
-            message: `登录状态无效`,
-            detail: `请重新登录BOSS直聘`
-          })
-          process.exit(AUTO_CHAT_ERROR_EXIT_CODE.LOGIN_STATUS_INVALID)
-          break
+          runningLogManager.logInfo('登录状态无效，尝试弹出登录窗口...')
+          try {
+            await loginWithCookieAssistant()
+            runningLogManager.logInfo('用户已完成登录，将重新启动任务')
+            // 登录成功后，不退出，继续循环重试
+            continue
+          } catch (loginError) {
+            if (loginError?.message === 'USER_CANCELLED_LOGIN') {
+              runningLogManager.logError('用户取消了登录')
+              await dialog.showMessageBox({
+                type: `error`,
+                message: `登录已取消`,
+                detail: `需要登录后才能继续使用自动找工作功能`
+              })
+            } else {
+              await dialog.showMessageBox({
+                type: `error`,
+                message: `登录失败`,
+                detail: loginError?.message || '未知错误'
+              })
+            }
+            process.exit(AUTO_CHAT_ERROR_EXIT_CODE.LOGIN_STATUS_INVALID)
+            break
+          }
         }
         if (err.message.includes('ERR_INTERNET_DISCONNECTED')) {
           process.exit(AUTO_CHAT_ERROR_EXIT_CODE.ERR_INTERNET_DISCONNECTED)

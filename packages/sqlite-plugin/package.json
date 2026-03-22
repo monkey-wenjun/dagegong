@@ -2,7 +2,22 @@
   "name": "@dagegong/sqlite-plugin",
   "version": "0.0.2",
   "description": "",
+  "type": "module",
   "main": "dist/index.js",
+  "module": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./dist/*.js": "./dist/*.js",
+    "./dist/entity/*.js": "./dist/entity/*.js",
+    "./dist/handlers.js": "./dist/handlers.js",
+    "./dist/enums.js": "./dist/enums.js",
+    "./dist/utils/*.js": "./dist/utils/*.js",
+    "./src/enums": "./dist/enums.js",
+    "./src/utils/parser": "./dist/utils/parser.js"
+  },
   "dependencies": {
     "better-sqlite3": "12.6.2",
     "cli-highlight": "^2.1.11",

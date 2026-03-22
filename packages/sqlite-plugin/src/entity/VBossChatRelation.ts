@@ -86,4 +86,7 @@ export class VBossChatRelation {
 
   @ViewColumn()
   encryptUserId: string;
+
+  @ViewColumn()
+  lastIsSelf: boolean;
 }

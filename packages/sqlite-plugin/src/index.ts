@@ -1,29 +1,29 @@
 import "reflect-metadata";
 import { type DataSource } from "typeorm";
 
-import { BossInfo } from "./entity/BossInfo";
-import { BossInfoChangeLog } from "./entity/BossInfoChangeLog";
-import { ChatStartupFrom, ChatStartupLog } from './entity/ChatStartupLog';
-import { CompanyInfoChangeLog } from "./entity/CompanyInfoChangeLog";
-import { CompanyInfo } from "./entity/CompanyInfo";
-import { JobInfo } from "./entity/JobInfo";
-import { JobInfoChangeLog } from "./entity/JobInfoChangeLog";
-import { BossActiveStatusRecord } from "./entity/BossActiveStatusRecord";
-import { UserInfo } from "./entity/UserInfo";
-import { AutoStartChatRunRecord } from './entity/AutoStartChatRunRecord';
-import { MarkAsNotSuitLog } from "./entity/MarkAsNotSuitLog"
-import { VChatStartupLog } from "./entity/VChatStartupLog";
-import { VBossLibrary } from "./entity/VBossLibrary";
-import { VJobLibrary } from "./entity/VJobLibrary";
-import { VCompanyLibrary } from "./entity/VCompanyLibrary"
-import { VMarkAsNotSuitLog } from "./entity/VMarkAsNotSuitLog"
-import { BossChatRelation } from './entity/BossChatRelation'
-import { VBossChatRelation } from './entity/VBossChatRelation'
-import { ChatMessageRecord } from './entity/ChatMessageRecord'
-import { LlmModelUsageRecord } from './entity/LlmModelUsageRecord'
-import { JobHireStatusRecord } from './entity/JobHireStatusRecord'
-import { InterviewRecord } from './entity/InterviewRecord'
-import { VInterviewRecord } from './entity/VInterviewRecord'
+import { BossInfo } from "./entity/BossInfo.js";
+import { BossInfoChangeLog } from "./entity/BossInfoChangeLog.js";
+import { ChatStartupFrom, ChatStartupLog } from './entity/ChatStartupLog.js';
+import { CompanyInfoChangeLog } from "./entity/CompanyInfoChangeLog.js";
+import { CompanyInfo } from "./entity/CompanyInfo.js";
+import { JobInfo } from "./entity/JobInfo.js";
+import { JobInfoChangeLog } from "./entity/JobInfoChangeLog.js";
+import { BossActiveStatusRecord } from "./entity/BossActiveStatusRecord.js";
+import { UserInfo } from "./entity/UserInfo.js";
+import { AutoStartChatRunRecord } from './entity/AutoStartChatRunRecord.js';
+import { MarkAsNotSuitLog } from "./entity/MarkAsNotSuitLog.js"
+import { VChatStartupLog } from "./entity/VChatStartupLog.js";
+import { VBossLibrary } from "./entity/VBossLibrary.js";
+import { VJobLibrary } from "./entity/VJobLibrary.js";
+import { VCompanyLibrary } from "./entity/VCompanyLibrary.js"
+import { VMarkAsNotSuitLog } from "./entity/VMarkAsNotSuitLog.js"
+import { BossChatRelation } from './entity/BossChatRelation.js'
+import { VBossChatRelation } from './entity/VBossChatRelation.js'
+import { ChatMessageRecord } from './entity/ChatMessageRecord.js'
+import { LlmModelUsageRecord } from './entity/LlmModelUsageRecord.js'
+import { JobHireStatusRecord } from './entity/JobHireStatusRecord.js'
+import { InterviewRecord } from './entity/InterviewRecord.js'
+import { VInterviewRecord } from './entity/VInterviewRecord.js'
 
 import {
   saveChatStartupRecord,
@@ -42,23 +42,24 @@ import {
   getInterviewRecordList,
   getInterviewRecordById,
   checkIsInInterview
-} from "./handlers";
-import { UpdateChatStartupLogTable1729182577167 } from "./migrations/1729182577167-UpdateChatStartupLogTable";
+} from "./handlers.js";
+import { UpdateChatStartupLogTable1729182577167 } from "./migrations/1729182577167-UpdateChatStartupLogTable.js";
 import minimist from 'minimist'
-import { UpdateBossInfoTable1732032381304 } from "./migrations/1732032381304-UpdateBossInfoTable";
-import { JobHireStatus, MarkAsNotSuitOp, MarkAsNotSuitReason } from "./enums";
-import { AddColumnForMarkAsNotSuitLog1746092370665 } from "./migrations/1746092370665-AddColumnForMarkAsNotSuitLog";
-import { Init1000000000000 } from "./migrations/1000000000000-Init";
-import { AddJobSourceColumnForChatStartupLogAndMarkAsNotSuitLog1752380078526 } from "./migrations/1752380078526-AddJobSourceColumnForChatStartupLogAndMarkAsNotSuitLog";
-import { AddJobHireStatusTable1766466476822 } from "./migrations/1766466476822-AddJobHireStatusTable";
-import { AddBossChatRelationTable1770000000000 } from "./migrations/1770000000000-AddBossChatRelationTable";
-import { AddVBossChatRelationView1770000000001 } from "./migrations/1770000000001-AddVBossChatRelationView";
-import { FixBossChatRelationNullable1770000000002 } from "./migrations/1770000000002-FixBossChatRelationNullable";
-import { AddInterviewRecordTable1770000000003 } from "./migrations/1770000000003-AddInterviewRecordTable";
-import { AddVInterviewRecordView1770000000004 } from "./migrations/1770000000004-AddVInterviewRecordView";
-import { FixVInterviewRecordView1770000000005 } from "./migrations/1770000000005-FixVInterviewRecordView";
-import { FixVInterviewRecordViewAgain1770000000006 } from "./migrations/1770000000006-FixVInterviewRecordViewAgain";
-import chunk from 'lodash/chunk'
+import { UpdateBossInfoTable1732032381304 } from "./migrations/1732032381304-UpdateBossInfoTable.js";
+import { JobHireStatus, MarkAsNotSuitOp, MarkAsNotSuitReason } from "./enums.js";
+import { AddColumnForMarkAsNotSuitLog1746092370665 } from "./migrations/1746092370665-AddColumnForMarkAsNotSuitLog.js";
+import { Init1000000000000 } from "./migrations/1000000000000-Init.js";
+import { AddJobSourceColumnForChatStartupLogAndMarkAsNotSuitLog1752380078526 } from "./migrations/1752380078526-AddJobSourceColumnForChatStartupLogAndMarkAsNotSuitLog.js";
+import { AddJobHireStatusTable1766466476822 } from "./migrations/1766466476822-AddJobHireStatusTable.js";
+import { AddBossChatRelationTable1770000000000 } from "./migrations/1770000000000-AddBossChatRelationTable.js";
+import { AddVBossChatRelationView1770000000001 } from "./migrations/1770000000001-AddVBossChatRelationView.js";
+import { FixBossChatRelationNullable1770000000002 } from "./migrations/1770000000002-FixBossChatRelationNullable.js";
+import { AddInterviewRecordTable1770000000003 } from "./migrations/1770000000003-AddInterviewRecordTable.js";
+import { AddVInterviewRecordView1770000000004 } from "./migrations/1770000000004-AddVInterviewRecordView.js";
+import { FixVInterviewRecordView1770000000005 } from "./migrations/1770000000005-FixVInterviewRecordView.js";
+import { FixVInterviewRecordViewAgain1770000000006 } from "./migrations/1770000000006-FixVInterviewRecordViewAgain.js";
+import { AddLastIsSelfToVBossChatRelationView1770000000007 } from "./migrations/1770000000007-AddLastIsSelfToVBossChatRelationView.js";
+import chunk from 'lodash/chunk.js'
 import * as typeorm from 'typeorm'
 
 export function initDb(dbFilePath) {
@@ -107,7 +108,8 @@ export function initDb(dbFilePath) {
       AddInterviewRecordTable1770000000003,
       AddVInterviewRecordView1770000000004,
       FixVInterviewRecordView1770000000005,
-      FixVInterviewRecordViewAgain1770000000006
+      FixVInterviewRecordViewAgain1770000000006,
+      AddLastIsSelfToVBossChatRelationView1770000000007
     ],
     migrationsRun: true
   });
@@ -282,15 +284,15 @@ export default class SqlitePlugin {
 }
 
 // Export entities
-export { ChatStartupLog } from './entity/ChatStartupLog'
-export { JobInfo } from './entity/JobInfo'
-export { BossInfo } from './entity/BossInfo'
-export { CompanyInfo } from './entity/CompanyInfo'
-export { UserInfo } from './entity/UserInfo'
-export { BossChatRelation } from './entity/BossChatRelation'
-export { VBossChatRelation } from './entity/VBossChatRelation'
-export { InterviewRecord, InterviewStage, InterviewSource } from './entity/InterviewRecord'
-export { VInterviewRecord } from './entity/VInterviewRecord'
+export { ChatStartupLog } from './entity/ChatStartupLog.js'
+export { JobInfo } from './entity/JobInfo.js'
+export { BossInfo } from './entity/BossInfo.js'
+export { CompanyInfo } from './entity/CompanyInfo.js'
+export { UserInfo } from './entity/UserInfo.js'
+export { BossChatRelation } from './entity/BossChatRelation.js'
+export { VBossChatRelation } from './entity/VBossChatRelation.js'
+export { InterviewRecord, InterviewStage, InterviewSource } from './entity/InterviewRecord.js'
+export { VInterviewRecord } from './entity/VInterviewRecord.js'
 
 // Export handlers
 export {
@@ -303,4 +305,4 @@ export {
   getInterviewRecordList,
   getInterviewRecordById,
   checkIsInInterview
-} from './handlers'
+} from './handlers.js'

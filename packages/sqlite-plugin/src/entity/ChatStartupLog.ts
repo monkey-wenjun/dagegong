@@ -1,4 +1,4 @@
-import { JobSource } from "../enums";
+import { JobSource } from "../enums.js";
 import * as typeorm from 'typeorm';
 const { Entity, Column, PrimaryGeneratedColumn } = typeorm
 

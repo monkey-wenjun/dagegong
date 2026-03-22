@@ -136,6 +136,28 @@ export default function initPublicIpc() {
     return result
   })
 
+  // 读取单个配置文件
+  ipcMain.handle('read-config-file', async (_ev, fileName: string) => {
+    try {
+      const config = readConfigFile(fileName)
+      return config
+    } catch (error) {
+      console.error(`[IPC] 读取配置文件失败: ${fileName}`, error)
+      throw error
+    }
+  })
+
+  // 写入单个配置文件
+  ipcMain.handle('write-config-file', async (_ev, fileName: string, content: any) => {
+    try {
+      await writeConfigFile(fileName, content)
+      return { success: true }
+    } catch (error) {
+      console.error(`[IPC] 写入配置文件失败: ${fileName}`, error)
+      throw error
+    }
+  })
+
   // 保存求职全局设置配置
   ipcMain.handle('save-common-job-condition-config', async (_ev, payload) => {
     console.log('[IPC] save-common-job-condition-config called', payload)
@@ -273,9 +295,9 @@ export default function initPublicIpc() {
   initAutoSyncIpc()
 
   // 初始化 AI 自动回复 IPC
-  import('../features/ai-auto-reply-service').then(({ initAiAutoReplyIpc, startAiAutoReply }) => {
+  import('../features/ai-auto-reply-service').then(async ({ initAiAutoReplyIpc, startAiAutoReply }) => {
     initAiAutoReplyIpc()
     // 如果配置启用，自动启动服务
-    startAiAutoReply()
+    await startAiAutoReply()
   })
 }

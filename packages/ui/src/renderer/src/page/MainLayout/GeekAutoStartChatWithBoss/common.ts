@@ -1,4 +1,4 @@
-import { SalaryCalculateWay, JobDetailRegExpMatchLogic } from '@dagegong/sqlite-plugin/src/enums'
+import { SalaryCalculateWay, JobDetailRegExpMatchLogic } from '@dagegong/sqlite-plugin/dist/enums.js'
 import sampleCompanyList from '@dagegong/geek-auto-start-chat-with-boss/default-config-file/sample-company-list.json'
 import { nextTick } from 'vue'
 

@@ -15,21 +15,22 @@ import {
   saveMarkAsNotSuitRecord,
   saveChatMessageRecord,
   saveJobHireStatusRecord
-} from '@dagegong/sqlite-plugin/dist/handlers'
+} from '@dagegong/sqlite-plugin/dist/handlers.js'
 import { initDb } from '@dagegong/sqlite-plugin'
 import { getPublicDbFilePath } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { MarkAsNotSuitReason, JobSource, JobHireStatus } from '@dagegong/sqlite-plugin/dist/enums'
+import { MarkAsNotSuitReason, JobSource, JobHireStatus } from '@dagegong/sqlite-plugin/dist/enums.js'
 import cheerio from 'cheerio'
 
 import fs from 'node:fs'
 import { Target } from 'puppeteer'
 import { pipeWriteRegardlessError } from '../utils/pipe'
 import * as JSONStream from 'JSONStream'
-import { ChatStartupFrom } from '@dagegong/sqlite-plugin/dist/entity/ChatStartupLog'
+import { ChatStartupFrom } from '@dagegong/sqlite-plugin/dist/entity/ChatStartupLog.js'
 import gtag from '../../utils/gtag'
 import attachListenerForKillSelfOnParentExited from '../../utils/attachListenerForKillSelfOnParentExited'
-import { type ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord'
-import { BossInfo } from '@dagegong/sqlite-plugin/dist/entity/BossInfo'
+import { type ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord.js'
+import { BossInfo } from '@dagegong/sqlite-plugin/dist/entity/BossInfo.js'
+import { UserInfo } from '@dagegong/sqlite-plugin/dist/entity/UserInfo.js'
 import { messageForSaveFilter } from '../../../common/utils/chat-list'
 
 import {
@@ -281,6 +282,8 @@ const attachRequestsListener = async (target: Target) => {
       page.url().startsWith('https://www.zhipin.com/web/geek/chat') &&
       response.url().startsWith('https://www.zhipin.com/wapi/zpchat/geek/historyMsg')
     ) {
+      console.log('[DEBUG] Intercepted historyMsg response:', response.url())
+      
       const currentUserInfo = await page.evaluate(
         'document.querySelector(".main-wrap").__vue__.$store.state.userInfo'
       )
@@ -288,15 +291,45 @@ const attachRequestsListener = async (target: Target) => {
 
       const url = new URL(request)
       const encryptBossIdInAddFriendUrl = url.searchParams.get('bossId')
+      
+      console.log('[DEBUG] Request bossId:', encryptBossIdInAddFriendUrl)
 
-      const bossInfo =
-        (await page.evaluate(
-          'document.querySelector(".chat-conversation .chat-record")?.__vue__?.boss'
-        )) ?? null
+      // 添加重试机制获取 bossInfo
+      let bossInfo = null
+      let retryCount = 0
+      const maxRetries = 5
+      
+      while (!bossInfo && retryCount < maxRetries) {
+        bossInfo = await page.evaluate(() => {
+          const selectors = [
+            '.chat-conversation .chat-record',
+            '.chat-record',
+            '[class*="chat-record"]'
+          ]
+          for (const selector of selectors) {
+            const el = document.querySelector(selector)
+            if (el?.__vue__?.boss) {
+              console.log(`[DEBUG] Found bossInfo with selector: ${selector}`)
+              return el.__vue__.boss
+            }
+          }
+          return null
+        })
+        
+        if (!bossInfo) {
+          retryCount++
+          console.log(`[DEBUG] Waiting for bossInfo (${retryCount}/${maxRetries})...`)
+          await new Promise(r => setTimeout(r, 500))
+        }
+      }
+      
       if (!bossInfo) {
-        console.warn('cannot find boss info on page.')
+        console.warn('[DEBUG] cannot find boss info on page after retries.')
         return
       }
+      
+      console.log('[DEBUG] Got bossInfo:', { encryptBossId: bossInfo.encryptBossId, name: bossInfo.name })
+      
       const ds = await dbInitPromise
       // save boss info
       const bossInfoRepository = ds.getRepository(BossInfo)
@@ -314,14 +347,46 @@ const attachRequestsListener = async (target: Target) => {
         await bossInfoRepository.save(targetBossInfo)
       }
       if (encryptBossIdInAddFriendUrl !== bossInfo.encryptBossId) {
+        console.log('[DEBUG] BossId mismatch, skipping. URL:', encryptBossIdInAddFriendUrl, 'Page:', bossInfo.encryptBossId)
         return
       }
-      const rawChatRecordList =
-        (
-          await page.evaluate(
-            'document.querySelector(".message-content .chat-record").__vue__.list$'
-          )
-        )?.filter(messageForSaveFilter) ?? []
+      
+      // 添加重试机制获取聊天记录
+      let rawChatRecordList: any[] = []
+      retryCount = 0
+      
+      while (rawChatRecordList.length === 0 && retryCount < maxRetries) {
+        rawChatRecordList = await page.evaluate(() => {
+          const selectors = [
+            { sel: '.message-content .chat-record', props: ['list$', 'records$'] },
+            { sel: '.chat-conversation .chat-record', props: ['list$', 'records$'] },
+            { sel: '.chat-record', props: ['list$', 'records$'] }
+          ]
+          
+          for (const { sel, props } of selectors) {
+            const el = document.querySelector(sel)
+            if (el?.__vue__) {
+              for (const prop of props) {
+                if (el.__vue__[prop]) {
+                  console.log(`[DEBUG] Found chat records with selector: ${sel}, prop: ${prop}`)
+                  return el.__vue__[prop]
+                }
+              }
+            }
+          }
+          return []
+        })
+        
+        if (rawChatRecordList.length === 0) {
+          retryCount++
+          console.log(`[DEBUG] Waiting for chat records (${retryCount}/${maxRetries})...`)
+          await new Promise(r => setTimeout(r, 500))
+        }
+      }
+      
+      console.log('[DEBUG] Got rawChatRecordList length:', rawChatRecordList?.length ?? 0)
+      
+      rawChatRecordList = rawChatRecordList?.filter(messageForSaveFilter) ?? []
 
       const chatRecordList = rawChatRecordList.map((it) => {
         const mappedItem = {} as InstanceType<typeof ChatMessageRecord>
@@ -345,6 +410,26 @@ const attachRequestsListener = async (target: Target) => {
         return mappedItem
       })
       await saveChatMessageRecord(ds, chatRecordList)
+      console.log('[DEBUG] Saved', chatRecordList.length, 'chat messages to database')
+      
+      // 同时保存用户信息到 user_info 表
+      if (currentUserInfo?.encryptUserId) {
+        try {
+          const userInfoRepository = ds.getRepository(UserInfo)
+          let userInfoRecord = await userInfoRepository.findOneBy({
+            encryptUserId: currentUserInfo.encryptUserId
+          })
+          if (!userInfoRecord) {
+            userInfoRecord = new UserInfo()
+            userInfoRecord.encryptUserId = currentUserInfo.encryptUserId
+            userInfoRecord.name = currentUserInfo.name || currentUserInfo.nickName || '未知用户'
+            await userInfoRepository.save(userInfoRecord)
+            console.log('[DEBUG] Saved user info:', userInfoRecord.encryptUserId, userInfoRecord.name)
+          }
+        } catch (err) {
+          console.error('[DEBUG] Failed to save user info:', err)
+        }
+      }
     }
   })
 
@@ -463,6 +548,9 @@ export async function launchBossSite() {
   const tempPage = await browser.newPage()
   await page.close()
   page = tempPage
+  
+  // 手动为新页面绑定请求监听器
+  await attachRequestsListener(page.target())
 }
 
 attachListenerForKillSelfOnParentExited()

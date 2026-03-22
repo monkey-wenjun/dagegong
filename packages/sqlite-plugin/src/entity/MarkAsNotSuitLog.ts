@@ -1,6 +1,6 @@
-import { JobSource, MarkAsNotSuitOp, MarkAsNotSuitReason } from "../enums";
+import { JobSource, MarkAsNotSuitOp, MarkAsNotSuitReason } from "../enums.js";
 import * as typeorm from 'typeorm';
-import { ChatStartupFrom } from "./ChatStartupLog";
+import { ChatStartupFrom } from "./ChatStartupLog.js";
 const { Entity, Column, PrimaryGeneratedColumn } = typeorm
 
 @Entity()

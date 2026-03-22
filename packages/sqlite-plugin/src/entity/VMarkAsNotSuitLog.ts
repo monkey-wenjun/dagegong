@@ -1,6 +1,6 @@
 import * as typeorm from 'typeorm';
-import { ChatStartupFrom } from "./ChatStartupLog";
-import { MarkAsNotSuitReason } from "../enums";
+import { ChatStartupFrom } from "./ChatStartupLog.js";
+import { MarkAsNotSuitReason } from "../enums.js";
 const { ViewEntity, ViewColumn } = typeorm;
 @ViewEntity({
   expression: `SELECT

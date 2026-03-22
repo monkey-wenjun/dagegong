@@ -134,10 +134,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, h } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElPagination, ElDrawer } from 'element-plus'
-import { type VMarkAsNotSuitLog } from '@dagegong/sqlite-plugin/dist/entity/VMarkAsNotSuitLog'
+import { type VMarkAsNotSuitLog } from '@dagegong/sqlite-plugin/dist/entity/VMarkAsNotSuitLog.js'
 import { PageReq, PagedRes } from '../../../../common/types/pagination'
 import JobInfoSnapshot from '../../features/JobInfoSnapshot/index.vue'
-import { MarkAsNotSuitReason } from '@dagegong/sqlite-plugin/src/enums'
+import { MarkAsNotSuitReason } from '@dagegong/sqlite-plugin/dist/enums.js'
 import { transformUtcDateToLocalDate } from '@dagegong/utils/date.mjs'
 import { gtagRenderer } from '@renderer/utils/gtag'
 

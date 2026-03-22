@@ -3,17 +3,17 @@ import { parentPort } from 'node:worker_threads'
 import { initDb } from '@dagegong/sqlite-plugin'
 import { type DataSource } from 'typeorm'
 import { getPublicDbFilePath } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { VChatStartupLog } from '@dagegong/sqlite-plugin/dist/entity/VChatStartupLog'
-import { VJobLibrary } from '@dagegong/sqlite-plugin/dist/entity/VJobLibrary'
-import { VCompanyLibrary } from '@dagegong/sqlite-plugin/dist/entity/VCompanyLibrary'
-import { VBossLibrary } from '@dagegong/sqlite-plugin/dist/entity/VBossLibrary'
-import { VMarkAsNotSuitLog } from '@dagegong/sqlite-plugin/dist/entity/VMarkAsNotSuitLog'
-import { VBossChatRelation } from '@dagegong/sqlite-plugin/dist/entity/VBossChatRelation'
+import { VChatStartupLog } from '@dagegong/sqlite-plugin/dist/entity/VChatStartupLog.js'
+import { VJobLibrary } from '@dagegong/sqlite-plugin/dist/entity/VJobLibrary.js'
+import { VCompanyLibrary } from '@dagegong/sqlite-plugin/dist/entity/VCompanyLibrary.js'
+import { VBossLibrary } from '@dagegong/sqlite-plugin/dist/entity/VBossLibrary.js'
+import { VMarkAsNotSuitLog } from '@dagegong/sqlite-plugin/dist/entity/VMarkAsNotSuitLog.js'
+import { VBossChatRelation } from '@dagegong/sqlite-plugin/dist/entity/VBossChatRelation.js'
 import { measureExecutionTime } from '../../../../../../common/utils/performance'
 import { PageReq, PagedRes } from '../../../../../../common/types/pagination'
-import { JobInfoChangeLog } from '@dagegong/sqlite-plugin/dist/entity/JobInfoChangeLog'
-import { AutoStartChatRunRecord } from '@dagegong/sqlite-plugin/dist/entity/AutoStartChatRunRecord'
-import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord'
+import { JobInfoChangeLog } from '@dagegong/sqlite-plugin/dist/entity/JobInfoChangeLog.js'
+import { AutoStartChatRunRecord } from '@dagegong/sqlite-plugin/dist/entity/AutoStartChatRunRecord.js'
+import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord.js'
 
 const dbInitPromise = initDb(getPublicDbFilePath())
 let dataSource: DataSource | null = null
@@ -209,23 +209,36 @@ const payloadHandler = {
       pageSize = 100
     }
 
-    const repository = dataSource!.getRepository(VBossChatRelation)!
-    const whereClause: any = {}
-    if (encryptUserId) {
-      whereClause.encryptUserId = encryptUserId
-    }
-
-    const [data, totalItemCount] = await measureExecutionTime(
-      repository.findAndCount({
-        where: whereClause,
-        skip: (pageNo - 1) * pageSize,
-        take: pageSize
-      })
-    )
+    // 使用原始查询而不是 findAndCount，避免 TypeORM 视图实体问题
+    const offset = (pageNo - 1) * pageSize
+    
+    let dataQuery = `
+      SELECT * FROM v_boss_chat_relation
+      ${encryptUserId ? 'WHERE encryptUserId = ?' : ''}
+      ORDER BY updateTime DESC
+      LIMIT ? OFFSET ?
+    `
+    let countQuery = `
+      SELECT COUNT(*) as count FROM v_boss_chat_relation
+      ${encryptUserId ? 'WHERE encryptUserId = ?' : ''}
+    `
+    
+    const dataParams = encryptUserId 
+      ? [encryptUserId, pageSize, offset] 
+      : [pageSize, offset]
+    const countParams = encryptUserId 
+      ? [encryptUserId] 
+      : []
+    
+    const [rawData, countResult] = await Promise.all([
+      dataSource!.query(dataQuery, dataParams),
+      dataSource!.query(countQuery, countParams)
+    ])
+    
     return {
-      data,
+      data: rawData as VBossChatRelation[],
       pageNo,
-      totalItemCount
+      totalItemCount: countResult[0]?.count || 0
     }
   },
   async getChatMessageList({
@@ -233,17 +246,25 @@ const payloadHandler = {
     encryptUserId
   }: {
     encryptBossId: string
-    encryptUserId: string
+    encryptUserId?: string
   }): Promise<ChatMessageRecord[]> {
     const repository = dataSource!.getRepository(ChatMessageRecord)!
 
-    // 查询与该 BOSS 的聊天记录（双向）
-    const messages = await measureExecutionTime(
-      repository.find({
-        where: [
+    // 如果提供了 encryptUserId，查询与该 BOSS 的聊天记录（双向）
+    // 如果没有提供，查询与该 BOSS 相关的所有聊天记录
+    const whereCondition = encryptUserId
+      ? [
           { encryptFromUserId: encryptUserId, encryptToUserId: encryptBossId },
           { encryptFromUserId: encryptBossId, encryptToUserId: encryptUserId }
-        ],
+        ]
+      : [
+          { encryptFromUserId: encryptBossId },
+          { encryptToUserId: encryptBossId }
+        ]
+
+    const messages = await measureExecutionTime(
+      repository.find({
+        where: whereCondition as any,
         order: { time: 'ASC' }
       })
     )

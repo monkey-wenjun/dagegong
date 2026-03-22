@@ -1,10 +1,10 @@
 import { DataSource, MigrationInterface, QueryRunner, TableColumn } from "typeorm"
-import { VBossLibrary } from "../entity/VBossLibrary";
-import { VChatStartupLog } from "../entity/VChatStartupLog";
-import { VCompanyLibrary } from "../entity/VCompanyLibrary";
-import { VJobLibrary } from "../entity/VJobLibrary";
-import { VMarkAsNotSuitLog } from "../entity/VMarkAsNotSuitLog";
-import { JobSource } from "../enums";
+import { VBossLibrary } from "../entity/VBossLibrary.js";
+import { VChatStartupLog } from "../entity/VChatStartupLog.js";
+import { VCompanyLibrary } from "../entity/VCompanyLibrary.js";
+import { VJobLibrary } from "../entity/VJobLibrary.js";
+import { VMarkAsNotSuitLog } from "../entity/VMarkAsNotSuitLog.js";
+import { JobSource } from "../enums.js";
 
 const ViewEntities = [
   VBossLibrary,

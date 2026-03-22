@@ -1,4 +1,4 @@
-import { JobHireStatus } from "../enums";
+import { JobHireStatus } from "../enums.js";
 import * as typeorm from 'typeorm';
 const { Entity, Column, PrimaryColumn } = typeorm;
 

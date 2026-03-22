@@ -11,17 +11,18 @@ import {
   getPublicDbFilePath,
   readConfigFile
 } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord'
+import { ChatMessageRecord } from '@dagegong/sqlite-plugin/dist/entity/ChatMessageRecord.js'
 import {
   saveChatMessageRecord,
   getJobHireStatusRecord,
   saveJobHireStatusRecord
-} from '@dagegong/sqlite-plugin/dist/handlers'
+} from '@dagegong/sqlite-plugin/dist/handlers.js'
 import {
   writeStorageFile,
   readStorageFile
 } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { BossInfo } from '@dagegong/sqlite-plugin/dist/entity/BossInfo'
+import { BossInfo } from '@dagegong/sqlite-plugin/dist/entity/BossInfo.js'
+import { UserInfo } from '@dagegong/sqlite-plugin/dist/entity/UserInfo.js'
 import { messageForSaveFilter } from '../../../common/utils/chat-list'
 import {
   AUTO_CHAT_ERROR_EXIT_CODE,
@@ -30,7 +31,7 @@ import {
   RECHAT_LLM_FALLBACK
 } from '../../../common/enums/auto-start-chat'
 import gtag from '../../utils/gtag'
-import { JobHireStatus } from '@dagegong/sqlite-plugin/dist/enums'
+import { JobHireStatus } from '@dagegong/sqlite-plugin/dist/enums.js'
 import dayjs from 'dayjs'
 import cheerio from 'cheerio'
 import { connectToDaemon, sendToDaemon } from '../OPEN_SETTING_WINDOW/connect-to-daemon'
@@ -177,9 +178,42 @@ async function saveCurrentChatRecord(page) {
   const userInfo = await page.evaluate(
     'document.querySelector(".main-wrap").__vue__.$store.state.userInfo'
   )
-  const bossInfo = await page.evaluate(
-    'document.querySelector(".chat-conversation .chat-record")?.__vue__?.boss'
-  )
+  
+  // 添加调试和重试获取 bossInfo
+  let bossInfo = null
+  let retryCount = 0
+  const maxRetries = 3
+  
+  while (!bossInfo && retryCount < maxRetries) {
+    if (retryCount > 0) {
+      console.log(`[DEBUG] Retrying to get bossInfo (${retryCount}/${maxRetries})...`)
+      await sleep(500)
+    }
+    
+    bossInfo = await page.evaluate(() => {
+      // 尝试多个选择器
+      const selectors = [
+        '.chat-conversation .chat-record',
+        '.chat-record',
+        '[class*="chat-record"]'
+      ]
+      for (const selector of selectors) {
+        const el = document.querySelector(selector)
+        if (el?.__vue__?.boss) {
+          console.log(`[DEBUG] Found bossInfo with selector: ${selector}`)
+          return el.__vue__.boss
+        }
+      }
+      return null
+    })
+    
+    retryCount++
+  }
+  
+  if (!bossInfo) {
+    console.error('[DEBUG] Failed to get bossInfo after retries')
+    return
+  }
 
   const ds = await dbInitPromise
   // save boss info
@@ -198,12 +232,44 @@ async function saveCurrentChatRecord(page) {
     await bossInfoRepository.save(targetBossInfo)
   }
 
-  const rawChatRecordList =
-    (
-      await page.evaluate(
-        'document.querySelector(".message-content .chat-record").__vue__.records$'
-      )
-    )?.filter((msg) => ['received', 'sent'].includes(msg.style)) ?? []
+  // 添加调试和重试获取聊天记录
+  let rawChatRecordList: any[] = []
+  retryCount = 0
+  
+  while (rawChatRecordList.length === 0 && retryCount < maxRetries) {
+    if (retryCount > 0) {
+      console.log(`[DEBUG] Retrying to get chat records (${retryCount}/${maxRetries})...`)
+      await sleep(500)
+    }
+    
+    rawChatRecordList = await page.evaluate(() => {
+      // 尝试多个选择器和属性名
+      const selectors = [
+        { sel: '.message-content .chat-record', props: ['records$', 'list$'] },
+        { sel: '.chat-conversation .chat-record', props: ['records$', 'list$'] },
+        { sel: '.chat-record', props: ['records$', 'list$'] }
+      ]
+      
+      for (const { sel, props } of selectors) {
+        const el = document.querySelector(sel)
+        if (el?.__vue__) {
+          for (const prop of props) {
+            if (el.__vue__[prop]) {
+              console.log(`[DEBUG] Found chat records with selector: ${sel}, prop: ${prop}`)
+              return el.__vue__[prop]
+            }
+          }
+        }
+      }
+      return []
+    })
+    
+    retryCount++
+  }
+  
+  console.log('[DEBUG] rawChatRecordList length:', rawChatRecordList?.length ?? 0)
+  
+  rawChatRecordList = rawChatRecordList?.filter((msg) => ['received', 'sent'].includes(msg.style)) ?? []
   const chatRecordList = rawChatRecordList.map((it) => {
     const mappedItem = {} as InstanceType<typeof ChatMessageRecord>
     mappedItem.mid = it.mid
@@ -233,6 +299,26 @@ async function saveCurrentChatRecord(page) {
   })
 
   await saveChatMessageRecord(ds, chatRecordList)
+  console.log('[DEBUG] Saved', chatRecordList.length, 'chat messages to database')
+  
+  // 同时保存用户信息到 user_info 表
+  if (userInfo?.encryptUserId) {
+    try {
+      const userInfoRepository = ds.getRepository(UserInfo)
+      let userInfoRecord = await userInfoRepository.findOneBy({
+        encryptUserId: userInfo.encryptUserId
+      })
+      if (!userInfoRecord) {
+        userInfoRecord = new UserInfo()
+        userInfoRecord.encryptUserId = userInfo.encryptUserId
+        userInfoRecord.name = userInfo.name || userInfo.nickName || '未知用户'
+        await userInfoRepository.save(userInfoRecord)
+        console.log('[DEBUG] Saved user info:', userInfoRecord.encryptUserId, userInfoRecord.name)
+      }
+    } catch (err) {
+      console.error('[DEBUG] Failed to save user info:', err)
+    }
+  }
 }
 
 async function checkJobIsClosed() {
@@ -656,14 +742,38 @@ const mainLoop = async () => {
         return jsHandle
       })()
       await targetElProxy?.click()
-      await pageMapByName.boss!.waitForResponse((response) => {
+      const historyMsgResponse = await pageMapByName.boss!.waitForResponse((response) => {
         if (response.url().startsWith('https://www.zhipin.com/wapi/zpchat/geek/historyMsg')) {
           return true
         }
         return false
       })
+      
+      // 添加调试日志：打印响应状态
+      console.log('[DEBUG] historyMsg response status:', historyMsgResponse.status())
+      try {
+        const responseData = await historyMsgResponse.json()
+        console.log('[DEBUG] historyMsg response data:', {
+          code: responseData.code,
+          hasMore: responseData.zpData?.hasMore,
+          messageCount: responseData.zpData?.messages?.length ?? 0
+        })
+      } catch (e) {
+        console.log('[DEBUG] Failed to parse historyMsg response:', e.message)
+      }
     }
     await sleepWithRandomDelay(1500)
+    
+    // 添加调试：检查 DOM 元素是否存在
+    const chatRecordDomInfo = await pageMapByName.boss?.evaluate(() => {
+      const chatRecordEl = document.querySelector('.message-content .chat-record')
+      return {
+        exists: !!chatRecordEl,
+        hasVue: !!chatRecordEl?.__vue__,
+        listLength: chatRecordEl?.__vue__?.list$?.length ?? 0
+      }
+    })
+    console.log('[DEBUG] Chat record DOM info:', chatRecordDomInfo)
     // check if expect job type match
     let isExpectJobTypeMatch = true
     if (onlyRemindBossWithExpectJobType) {
@@ -686,12 +796,52 @@ const mainLoop = async () => {
       `document.querySelector('.chat-conversation .chat-im.chat-editor')?.__vue__?.conversation$`
     )
 
-    const historyMessageList =
-      (
-        await pageMapByName.boss?.evaluate(() => {
-          return document.querySelector('.message-content .chat-record')?.__vue__?.list$ ?? []
-        })
-      )?.filter(messageForSaveFilter) ?? []
+    // 添加重试机制获取聊天记录
+    let historyMessageList: any[] = []
+    let retryCount = 0
+    const maxRetries = 3
+    
+    while (retryCount < maxRetries && historyMessageList.length === 0) {
+      if (retryCount > 0) {
+        console.log(`[DEBUG] Retrying to get chat history (${retryCount}/${maxRetries})...`)
+        await sleep(1000)
+      }
+      
+      historyMessageList =
+        (
+          await pageMapByName.boss?.evaluate(() => {
+            // 尝试多个可能的选择器
+            const selectors = [
+              '.message-content .chat-record',
+              '.chat-conversation .chat-record',
+              '.chat-record',
+              '[class*="chat-record"]'
+            ]
+            
+            for (const selector of selectors) {
+              const el = document.querySelector(selector)
+              if (el?.__vue__?.list$) {
+                console.log(`[DEBUG] Found chat record with selector: ${selector}`)
+                return el.__vue__.list$
+              }
+            }
+            
+            // 如果都没找到，打印调试信息
+            console.log('[DEBUG] Available chat-record elements:', 
+              Array.from(document.querySelectorAll('[class*="chat-record"]')).map(el => ({
+                className: el.className,
+                hasVue: !!el.__vue__,
+                hasList: !!el.__vue__?.list$
+              }))
+            )
+            return []
+          })
+        )?.filter(messageForSaveFilter) ?? []
+      
+      retryCount++
+    }
+    
+    console.log('[DEBUG] Final historyMessageList length:', historyMessageList.length)
 
     const lastGeekMessageSendTime = historyMessageList.findLast((it) => it.isSelf)?.time ?? 0
     const isJobClosed = await checkJobIsClosed()
@@ -855,7 +1005,7 @@ export async function runEntry() {
     })
     throw new Error(`PUPPETEER_IS_NOT_EXECUTABLE`)
   }
-  runningLogManager.logInfo('Puppeteer 可执行程序检查通过', { executablePath: puppeteerExecutable.executablePath })
+  runningLogManager.logInfo('可执行程序检查通过', { executablePath: puppeteerExecutable.executablePath })
   sendToDaemon({
     type: 'worker-to-gui-message',
     data: {

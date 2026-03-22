@@ -5,7 +5,7 @@ export const getAutoStartChatSteps = () => [
   },
   {
     id: 'puppeteer-executable-check',
-    describe: 'Puppeteer 可执行程序检查'
+    describe: '可执行程序检查'
   },
   {
     id: 'basic-cookie-check',

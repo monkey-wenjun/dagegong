@@ -1,17 +1,17 @@
 import { DataSource, Raw } from "typeorm";
-import { BossActiveStatusRecord } from "./entity/BossActiveStatusRecord";
-import { BossInfo } from "./entity/BossInfo";
-import { CompanyInfo } from "./entity/CompanyInfo";
-import { JobInfo } from "./entity/JobInfo";
-import { parseCompanyScale, parseSalary } from "./utils/parser";
-import { ChatStartupLog } from "./entity/ChatStartupLog";
-import { BossInfoChangeLog } from "./entity/BossInfoChangeLog";
-import { CompanyInfoChangeLog } from "./entity/CompanyInfoChangeLog";
-import { JobInfoChangeLog } from "./entity/JobInfoChangeLog";
-import { MarkAsNotSuitLog } from "./entity/MarkAsNotSuitLog";
-import { ChatMessageRecord } from "./entity/ChatMessageRecord";
-import { LlmModelUsageRecord } from "./entity/LlmModelUsageRecord";
-import { JobHireStatusRecord } from "./entity/JobHireStatusRecord";
+import { BossActiveStatusRecord } from "./entity/BossActiveStatusRecord.js";
+import { BossInfo } from "./entity/BossInfo.js";
+import { CompanyInfo } from "./entity/CompanyInfo.js";
+import { JobInfo } from "./entity/JobInfo.js";
+import { parseCompanyScale, parseSalary } from "./utils/parser.js";
+import { ChatStartupLog } from "./entity/ChatStartupLog.js";
+import { BossInfoChangeLog } from "./entity/BossInfoChangeLog.js";
+import { CompanyInfoChangeLog } from "./entity/CompanyInfoChangeLog.js";
+import { JobInfoChangeLog } from "./entity/JobInfoChangeLog.js";
+import { MarkAsNotSuitLog } from "./entity/MarkAsNotSuitLog.js";
+import { ChatMessageRecord } from "./entity/ChatMessageRecord.js";
+import { LlmModelUsageRecord } from "./entity/LlmModelUsageRecord.js";
+import { JobHireStatusRecord } from "./entity/JobHireStatusRecord.js";
 
 function getBossInfoIfIsEqual (savedOne, currentOne) {
   if (savedOne === currentOne) {
@@ -301,14 +301,37 @@ export async function saveChatMessageRecord(
   ds: DataSource,
   records: ChatMessageRecord[]
 ) {
-  //#region mark-as-not-suit-log
-  const chatMessageRecordList = records.map(it => {
-    const o = new ChatMessageRecord()
-    Object.assign(o, it)
-    return o
-  })
+  if (records.length === 0) return
+  
+  //#region chat-message-record
   const chatMessageRecordRepository = ds.getRepository(ChatMessageRecord);
-  await chatMessageRecordRepository.save(chatMessageRecordList);
+  
+  // 使用 upsert 处理冲突（基于 mid 唯一约束）
+  // 先尝试批量插入，如果失败则逐个处理
+  try {
+    // SQLite 3.24+ 支持 ON CONFLICT
+    // TypeORM 的 save 方法在冲突时会抛出错误
+    // 我们使用 queryBuilder 来执行 upsert
+    for (const record of records) {
+      const existing = await chatMessageRecordRepository.findOne({
+        where: { mid: record.mid }
+      })
+      
+      if (existing) {
+        // 更新现有记录
+        Object.assign(existing, record);
+        await chatMessageRecordRepository.save(existing);
+      } else {
+        // 创建新记录
+        const newRecord = new ChatMessageRecord();
+        Object.assign(newRecord, record);
+        await chatMessageRecordRepository.save(newRecord);
+      }
+    }
+  } catch (error) {
+    console.error('Error saving chat messages:', error);
+    throw error;
+  }
   //#endregion
   return
 }
@@ -462,7 +485,7 @@ export async function saveCompanyInfo(
   return company
 }
 
-import { BossChatRelation } from './entity/BossChatRelation'
+import { BossChatRelation } from './entity/BossChatRelation.js'
 
 export interface ChatRelationItem {
   friendId: number
@@ -565,8 +588,8 @@ export async function getBossChatRelationList(
   }
 }
 // Append Interview Record Handlers at the end of the file
-import { InterviewRecord, InterviewStage, InterviewSource } from "./entity/InterviewRecord";
-import { VInterviewRecord } from "./entity/VInterviewRecord";
+import { InterviewRecord, InterviewStage, InterviewSource } from "./entity/InterviewRecord.js";
+import { VInterviewRecord } from "./entity/VInterviewRecord.js";
 
 export interface CreateInterviewRecordData {
   encryptBossId: string

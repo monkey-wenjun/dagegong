@@ -1,10 +1,12 @@
 /**
- * AI 自动回复服务 - 简化版
+ * AI 自动回复服务 - 基于本地数据库优化版
  * 轮询检测HR新消息，调用Dify AI自动回复
  * 
- * 支持两种响应模式：
- * 1. blocking - 直接返回完整JSON
- * 2. streaming - 返回SSE流，需要收集完整内容后统一发送
+ * 优化点：
+ * 1. 直接从本地 SQLite 查询 BossChatRelation，无需启动浏览器
+ * 2. 从本地 ChatMessageRecord 获取完整聊天记录作为上下文
+ * 3. 每2分钟检查一次，响应更及时
+ * 4. 自动获取当前用户ID，无需页面交互
  */
 
 import { ipcMain } from 'electron'
@@ -13,11 +15,11 @@ import {
   readConfigFile,
   writeConfigFile
 } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { initDb } from '@dagegong/sqlite-plugin'
-import { getPublicDbFilePath } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs'
-import { DataSource } from 'typeorm'
-import { BossChatRelation } from '@dagegong/sqlite-plugin/dist/entity/BossChatRelation'
 import { runningLogManager } from './running-log'
+import { 
+  getBossChatRelationList,
+  getChatMessageList 
+} from '../flow/OPEN_SETTING_WINDOW/utils/db'
 
 // 配置接口
 interface AiAutoReplyConfig {
@@ -26,7 +28,7 @@ interface AiAutoReplyConfig {
   apiKey: string
 }
 
-// 默认配置 - HTTP 默认端口 80
+// 默认配置
 const defaultConfig: AiAutoReplyConfig = {
   enabled: false,
   apiUrl: 'http://192.168.1.29/v1/chat-messages',
@@ -35,23 +37,13 @@ const defaultConfig: AiAutoReplyConfig = {
 
 // 服务状态
 let checkTimer: NodeJS.Timeout | null = null
-const CHECK_INTERVAL = 30 * 1000 // 30秒检查一次
-let dbInitPromise: Promise<DataSource> | null = null
+const CHECK_INTERVAL = 2 * 60 * 1000 // 2分钟检查一次（更频繁）
 
 // 记录已回复的消息，防止重复回复
 const repliedMessageIds = new Set<string>()
 
-// 获取数据库连接
-async function getDb(): Promise<DataSource> {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb(getPublicDbFilePath())
-  }
-  const ds = await dbInitPromise
-  if (!ds) {
-    throw new Error('数据库初始化失败')
-  }
-  return ds
-}
+// 当前用户ID缓存
+let currentUserId: string | null = null
 
 // 读取配置
 function getConfig(): AiAutoReplyConfig {
@@ -84,45 +76,187 @@ function isLoggedIn(): boolean {
   }
 }
 
-// 获取有未读消息的BOSS列表
-async function getUnreadBosses(): Promise<Array<{
+// 获取当前用户ID
+async function getCurrentUserId(): Promise<string | null> {
+  if (currentUserId) return currentUserId
+  
+  try {
+    // 从对话列表获取用户ID
+    const result = await getBossChatRelationList({
+      pageNo: 1,
+      pageSize: 1
+    })
+    
+    const conversations = result.data || []
+    if (conversations.length > 0) {
+      currentUserId = conversations[0].encryptUserId
+      console.log('[AiAutoReply] 当前用户ID:', currentUserId)
+      return currentUserId
+    }
+    return null
+  } catch (error) {
+    console.error('[AiAutoReply] 获取用户ID失败:', error)
+    return null
+  }
+}
+
+// 从本地数据库获取需要回复的对话列表
+// 优化：直接查询本地 SQLite，无需启动浏览器
+async function getUnreadBossesFromDB(): Promise<Array<{
   encryptBossId: string
   encryptJobId: string | undefined
   bossName: string
   jobName: string
   lastText: string
-  lastMessageId?: string
+  lastIsSelf: boolean
+  unreadCount: number
 }>> {
+  console.log('[AiAutoReply] 从本地数据库查询需要回复的对话...')
+  
+  const encryptUserId = await getCurrentUserId()
+  if (!encryptUserId) {
+    console.log('[AiAutoReply] 未找到当前用户ID，跳过')
+    return []
+  }
+  
   try {
-    const ds = await getDb()
-    const repo = ds.getRepository(BossChatRelation)
+    // 先查询所有数据（不限制用户ID）用于调试
+    console.log(`[AiAutoReply] 查询所有对话（调试用）...`)
+    const allResult = await getBossChatRelationList({
+      pageNo: 1,
+      pageSize: 100
+    })
+    console.log(`[AiAutoReply] 所有对话数: ${allResult.data?.length || 0}, 总数: ${allResult.totalItemCount}`)
     
-    // 查询有未读消息且最后一条不是自己的记录
-    const records = await repo.find({
-      where: {
-        unreadCount: 1,
-        lastIsSelf: false
-      },
-      order: { updateTime: 'DESC' }
+    if (allResult.data?.length > 0) {
+      console.log(`[AiAutoReply] 前3条的用户ID:`, allResult.data.slice(0, 3).map((c: any) => c.encryptUserId))
+    }
+    
+    // 获取当前用户的对话列表
+    console.log(`[AiAutoReply] 查询当前用户对话，用户ID: ${encryptUserId}`)
+    const result = await getBossChatRelationList({
+      pageNo: 1,
+      pageSize: 100,
+      encryptUserId: encryptUserId
     })
     
-    return records.map(r => ({
-      encryptBossId: r.encryptBossId,
-      encryptJobId: r.encryptJobId || undefined,
-      bossName: r.bossName,
-      jobName: r.jobName || '',
-      lastText: r.lastText || '',
-      lastMessageId: r.lastMessageId
+    console.log(`[AiAutoReply] 数据库返回结果:`, {
+      total: result.totalItemCount,
+      pageNo: result.pageNo,
+      dataLength: result.data?.length
+    })
+    
+    const conversations = result.data || []
+    
+    console.log(`[AiAutoReply] 当前用户对话数: ${conversations.length}`)
+    
+    if (conversations.length === 0) {
+      console.log('[AiAutoReply] 数据库返回0条对话，可能原因：')
+      console.log('  1. 该用户ID下没有对话记录')
+      console.log('  2. 数据库视图未更新（缺少lastIsSelf字段）')
+      console.log('  3. encryptUserId不匹配')
+      return []
+    }
+    
+    console.log(`[AiAutoReply] 原始数据前3条:`, conversations.slice(0, 3).map((c: any) => ({
+      bossName: c.bossName,
+      unreadCount: c.unreadCount,
+      lastIsSelf: c.lastIsSelf,
+      lastText: c.lastText?.slice(0, 20),
+      updateTime: c.updateTime
+    })))
+    
+    // 不过滤时间，先看所有数据
+    console.log(`[AiAutoReply] 不过滤时间，总对话数: ${conversations.length}`)
+    
+    // 过滤最近7天内的活跃对话
+    // 注意：数据库中的 updateTime 可能是秒级时间戳，需要转换为毫秒
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const recentConversations = conversations.filter((conv: any) => {
+      // 处理时间戳可能是秒或毫秒的情况
+      const updateTime = conv.updateTime > 1000000000000 ? conv.updateTime : conv.updateTime * 1000
+      return updateTime > sevenDaysAgo
+    })
+    
+    console.log(`[AiAutoReply] 7天内对话数: ${recentConversations.length}, 7天前对话数: ${conversations.length - recentConversations.length}`)
+    
+    // 打印所有对话的详细信息用于调试
+    console.log('[AiAutoReply] 所有对话详情（前10个）:')
+    recentConversations.slice(0, 10).forEach((conv: any, i: number) => {
+      const lastText = conv.lastText?.slice(0, 30) || '无消息'
+      const lastIsSelfValue = conv.lastIsSelf
+      // 判断最后一条是否是自己发的（处理布尔值和数字）
+      const isLastFromSelf = lastIsSelfValue === true || lastIsSelfValue === 1
+      const needReply = conv.unreadCount > 0 && !isLastFromSelf
+      console.log(`  [${i+1}] ${conv.bossName} | unread: ${conv.unreadCount} | lastIsSelf: ${lastIsSelfValue}(${typeof lastIsSelfValue}) | needReply: ${needReply} | lastText: ${lastText}`)
+    })
+    
+    // 过滤出需要回复的对话
+    const needReply = recentConversations.filter((conv: any) => {
+      // 注意：lastIsSelf 可能是数字 0/1 或布尔值
+      const isLastFromSelf = conv.lastIsSelf === true || conv.lastIsSelf === 1
+      
+      // 有未读消息，且最后一条不是自己的
+      if (conv.unreadCount > 0 && !isLastFromSelf) {
+        console.log(`[AiAutoReply] ✓ ${conv.bossName} 需要回复 (有未读且不是自己发的)`)
+        return true
+      }
+      // 虽然没有未读标记，但最后一条是对方发的
+      if (!isLastFromSelf && conv.lastText) {
+        console.log(`[AiAutoReply] ✓ ${conv.bossName} 需要回复 (无未读但对方发的最后一条)`)
+        return true
+      }
+      return false
+    })
+    
+    console.log(`[AiAutoReply] 其中 ${needReply.length} 个需要回复`)
+    
+    return needReply.map((conv: any) => ({
+      encryptBossId: conv.encryptBossId,
+      encryptJobId: conv.encryptJobId || undefined,
+      bossName: conv.bossName,
+      jobName: conv.jobName || '',
+      lastText: conv.lastText || '',
+      lastIsSelf: conv.lastIsSelf,
+      unreadCount: conv.unreadCount
     }))
   } catch (error) {
-    console.error('[AiAutoReply] 获取未读消息失败:', error)
-    runningLogManager.logError('[AiAutoReply] 获取未读消息失败', error)
+    console.error('[AiAutoReply] 查询数据库失败:', error)
+    return []
+  }
+}
+
+// 获取聊天记录作为上下文
+// 从本地 ChatMessageRecord 获取，无需调用 API
+async function getChatHistory(
+  encryptBossId: string,
+  encryptUserId: string
+): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+  try {
+    // 使用 worker 获取聊天记录
+    const messages = await getChatMessageList({
+      encryptBossId: encryptBossId,
+      encryptUserId: encryptUserId
+    })
+    
+    // 取最近20条
+    const recentMessages = messages.slice(0, 20)
+    
+    // 转换为 AI 上下文格式
+    const history = recentMessages.map((msg: any) => ({
+      role: msg.style === 'sent' ? 'assistant' : 'user',
+      content: msg.text || '[图片/文件]'
+    }))
+    
+    console.log(`[AiAutoReply] 获取到 ${history.length} 条历史消息`)
+    return history
+  } catch (error) {
+    console.error('[AiAutoReply] 获取聊天记录失败:', error)
     return []
   }
 }
 
 // 解析 Dify streaming 响应
-// 收集所有流式片段，整合成完整的答案后返回
 async function parseDifyStream(response: Response): Promise<string> {
   const reader = response.body?.getReader()
   if (!reader) {
@@ -142,14 +276,12 @@ async function parseDifyStream(response: Response): Promise<string> {
     const lines = chunk.split('\n')
 
     for (const line of lines) {
-      // SSE 格式: data: {...}
       if (line.startsWith('data: ')) {
         const data = line.slice(6)
         if (data === '[DONE]') continue
 
         try {
           const parsed = JSON.parse(data)
-          // Dify streaming 格式中，answer 字段包含当前累积的完整答案
           if (parsed.answer) {
             fullAnswer = parsed.answer
           }
@@ -160,20 +292,36 @@ async function parseDifyStream(response: Response): Promise<string> {
     }
   }
 
-  console.log('[AiAutoReply] 流式响应解析完成，完整答案:', fullAnswer.slice(0, 100) + '...')
+  console.log('[AiAutoReply] 流式响应解析完成:', fullAnswer.slice(0, 100) + '...')
   return fullAnswer
 }
 
 // 调用 Dify API
-// 自动检测响应类型（blocking 或 streaming）并正确处理
-async function callDifyApi(message: string, config: AiAutoReplyConfig): Promise<string | null> {
+async function callDifyApi(
+  message: string,
+  config: AiAutoReplyConfig,
+  chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+): Promise<string | null> {
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000)
 
     console.log('[AiAutoReply] 调用 AI API，消息:', message.slice(0, 50) + '...')
+    if (chatHistory?.length) {
+      console.log(`[AiAutoReply] 包含 ${chatHistory.length} 条历史消息作为上下文`)
+    }
 
-    // 请求时尝试 blocking 模式
+    // 构建带上下文的 query
+    let query = message
+    if (chatHistory && chatHistory.length > 0) {
+      const context = chatHistory.map(h => {
+        const role = h.role === 'user' ? 'BOSS' : '我'
+        return `${role}: ${h.content}`
+      }).join('\n')
+      
+      query = `以下是我与 BOSS 的历史对话：\n\n${context}\n\n现在 BOSS 说: "${message}"\n\n请基于以上对话上下文，给出一个自然、得体的回复。`
+    }
+
     const response = await fetch(config.apiUrl, {
       method: 'POST',
       headers: {
@@ -182,7 +330,7 @@ async function callDifyApi(message: string, config: AiAutoReplyConfig): Promise<
       },
       body: JSON.stringify({
         inputs: {},
-        query: message,
+        query: query,
         response_mode: 'blocking',
         conversation_id: '',
         user: 'dagegong-auto-reply'
@@ -199,15 +347,12 @@ async function callDifyApi(message: string, config: AiAutoReplyConfig): Promise<
 
     const contentType = response.headers.get('content-type') || ''
 
-    // 检查是否是 streaming 响应（text/event-stream）
     if (contentType.includes('text/event-stream') || contentType.includes('stream')) {
       console.log('[AiAutoReply] 检测到 streaming 响应')
-      // 收集完整内容后返回
       const fullAnswer = await parseDifyStream(response)
       return fullAnswer.trim() || null
     }
 
-    // blocking 模式 - 直接返回 JSON
     const data = await response.json()
     return data.answer?.trim() || null
   } catch (error) {
@@ -233,19 +378,30 @@ async function sendReply(
 }
 
 // 处理单个回复
-async function processReply(boss: {
-  encryptBossId: string
-  encryptJobId: string | undefined
-  bossName: string
-  lastText: string
-  jobName?: string
-  lastMessageId?: string
-}, config: AiAutoReplyConfig): Promise<void> {
-  const messageKey = boss.lastMessageId || `${boss.encryptBossId}:${boss.lastText}`
+async function processReply(
+  boss: {
+    encryptBossId: string
+    encryptJobId: string | undefined
+    bossName: string
+    lastText: string
+    jobName?: string
+    lastIsSelf?: boolean
+  },
+  config: AiAutoReplyConfig
+): Promise<void> {
+  const messageKey = `${boss.encryptBossId}:${boss.lastText}`
   
   // 检查是否已回复
   if (repliedMessageIds.has(messageKey)) {
     const msg = `[AiAutoReply] 已回复过 ${boss.bossName} 的这条消息`
+    console.log(msg)
+    runningLogManager.logInfo(msg)
+    return
+  }
+
+  // 如果最后一条是自己发的，不需要回复
+  if (boss.lastIsSelf) {
+    const msg = `[AiAutoReply] ${boss.bossName} 的最后一条消息是自己发的，跳过`
     console.log(msg)
     runningLogManager.logInfo(msg)
     return
@@ -260,16 +416,25 @@ async function processReply(boss: {
     receivedMessage: boss.lastText 
   })
   
+  // 获取聊天记录作为上下文
+  const encryptUserId = await getCurrentUserId()
+  let chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  
+  if (encryptUserId) {
+    chatHistory = await getChatHistory(boss.encryptBossId, encryptUserId)
+  }
+  
   // 调用AI生成回复
   const callingMsg = `[AiAutoReply] 调用 AI 生成回复...`
   console.log(callingMsg)
   runningLogManager.logInfo(callingMsg, { 
     type: 'ai-calling', 
     bossName: boss.bossName,
-    receivedMessage: boss.lastText 
+    receivedMessage: boss.lastText,
+    contextLength: chatHistory.length
   })
   
-  const reply = await callDifyApi(boss.lastText, config)
+  const reply = await callDifyApi(boss.lastText, config, chatHistory)
   
   if (!reply) {
     const noReplyMsg = `[AiAutoReply] AI 未生成回复`
@@ -278,7 +443,7 @@ async function processReply(boss: {
     return
   }
   
-  const generatedMsg = `[AiAutoReply] AI 生成完整回复: ${reply.slice(0, 100)}${reply.length > 100 ? '...' : ''}`
+  const generatedMsg = `[AiAutoReply] AI 生成回复: ${reply.slice(0, 100)}${reply.length > 100 ? '...' : ''}`
   console.log(generatedMsg)
   runningLogManager.logInfo(generatedMsg, { 
     type: 'ai-generated', 
@@ -294,7 +459,7 @@ async function processReply(boss: {
   await new Promise(r => setTimeout(r, delay))
   
   // 发送完整回复
-  const sendingMsg = `[AiAutoReply] 发送完整回复给 ${boss.bossName}...`
+  const sendingMsg = `[AiAutoReply] 发送回复给 ${boss.bossName}...`
   console.log(sendingMsg)
   runningLogManager.logInfo(sendingMsg, { 
     type: 'ai-sending', 
@@ -309,7 +474,6 @@ async function processReply(boss: {
     const successMsg = `[AiAutoReply] 成功回复 ${boss.bossName}`
     console.log(successMsg)
     
-    // 使用专门的 AI 回复日志类型
     runningLogManager.logAiReply({
       bossName: boss.bossName,
       bossId: boss.encryptBossId,
@@ -333,7 +497,7 @@ async function processReply(boss: {
   }
 }
 
-// 执行检查
+// 执行检查（基于本地数据库）
 async function doCheck(): Promise<void> {
   const config = getConfig()
   if (!config.enabled || !config.apiKey) {
@@ -347,43 +511,73 @@ async function doCheck(): Promise<void> {
     return
   }
   
+  // 检查自动同步任务是否正在运行（避免冲突）
+  const { getSyncStatus } = await import('./auto-sync-boss-chat-relations')
+  const syncStatus = getSyncStatus()
+  if (syncStatus.isRunning) {
+    const msg = '[AiAutoReply] 自动同步任务运行中，跳过本次检查'
+    console.log(msg)
+    runningLogManager.logInfo(msg)
+    return
+  }
+  
   try {
-    const startMsg = '[AiAutoReply] ====== 开始检查未读消息 ======'
+    const startMsg = '[AiAutoReply] ====== 开始检查未读消息（基于本地数据库） ======'
     console.log(startMsg)
     runningLogManager.logInfo(startMsg)
     
-    const bosses = await getUnreadBosses()
+    // 从本地数据库获取需要回复的对话
+    console.log('[AiAutoReply] 从本地数据库查询...')
+    const bosses = await getUnreadBossesFromDB()
+    console.log(`[AiAutoReply] 获取到 ${bosses.length} 个需要回复的对话`)
     
-    if (bosses.length === 0) {
-      const noMsg = '[AiAutoReply] 没有新消息'
+    if (!bosses || bosses.length === 0) {
+      const noMsg = '[AiAutoReply] 没有需要回复的消息'
       console.log(noMsg)
       runningLogManager.logInfo(noMsg)
       return
     }
     
-    const foundMsg = `[AiAutoReply] 发现 ${bosses.length} 个未读消息`
+    // 过滤掉已经回复过的
+    const newBosses = bosses.filter(b => {
+      const messageKey = `${b.encryptBossId}:${b.lastText}`
+      if (repliedMessageIds.has(messageKey)) {
+        console.log(`[AiAutoReply] 已回复过 ${b.bossName} 的这条消息，跳过`)
+        return false
+      }
+      return true
+    })
+    
+    if (newBosses.length === 0) {
+      const allRepliedMsg = '[AiAutoReply] 所有消息都已回复过'
+      console.log(allRepliedMsg)
+      runningLogManager.logInfo(allRepliedMsg)
+      return
+    }
+    
+    const foundMsg = `[AiAutoReply] 发现 ${bosses.length} 个未读消息，其中 ${newBosses.length} 个需要回复`
     console.log(foundMsg)
     runningLogManager.logInfo(foundMsg, { 
       type: 'ai-check-result', 
-      count: bosses.length,
-      bosses: bosses.map(b => ({ name: b.bossName, job: b.jobName, message: b.lastText }))
+      count: newBosses.length,
+      bosses: newBosses.map(b => ({ name: b.bossName, job: b.jobName, message: b.lastText }))
     })
     
     // 逐个处理
-    for (let i = 0; i < bosses.length; i++) {
-      const boss = bosses[i]
-      const processingMsg = `[AiAutoReply] 处理第 ${i + 1}/${bosses.length} 个: ${boss.bossName}`
+    for (let i = 0; i < newBosses.length; i++) {
+      const boss = newBosses[i]
+      const processingMsg = `[AiAutoReply] 处理第 ${i + 1}/${newBosses.length} 个: ${boss.bossName}`
       console.log(processingMsg)
       runningLogManager.logInfo(processingMsg, { 
         type: 'ai-processing', 
         bossName: boss.bossName,
-        progress: `${i + 1}/${bosses.length}`
+        progress: `${i + 1}/${newBosses.length}`
       })
       
       await processReply(boss, config)
       
       // 间隔5秒处理下一个
-      if (i < bosses.length - 1) {
+      if (i < newBosses.length - 1) {
         await new Promise(r => setTimeout(r, 5000))
       }
     }
@@ -399,7 +593,7 @@ async function doCheck(): Promise<void> {
 }
 
 // 启动服务
-export function startAiAutoReply(): void {
+export async function startAiAutoReply(): Promise<void> {
   if (checkTimer) {
     return
   }
@@ -410,9 +604,30 @@ export function startAiAutoReply(): void {
     return
   }
   
-  console.log('[AiAutoReply] 启动服务')
-  checkTimer = setInterval(doCheck, CHECK_INTERVAL)
-  doCheck() // 立即执行一次
+  console.log('[AiAutoReply] 启动服务（基于本地数据库），检查间隔:', CHECK_INTERVAL / 60000, '分钟')
+  
+  // 首次启动时运行数据库调试
+  try {
+    console.log('[AiAutoReply] 运行数据库调试...')
+    const { debugQueryBossChatRelation } = await import('./ai-auto-reply-debug')
+    const debugResult = await debugQueryBossChatRelation()
+    console.log('[AiAutoReply] 数据库调试结果:', debugResult)
+  } catch (e) {
+    console.error('[AiAutoReply] 数据库调试失败:', e)
+  }
+  
+  checkTimer = setInterval(() => {
+    doCheck().catch(err => {
+      console.error('[AiAutoReply] 检查执行失败:', err)
+    })
+  }, CHECK_INTERVAL)
+  
+  // 异步执行首次检查
+  setTimeout(() => {
+    doCheck().catch(err => {
+      console.error('[AiAutoReply] 首次检查执行失败:', err)
+    })
+  }, 5000) // 延迟5秒执行首次检查（等调试完成）
 }
 
 // 停止服务
@@ -440,10 +655,9 @@ export function initAiAutoReplyIpc(): void {
   ipcMain.handle('save-ai-auto-reply-config', async (_, config: Partial<AiAutoReplyConfig>) => {
     try {
       await saveConfig(config)
-      // 重启服务以应用新配置
       if (getConfig().enabled) {
         stopAiAutoReply()
-        startAiAutoReply()
+        await startAiAutoReply()
       }
       return getConfig()
     } catch (error) {
@@ -458,7 +672,7 @@ export function initAiAutoReplyIpc(): void {
       console.log(`[AiAutoReply] 设置启用状态: ${enabled}`)
       await saveConfig({ enabled })
       if (enabled) {
-        startAiAutoReply()
+        await startAiAutoReply()
       } else {
         stopAiAutoReply()
       }
