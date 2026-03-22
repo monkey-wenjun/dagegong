@@ -562,15 +562,34 @@ attachListenerForKillSelfOnParentExited()
 export async function launchBossSiteForReply(
   encryptBossId: string,
   encryptJobId: string | undefined,
-  message: string
+  message: string,
+  bossName?: string
 ): Promise<void> {
   console.log('[LaunchBossSite] ====== launchBossSiteForReply 开始 ======')
   console.log('[LaunchBossSite] 参数:', {
     encryptBossId: encryptBossId?.substring(0, 20) + '...',
     encryptJobId: encryptJobId?.substring(0, 20) + '...' || 'undefined',
+    bossName: bossName || '(未提供)',
     messageLength: message.length,
     messagePreview: message.substring(0, 50) + '...'
   })
+  
+  // 如果没有提供 bossName，从数据库查询
+  if (!bossName) {
+    try {
+      const dbPath = path.join(app.getPath('userData'), 'storage', 'public.db')
+      const sqlite3 = await import('better-sqlite3')
+      const db = sqlite3.default(dbPath)
+      const result = db.prepare('SELECT bossName FROM boss_chat_relation WHERE encryptBossId = ?').get(encryptBossId)
+      if (result?.bossName) {
+        bossName = result.bossName
+        console.log('[LaunchBossSite] 从数据库获取 bossName:', bossName)
+      }
+      db.close()
+    } catch (e) {
+      console.log('[LaunchBossSite] 查询 bossName 失败:', e.message)
+    }
+  }
   
   const { puppeteer } = await initPuppeteer()
   console.log('[LaunchBossSite] Puppeteer 初始化完成')
@@ -644,18 +663,58 @@ export async function launchBossSiteForReply(
     }
     
     // ====== 步骤 2：在搜索框中搜索 BOSS ======
-    console.log(`[LaunchBossSite] 步骤 2：搜索 BOSS ${encryptBossId.slice(0, 10)}...`)
+    console.log(`[LaunchBossSite] 步骤 2：搜索 BOSS ${bossName || encryptBossId.slice(0, 10)}...`)
     try {
       const searchSelector = '#container > div > div > div.list-warp.v2 > div > div.boss-search-top > div > input'
+      // 使用 BOSS 名字搜索（比 ID 更有效）
+      const searchTerm = bossName || encryptBossId.slice(0, 10)
       await page.click(searchSelector)
-      await page.type(searchSelector, encryptBossId.slice(0, 10), { delay: 50 })
-      console.log('[LaunchBossSite] 已输入搜索词')
-      await new Promise((r) => setTimeout(r, 2000))
+      await page.type(searchSelector, searchTerm, { delay: 100 })
+      console.log('[LaunchBossSite] 已输入搜索词:', searchTerm)
+      await new Promise((r) => setTimeout(r, 3000)) // 等待下拉菜单出现
     } catch (e) {
       console.log('[LaunchBossSite] 搜索失败:', e.message)
     }
     
-    // 在左侧列表中找到并点击目标 BOSS
+    // ====== 步骤 3：点击第一个搜索结果 ======
+    console.log('[LaunchBossSite] 步骤 3：点击搜索结果...')
+    try {
+      // 尝试点击下拉菜单中的第一个结果
+      const firstResultClicked = await page.evaluate(() => {
+        // 查找搜索结果下拉菜单中的第一项
+        const selectors = [
+          '.search-result .chat-item',
+          '.search-result .friend-item',
+          '.search-result [class*="item"]',
+          '.list-warp .chat-item',
+          '.list-warp .friend-item',
+          // 更通用的选择器
+          '[class*="search"] [class*="item"]',
+          '.list-warp [class*="item"]'
+        ]
+        
+        for (const selector of selectors) {
+          const items = document.querySelectorAll(selector)
+          if (items.length > 0) {
+            (items[0] as HTMLElement).click()
+            return { clicked: true, selector, count: items.length }
+          }
+        }
+        return { clicked: false }
+      })
+      
+      console.log('[LaunchBossSite] 点击结果:', firstResultClicked)
+      
+      if (!firstResultClicked.clicked) {
+        // 如果上述方法失败，尝试直接点击坐标（第一个结果大概位置）
+        console.log('[LaunchBossSite] 尝试点击第一个结果的坐标...')
+        await page.click('#container > div > div > div.list-warp.v2 > div > div.boss-search-top', { offset: { x: 10, y: 80 } })
+      }
+      
+      await new Promise((r) => setTimeout(r, 3000))
+    } catch (e) {
+      console.log('[LaunchBossSite] 点击搜索结果失败:', e.message)
+    }
     console.log(`[LaunchBossSite] 在左侧列表中查找 BOSS: ${encryptBossId}`)
     const foundBoss = await page.evaluate((targetBossId) => {
       // 尝试多种选择器找到对话列表项
