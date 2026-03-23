@@ -749,29 +749,47 @@ async function markJobAsNotSuitInRecommendPage (reasonCode) {
 }
 
 export function testIfJobTitleOrDescriptionSuit (jobInfo, matchLogic) {
+  // 打印完整的 jobInfo 用于调试
+  console.log(`[JobFilter DEBUG] 完整jobInfo:`, JSON.stringify({
+    jobName: jobInfo.jobName,
+    positionName: jobInfo.positionName,
+    postDescription: jobInfo.postDescription?.substring(0, 100) + '...'
+  }))
+  
   let isJobNameSuit = matchLogic === JobDetailRegExpMatchLogic.SOME ? false : true
+  let nameTestStr = ''
   try {
     if (expectJobNameRegExpStr?.trim()) {
       const regExp = new RegExp(expectJobNameRegExpStr, 'im')
-      isJobNameSuit = regExp.test(jobInfo.jobName?.replace(/\n/g, '') ?? '')
+      nameTestStr = jobInfo.jobName?.replace(/\n/g, '') ?? ''
+      isJobNameSuit = regExp.test(nameTestStr)
     }
-  } catch {
+  } catch(e) {
+    console.log(`[JobFilter DEBUG] jobName正则错误:`, e.message)
   }
+  
   let isJobTypeSuit = matchLogic === JobDetailRegExpMatchLogic.SOME ? false : true
+  let typeTestStr = ''
   try {
     if (expectJobTypeRegExpStr?.trim()) {
       const regExp = new RegExp(expectJobTypeRegExpStr, 'im')
-      isJobTypeSuit = regExp.test(jobInfo.positionName?.replace(/\n/g, '') ?? '')
+      typeTestStr = jobInfo.positionName?.replace(/\n/g, '') ?? ''
+      isJobTypeSuit = regExp.test(typeTestStr)
     }
-  } catch {
+  } catch(e) {
+    console.log(`[JobFilter DEBUG] positionName正则错误:`, e.message)
   }
+  
   let isJobDescSuit = matchLogic === JobDetailRegExpMatchLogic.SOME ? false : true
+  let descTestStr = ''
   try {
     if (expectJobDescRegExpStr?.trim()) {
       const regExp = new RegExp(expectJobDescRegExpStr, 'im')
-      isJobDescSuit = regExp.test(jobInfo.postDescription?.replace(/\n/g, '') ?? '')
+      descTestStr = jobInfo.postDescription?.replace(/\n/g, '') ?? ''
+      isJobDescSuit = regExp.test(descTestStr)
     }
-  } catch {
+  } catch(e) {
+    console.log(`[JobFilter DEBUG] postDescription正则错误:`, e.message)
   }
   
   const result = matchLogic === JobDetailRegExpMatchLogic.SOME 
@@ -779,9 +797,9 @@ export function testIfJobTitleOrDescriptionSuit (jobInfo, matchLogic) {
     : (isJobNameSuit && isJobTypeSuit && isJobDescSuit)
   
   // 调试日志：显示匹配详情
-  console.log(`[JobFilter Match] jobName: ${jobInfo.jobName}, positionName: ${jobInfo.positionName}`)
-  console.log(`[JobFilter Match] regexp - name: ${expectJobNameRegExpStr}, type: ${expectJobTypeRegExpStr}, desc: ${expectJobDescRegExpStr}`)
-  console.log(`[JobFilter Match] result - name: ${isJobNameSuit}, type: ${isJobTypeSuit}, desc: ${isJobDescSuit}, final: ${result}`)
+  console.log(`[JobFilter Match] 测试字符串 - name:"${nameTestStr}", type:"${typeTestStr}"`)
+  console.log(`[JobFilter Match] regexp - name:${expectJobNameRegExpStr}, type:${expectJobTypeRegExpStr}`)
+  console.log(`[JobFilter Match] result - name:${isJobNameSuit}, type:${isJobTypeSuit}, desc:${isJobDescSuit}, logic:${matchLogic===JobDetailRegExpMatchLogic.SOME?'SOME':'ALL'}, final:${result}`)
   
   return result
 }

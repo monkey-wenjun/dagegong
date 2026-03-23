@@ -18,6 +18,46 @@ import { sendMessage } from './send-message.mjs';
 const CLI_RUNTIME_DIR = process.env.DAGEGONG_RUNTIME_DIR || path.join(os.homedir(), '.dagegong-cli');
 const AI_REPLY_CONFIG_FILE = path.join(CLI_RUNTIME_DIR, 'config', 'ai-auto-reply.json');
 const REPLIED_MESSAGES_FILE = path.join(CLI_RUNTIME_DIR, 'ai-auto-replied-messages.json');
+const LOG_FILE = path.join(CLI_RUNTIME_DIR, 'logs', 'ai-auto-reply.log');
+
+// 确保日志目录存在
+const logDir = path.dirname(LOG_FILE);
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
+// 日志函数：同时输出到控制台和文件
+function log(level, message, data) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] [${level}] ${message}`;
+  
+  // 输出到控制台
+  if (level === 'ERROR') {
+    console.error(logMessage, data || '');
+  } else {
+    console.log(logMessage, data || '');
+  }
+  
+  // 写入文件
+  const fileMessage = logMessage + (data ? ' ' + JSON.stringify(data) : '') + '\n';
+  fs.appendFileSync(LOG_FILE, fileMessage);
+}
+
+// 重定向 console.log 和 console.error 到文件
+const originalLog = console.log;
+const originalError = console.error;
+
+console.log = function(...args) {
+  originalLog.apply(console, args);
+  const message = args.join(' ');
+  fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] [LOG] ${message}\n`);
+};
+
+console.error = function(...args) {
+  originalError.apply(console, args);
+  const message = args.join(' ');
+  fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] [ERROR] ${message}\n`);
+};
 
 // 默认检查间隔（毫秒）
 const DEFAULT_CHECK_INTERVAL = 120000; // 2分钟
@@ -143,7 +183,10 @@ async function setupRequestInterceptor(page) {
 }
 
 // API 端点
-const GEEK_FRIEND_LIST_API = 'https://www.zhipin.com/wapi/zprelation/friend/geekFilterByLabel?labelId=1&page=1&pageSize=100';
+// labelId: 0=全部, 1=新消息, 2=已交换联系方式, 3=已投递, 4=感兴趣
+const GEEK_FRIEND_LIST_API = (labelId = 1) => `https://www.zhipin.com/wapi/zprelation/friend/geekFilterByLabel?labelId=${labelId}&page=1&pageSize=100`;
+
+// 使用 labelId=1 只获取有新消息的好友
 const HISTORY_MSG_API = 'https://www.zhipin.com/wapi/zpchat/geek/historyMsg';
 
 /**
@@ -168,7 +211,9 @@ async function getChatFriendList(page) {
   }
   
   try {
-    console.log('[AiAutoReply] [DEBUG] 获取有新消息的好友列表 (labelId=1)...');
+    // 使用 labelId=0 获取全部，然后通过 unreadCount 过滤
+    const labelId = 0;
+    console.log(`[AiAutoReply] [DEBUG] 获取好友列表 (labelId=${labelId}, 0=全部)...`);
     
     const response = await page.evaluate(async (url) => {
       const res = await fetch(url, {
@@ -180,7 +225,7 @@ async function getChatFriendList(page) {
         credentials: 'include'
       });
       return res.json();
-    }, GEEK_FRIEND_LIST_API);
+    }, GEEK_FRIEND_LIST_API(labelId));
     
     if (response.code !== 0) {
       console.log(`[AiAutoReply] [DEBUG] API 失败:`, response.message || response.msg);
@@ -208,9 +253,9 @@ async function getChatFriendList(page) {
     }));
     
     if (friendList.length > 0) {
-      console.log('[AiAutoReply] [DEBUG] 好友列表:');
+      console.log('[AiAutoReply] [DEBUG] 好友列表(原始):');
       friendList.forEach((f, i) => {
-        console.log(`[AiAutoReply] [DEBUG] [${i + 1}] ${f.encryptBossId?.substring(0, 15)}... | 时间:${new Date(f.lastTS).toLocaleString()}`);
+        console.log(`[AiAutoReply] [DEBUG] [${i + 1}] ${f.name} | unread:${f.unreadCount} | ${f.lastText?.substring(0, 30)}...`);
       });
     }
     
@@ -278,6 +323,20 @@ async function getChatHistory(page, encryptBossId, encryptJobId, securityId, fri
         if (response.code === 0) {
           const messages = response.zpData?.messages || [];
           console.log(`[AiAutoReply] [DEBUG] 获取到 ${messages.length} 条历史消息`);
+          
+          // 打印完整消息列表用于调试
+          if (messages.length > 0) {
+            console.log('[AiAutoReply] [DEBUG] 完整消息列表(按API返回顺序):');
+            messages.forEach((m, i) => {
+              const text = m.body?.text || m.pushText || '[无文本]';
+              // 打印消息对象的所有字段名和值
+              console.log(`[AiAutoReply] [DEBUG] [${i}] 字段: ${Object.keys(m).join(',')}`);
+              console.log(`[AiAutoReply] [DEBUG]       from=${JSON.stringify(m.from)}, to=${JSON.stringify(m.to)}`);
+              console.log(`[AiAutoReply] [DEBUG]       received=${m.received}, pushText=${m.pushText?.substring(0,20)}`);
+              console.log(`[AiAutoReply] [DEBUG]       内容: ${text.substring(0, 40)}...`);
+            });
+          }
+          
           console.log('[AiAutoReply] [DEBUG] ---------- 聊天记录获取完成 ----------');
           return messages;
         }
@@ -464,8 +523,32 @@ ${historyText || '（无历史对话）'}
  * 处理单个对话
  */
 async function processSingleChat(page, friend, repliedIds, config) {
-  const lastMessage = friend.lastMessage;
-  const messageId = `${friend.encryptBossId}_${lastMessage?.msgId || Date.now()}`;
+  // 【关键】重新获取聊天记录，确保判断准确
+  const messages = await getChatHistory(
+    page,
+    friend.encryptBossId || friend.encryptFriendId,
+    friend.encryptJobId,
+    friend.securityId,
+    friend.friendId
+  );
+  
+  // 【修复】按时间戳排序消息，确保获取真正的最新消息
+  const textMessages = messages
+    .filter(m => m.body?.type === 1)
+    .sort((a, b) => (b.time || 0) - (a.time || 0)); // 按时间降序，最新的在前
+  
+  const lastMessage = textMessages[0]; // 最新消息在第一条
+  
+  if (!lastMessage) {
+    console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: 没有文本消息`);
+    return { success: false, reason: 'no_text_message' };
+  }
+  
+  // 【调试】打印消息时间戳信息
+  console.log(`[AiAutoReply] [DEBUG] 最新消息时间戳: ${lastMessage.time}, 内容: ${lastMessage.body?.text?.substring(0, 30)}...`);
+  
+  // 检查是否已回复（用消息内容做ID）
+  const messageId = `${friend.encryptBossId}_${lastMessage.body?.text?.slice(0, 20)}`;
   
   if (repliedIds.has(messageId)) {
     return { success: false, reason: 'already_replied' };
@@ -475,14 +558,71 @@ async function processSingleChat(page, friend, repliedIds, config) {
     return { success: false, reason: 'processing' };
   }
   
+  // 【关键】严格检查：最后消息必须来自 BOSS（不是我发的）
+  // API返回的是from.uid而不是from.userId
+  const fromUid = lastMessage.from?.uid;
+  const currentUserId = config.currentUserId;
+  const isFromMe = fromUid && currentUserId && String(fromUid) === String(currentUserId);
+  
+  console.log(`[AiAutoReply] [DEBUG] 检查消息: from.uid=${fromUid}, currentUser=${currentUserId}, isFromMe=${isFromMe}`);
+  console.log(`[AiAutoReply] [DEBUG] 消息内容: ${lastMessage.body?.text?.substring(0, 50)}...`);
+  console.log(`[AiAutoReply] [DEBUG] received=${lastMessage.received} (类型: ${typeof lastMessage.received})`);
+  
+  if (isFromMe) {
+    console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: ❌ 跳过 - 这是我自己发的消息`);
+    return { success: false, reason: 'last_is_self' };
+  }
+  
+  // 额外检查：如果消息内容为空或只有 pushText 没有 body.text，可能是未加载完整
+  if (!lastMessage.body?.text && lastMessage.pushText) {
+    console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: ⚠️ 消息可能未完全加载（只有pushText），建议先在APP中打开对话`);
+    // 继续处理，使用 pushText 作为备用
+  }
+  
+  console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: ✅ 确认是BOSS发来的消息`);
+  
+  const lastText = lastMessage?.body?.text || lastMessage?.pushText || '';
+  
+  // 【新增】过滤无意义的消息（图片、表情、简单回应）
+  const meaninglessPatterns = [
+    /^\s*$/,                              // 空消息
+    /^嗯+$/,                              // 嗯、嗯嗯
+    /^[哦喔哦好]+[嗯呢吧]*$/,             // 哦、喔、好、好呢、好吧、嗯呢
+    /^[OKok]+[👌]*$/,                     // OK、ok
+    /^[👌🙏👍✅💪🔥]+$/,                  // 纯表情符号
+    /^收到$/,                             // 收到
+    /^行+$/,                              // 行
+    /^(好的|知道|了解|明白)了?$/,         // 好的、知道了、了解了、明白了
+    /^谢谢[你呢]?$/,                      // 谢谢、谢谢你
+    /^[图片表情]$/,                       // 图片/表情标记
+  ];
+  
+  const isMeaningless = meaninglessPatterns.some(pattern => pattern.test(lastText.trim()));
+  
+  if (isMeaningless || !lastText.trim()) {
+    console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: ⏭️ 跳过 - 消息无意义("${lastText.substring(0, 30)}")`);
+    return { success: false, reason: 'meaningless_message' };
+  }
+  
   processingMessageIds.add(messageId);
   
   try {
     console.log(`\n[AiAutoReply] 处理对话: ${friend.name} @ ${friend.brandName}`);
-    const lastText = lastMessage?.body?.text || lastMessage?.pushText || '';
-    console.log(`[AiAutoReply] 最后消息: ${lastText.substring(0, 50)}...`);
+    console.log(`[AiAutoReply] 最后消息(BOSS): ${lastText.substring(0, 50)}...`);
     
-    const messages = friend.messages || [];
+    // 【新增】检测婉拒消息
+    const rejectPatterns = [
+      /不太匹配|不太合适|不太符合|不匹配/i,
+      /无法进入面试|不适合这个|不适合该/i,
+      /婉拒|抱歉.*不适合|遗憾.*不适合/i,
+      /简历.*评估.*不|技能.*不.*匹配/i,
+      /暂时.*不.*合适|目前.*不.*匹配/i
+    ];
+    const isRejectMessage = rejectPatterns.some(pattern => pattern.test(lastText));
+    
+    if (isRejectMessage) {
+      console.log(`[AiAutoReply] [DEBUG] 检测到婉拒消息，准备礼貌回复...`);
+    }
     
     const chatHistory = messages
       .filter(msg => msg.body?.type === 1)
@@ -497,15 +637,22 @@ async function processSingleChat(page, friend, repliedIds, config) {
       summaryResult = await callLlmSummary(chatHistory, config);
     }
     
-    // 婉拒处理
-    if (summaryResult?.shouldReject && summaryResult.rejectReply) {
-      console.log(`[AiAutoReply] LLM 建议婉拒: ${summaryResult.rejectReply.substring(0, 50)}...`);
+    // 婉拒处理（基于关键词或LLM判断）
+    if (isRejectMessage || (summaryResult?.shouldReject && summaryResult.rejectReply)) {
+      // 如果是关键词检测到的婉拒，但没有LLM回复，使用默认感谢语
+      let rejectReply = summaryResult?.rejectReply;
+      if (!rejectReply && isRejectMessage) {
+        rejectReply = `好的，感谢您的反馈和宝贵时间。祝贵司早日找到合适的人选，也祝您工作顺利！`;
+      }
       
+      console.log(`[AiAutoReply] 婉拒回复: ${rejectReply.substring(0, 50)}...`);
+      
+      // 发送婉拒回复
       const sent = await sendMessage(
         friend.encryptBossId || friend.encryptFriendId,
         friend.encryptJobId,
         friend.securityId,
-        summaryResult.rejectReply,
+        rejectReply,
         friend.name,
         friend.jobName,
         friend.lastMessage?.body?.text || friend.lastMessage?.pushText,
@@ -516,7 +663,7 @@ async function processSingleChat(page, friend, repliedIds, config) {
         repliedIds.add(messageId);
         saveRepliedMessages(repliedIds);
         console.log(`[AiAutoReply] ✓ 婉拒回复成功`);
-        return { success: true, reply: summaryResult.rejectReply, isReject: true };
+        return { success: true, reply: rejectReply, isReject: true };
       }
       return { success: false, reason: 'send_failed' };
     }
@@ -602,23 +749,40 @@ async function checkAndReply(page, config) {
     return [];
   }
   
-  console.log(`[AiAutoReply] 找到 ${friendList.length} 个需要回复的对话`);
+  // 过滤：只处理有未读消息的对话
+  const unreadFriends = friendList.filter(f => f.unreadCount > 0);
+  console.log(`[AiAutoReply] 总共 ${friendList.length} 个对话，其中 ${unreadFriends.length} 个有未读消息`);
+  
+  if (unreadFriends.length === 0) {
+    console.log('[AiAutoReply] 没有未读消息需要回复');
+    return [];
+  }
   
   const needReplyList = [];
   
-  for (const friend of friendList.slice(0, 20)) {
+  for (const friend of unreadFriends.slice(0, 20)) {
     const lastText = friend.lastText || friend.lastTExt;
     if (!lastText) continue;
     
+    // 【调试】打印好友信息
+    console.log(`[AiAutoReply] [DEBUG] 处理好友: ${friend.name} @ ${friend.brandName}`);
+    console.log(`[AiAutoReply] [DEBUG]   encryptBossId: ${friend.encryptBossId?.substring(0, 20)}...`);
+    console.log(`[AiAutoReply] [DEBUG]   encryptFriendId: ${friend.encryptFriendId?.substring(0, 20)}...`);
+    console.log(`[AiAutoReply] [DEBUG]   friendId: ${friend.friendId}`);
+    
+    const bossId = friend.encryptBossId || friend.encryptFriendId;
+    console.log(`[AiAutoReply] [DEBUG]   使用ID: ${bossId?.substring(0, 20)}...`);
+    
     const messages = await getChatHistory(
       page,
-      friend.encryptBossId || friend.encryptFriendId,
+      bossId,
       friend.encryptJobId,
       friend.securityId,
       friend.friendId
     );
     
     const textMessages = messages.filter(m => m.body?.type === 1);
+    // 从日志看，API返回的消息是按时间正序（旧->新），最后一条是最新的
     const lastMessage = textMessages[textMessages.length - 1];
     
     if (!lastMessage) {
@@ -626,8 +790,14 @@ async function checkAndReply(page, config) {
       continue;
     }
     
-    if (lastMessage.received !== true) {
-      console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: 最后消息是自己发的，不需要回复`);
+    // 调试：打印最后消息的 received 字段
+    console.log(`[AiAutoReply] [DEBUG] 最后消息 received=${lastMessage.received} (类型: ${typeof lastMessage.received})`);
+    console.log(`[AiAutoReply] [DEBUG] 最后消息内容: ${lastMessage.body?.text?.substring(0, 50)}...`);
+    
+    // 严格检查：received 必须是布尔值 true 或字符串 "true"
+    const isReceived = lastMessage.received === true || lastMessage.received === 'true' || lastMessage.received === 1;
+    if (!isReceived) {
+      console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: 最后消息是自己发的(received=${lastMessage.received})，不需要回复`);
       continue;
     }
     
@@ -708,6 +878,9 @@ export async function startAiAutoReply(options = {}) {
     return null;
   }
   
+  // 保存当前用户ID，用于判断消息发送者
+  aiConfig.currentUserId = options.currentUserId;
+  
   const interval = options.interval || aiConfig.checkInterval || DEFAULT_CHECK_INTERVAL;
   
   console.log('[AiAutoReply] 启动 AI 自动回复服务（独立浏览器）');
@@ -735,9 +908,22 @@ export async function startAiAutoReply(options = {}) {
 }
 
 /**
+ * 检查投递是否已完成（达到 limit）
+ */
+function isJobApplyFinished() {
+  return process.env.DAGEGONG_SHOULD_STOP === '1' || process.env.DAGEGONG_APPLY_FINISHED === 'true';
+}
+
+/**
  * 使用新浏览器实例运行检查
  */
 async function runCheckWithNewBrowser(config) {
+  // 【新增】如果投递已完成，跳过检查
+  if (isJobApplyFinished()) {
+    console.log('[AiAutoReply] 投递已完成，跳过本次检查');
+    return [];
+  }
+  
   const { initPuppeteer } = await import('@dagegong/geek-auto-start-chat-with-boss/index.mjs');
   const { readStorageFile } = await import('@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs');
   

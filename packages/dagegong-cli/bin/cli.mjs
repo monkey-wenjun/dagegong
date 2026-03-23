@@ -36,7 +36,7 @@ import {
 } from '../src/config-exporter.mjs';
 import { sendFeishuNotification } from '../src/feishu-notifier.mjs';
 import { getTodayStatsSummary, showStats } from '../src/stats.mjs';
-import { runJobSearch, dryRun } from '../src/job-runner.mjs';
+import { runJobSearch, runJobSearchWithRetry, dryRun } from '../src/job-runner.mjs';
 import { testAllAIConfigs, generateGreetingMessage } from '../src/ai-tester.mjs';
 import { startLoginFlow } from '../src/login-handler.mjs';
 import { getTodayLogs, getRecentStats, log } from '../src/logger.mjs';
@@ -169,14 +169,28 @@ program
   .option('-l, --limit <number>', '限制投递数量', '0')
   .option('--no-headless', '显示浏览器界面（调试用）')
   .option('--dry-run', '试运行（不实际投递）')
+  .option('--retry <number>', '失败重试次数', '3')
+  .option('--retry-delay <seconds>', '重试间隔（秒）', '60')
   .action(async (options) => {
     const limit = parseInt(options.limit);
+    const maxRetries = parseInt(options.retry);
+    const retryDelay = parseInt(options.retryDelay) * 1000;
     
     if (options.dryRun) {
       console.log(chalk.cyan('\n🧪 试运行模式\n'));
       const result = await dryRun();
       console.log('配置预览:', JSON.stringify(result, null, 2));
       return;
+    }
+    
+    // 检查是否已有进程在运行
+    const { checkExistingProcess } = await import('../src/process-lock.mjs');
+    const existingPid = await checkExistingProcess();
+    if (existingPid) {
+      console.log(chalk.yellow(`\n⚠️ 检测到已有投递进程在运行 (PID: ${existingPid})`));
+      console.log(chalk.gray('   如需重启，请先停止现有进程'));  
+      console.log(chalk.gray('   或运行: pkill -f "dagegong-cli"\n'));
+      process.exit(1);
     }
     
     console.log(chalk.cyan('\n🔥 启动自动投递\n'));
@@ -210,11 +224,14 @@ program
     console.log(`  薪资范围: ${eff?.expectSalaryLow || '?'} - ${eff?.expectSalaryHigh || '?'} k`);
     console.log(`  打招呼模式: ${['BOSS 默认', '自定义消息', 'AI 生成'][eff?.greetingMessageMode]}`);
     console.log(`  AI 模型: ${eff?.llmConfig?.[0]?.model || '未配置'}`);
+    console.log(`  失败重试: ${maxRetries} 次, 间隔 ${options.retryDelay} 秒`);
     
     try {
-      const result = await runJobSearch({
+      const result = await runJobSearchWithRetry({
         limit,
         headless: options.headless,
+        maxRetries,
+        retryDelay,
         onProgress: ({ type, data }) => {
           if (type === 'success') {
             console.log(`✅ 投递成功: ${data.jobName} @ ${data.brandName}`);
@@ -449,6 +466,76 @@ program
     console.log(chalk.cyan('\n🤖 单次检查未读消息\n'));
     console.log(chalk.yellow('注意: 此命令需要在投递过程中运行，或配合 --no-headless 使用'));
     console.log(chalk.gray('建议使用: dagegong-cli run --limit 1 --no-headless\n'));
+  });
+
+// AI 自动回复守护进程
+program
+  .command('ai-daemon')
+  .description('AI 自动回复守护进程（持续运行，独立于投递流程）')
+  .option('-s, --start', '启动守护进程')
+  .option('-t, --stop', '停止守护进程')
+  .option('--status', '查看守护进程状态')
+  .action(async (options) => {
+    const { startAiDaemon, stopAiDaemon, getAiDaemonStatus } = await import('../src/ai-auto-reply-daemon.mjs');
+    
+    if (options.start) {
+      console.log(chalk.cyan('\n🤖 启动 AI 自动回复守护进程\n'));
+      const result = await startAiDaemon();
+      if (!result.success) {
+        console.error(chalk.red(`❌ 启动失败: ${result.reason}`));
+        process.exit(1);
+      } else {
+        console.log(chalk.green(`✅ 守护进程已启动 (PID: ${result.pid})`));
+        console.log(chalk.gray('日志: ~/.dagegong-cli/logs/ai-daemon.log'));
+      }
+    } else if (options.stop) {
+      console.log(chalk.cyan('\n🛑 停止 AI 自动回复守护进程\n'));
+      const result = stopAiDaemon();
+      if (result.success) {
+        console.log(chalk.green(`✅ 已停止 (PID: ${result.pid})`));
+      } else {
+        console.log(chalk.yellow('守护进程未运行'));
+      }
+    } else if (options.status) {
+      const status = getAiDaemonStatus();
+      if (status.running) {
+        console.log(chalk.green(`✅ 守护进程运行中 (PID: ${status.pid})`));
+      } else {
+        console.log(chalk.gray('❌ 守护进程未运行'));
+      }
+    } else {
+      console.log(chalk.cyan('\n🤖 AI 自动回复守护进程\n'));
+      console.log('用法:');
+      console.log('  dagegong-cli ai-daemon --start   启动守护进程');
+      console.log('  dagegong-cli ai-daemon --stop    停止守护进程');
+      console.log('  dagegong-cli ai-daemon --status  查看状态');
+      console.log(chalk.gray('\n守护进程会持续监控未读消息并自动回复，独立于投递流程运行。'));
+    }
+  });
+
+// 今日统计
+program
+  .command('today')
+  .description('查看今日投递统计')
+  .action(async () => {
+    const { sendDailyReport } = await import('../src/daily-report.mjs');
+    
+    console.log(chalk.cyan('\n📊 今日投递统计\n'));
+    
+    // 只获取统计，不发送
+    const result = await sendDailyReport(null, { dryRun: true });
+    
+    if (!result.stats) {
+      console.log(chalk.gray('今日暂无投递数据'));
+    } else {
+      const s = result.stats;
+      console.log(`📧 投递: ${chalk.green(s.success)}/${s.total} 成功${s.failed > 0 ? chalk.red(` (${s.failed} 失败)`) : ''}`);
+      if (s.aiCount > 0) {
+        console.log(`🤖 AI回复: ${s.aiCount} 条${s.aiReject > 0 ? ` (婉拒 ${s.aiReject} 条)` : ''}`);
+      }
+    }
+    console.log(chalk.gray('\n详细报告将在每天21:00发送到飞书'));
+    console.log('');
   });
 
 program.parse();
