@@ -149,7 +149,7 @@ function createFeishuPlugin(webhookUrl) {
       });
       
       // 错误处理
-      hooks.errorEncounter.tap('FeishuError', (errorInfo) => {
+      hooks.errorEncounter.tap('FeishuError', async (errorInfo) => {
         console.error('\n❌ [投递错误]', errorInfo);
         
         // 记录错误日志
