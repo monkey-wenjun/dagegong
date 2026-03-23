@@ -1,0 +1,27 @@
+[Unit]
+Description=Dagegong Job Apply Service
+Documentation=https://github.com/monkey-wenjun/dagegong
+# 仅在 7:00-21:00 运行
+OnCalendar=*-*-* 07:00:00
+
+[Service]
+Type=oneshot
+User=wenjun
+Group=wenjun
+WorkingDirectory=/home/wenjun/dagegong-app/packages/dagegong-cli
+
+# 环境变量
+Environment="NVM_DIR=/home/wenjun/.nvm"
+Environment="NODE_VERSION=22"
+Environment="DAGEGONG_RUNTIME_DIR=/home/wenjun/.dagegong-cli"
+Environment="DAGEGONG_BROWSER_HEADLESS=1"
+
+# 检查是否已有投递进程在运行，没有则启动
+ExecStart=/bin/bash -c 'source $NVM_DIR/nvm.sh && nvm use $NODE_VERSION && (pgrep -f "cli.mjs run" > /dev/null || node bin/cli.mjs run --headless)'
+
+# 日志
+StandardOutput=append:/home/wenjun/.dagegong-cli/logs/apply-service.log
+StandardError=append:/home/wenjun/.dagegong-cli/logs/apply-service.log
+
+[Install]
+WantedBy=multi-user.target

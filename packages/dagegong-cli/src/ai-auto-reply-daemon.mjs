@@ -105,6 +105,19 @@ async function daemonMain() {
 
   log('INFO', `检查间隔: ${config.checkInterval || 120000}ms`);
   log('INFO', `API URL: ${config.apiUrl}`);
+  
+  // 尝试从 CookieCloud 同步 cookies
+  try {
+    const { syncCookieCloud } = await import('./cookiecloud-sync.mjs');
+    const syncResult = await syncCookieCloud();
+    if (syncResult.success) {
+      log('INFO', `从 CookieCloud 同步了 ${syncResult.count} 个 cookies`);
+    } else {
+      log('WARN', `CookieCloud 同步失败: ${syncResult.reason}`);
+    }
+  } catch (err) {
+    log('WARN', `CookieCloud 同步异常: ${err.message}`);
+  }
 
   // 导入 AI 自动回复模块
   const aiModule = await import('./ai-auto-reply.mjs');

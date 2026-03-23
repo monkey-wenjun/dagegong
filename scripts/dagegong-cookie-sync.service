@@ -1,0 +1,15 @@
+[Unit]
+Description=Dagegong CookieCloud Sync
+
+[Service]
+Type=oneshot
+User=wenjun
+Group=wenjun
+WorkingDirectory=/home/wenjun/dagegong-app/packages/dagegong-cli
+Environment="NVM_DIR=/home/wenjun/.nvm"
+Environment="COOKIECLOUD_SERVER=https://cookies.awen.me"
+Environment="COOKIECLOUD_UUID=wpjGXrHmovKLCP5Ui7CG7Q"
+Environment="COOKIECLOUD_PASSWORD=8pBygX61coZpVjd4L3cV1q"
+ExecStart=/usr/bin/env bash -c "source /home/wenjun/.nvm/nvm.sh && nvm use 22 && node bin/cli.mjs sync-cookies"
+StandardOutput=append:/home/wenjun/.dagegong-cli/logs/cookie-sync.log
+StandardError=append:/home/wenjun/.dagegong-cli/logs/cookie-sync.log

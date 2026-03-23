@@ -1,16 +1,35 @@
 [Unit]
 Description=Dagegong AI Auto-Reply Daemon
-After=network.target
+Documentation=https://github.com/monkey-wenjun/dagegong
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=wenjun
+Group=wenjun
+WorkingDirectory=/home/wenjun/dagegong-app/packages/dagegong-cli
+
+# 环境变量
 Environment="NVM_DIR=/home/wenjun/.nvm"
 Environment="NODE_VERSION=22"
-ExecStart=/bin/bash -c 'source $NVM_DIR/nvm.sh && nvm use $NODE_VERSION && cd /home/wenjun/dagegong-app/packages/dagegong-cli && node bin/cli.mjs ai-daemon --daemon'
-ExecStop=/bin/bash -c 'source $NVM_DIR/nvm.sh && nvm use $NODE_VERSION && cd /home/wenjun/dagegong-app/packages/dagegong-cli && node bin/cli.mjs ai-daemon --stop'
+Environment="DAGEGONG_RUNTIME_DIR=/home/wenjun/.dagegong-cli"
+Environment="DAGEGONG_BROWSER_HEADLESS=1"
+
+# 直接运行守护进程模块
+ExecStart=/bin/bash -c 'source $NVM_DIR/nvm.sh && nvm use $NODE_VERSION && exec node src/ai-auto-reply-daemon.mjs --daemon'
+
+# 重启策略
 Restart=always
 RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# 停止策略
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+# 日志
 StandardOutput=append:/home/wenjun/.dagegong-cli/logs/ai-daemon-systemd.log
 StandardError=append:/home/wenjun/.dagegong-cli/logs/ai-daemon-systemd.log
 

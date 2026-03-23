@@ -569,6 +569,33 @@ program
     }
   });
 
+// 同步 CookieCloud cookies
+program
+  .command('sync-cookies')
+  .description('从 CookieCloud 同步 cookies')
+  .option('-s, --server <url>', 'CookieCloud 服务器', 'https://cookies.awen.me')
+  .option('-u, --uuid <uuid>', '用户 UUID')
+  .option('-p, --password <password>', '端到端密码')
+  .action(async (options) => {
+    const { syncCookieCloud } = await import('../src/cookiecloud-sync.mjs');
+    
+    console.log(chalk.cyan('\n🔐 从 CookieCloud 同步 cookies\n'));
+    
+    // 设置环境变量
+    if (options.server) process.env.COOKIECLOUD_SERVER = options.server;
+    if (options.uuid) process.env.COOKIECLOUD_UUID = options.uuid;
+    if (options.password) process.env.COOKIECLOUD_PASSWORD = options.password;
+    
+    const result = await syncCookieCloud();
+    
+    if (result.success) {
+      console.log(chalk.green(`\n✅ 同步成功，共 ${result.count} 个 cookies`));
+    } else {
+      console.log(chalk.red(`\n❌ 同步失败: ${result.reason}`));
+      process.exit(1);
+    }
+  });
+
 // 今日统计
 program
   .command('today')

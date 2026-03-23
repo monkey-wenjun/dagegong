@@ -229,6 +229,24 @@ async function getChatFriendList(page) {
     
     if (response.code !== 0) {
       console.log(`[AiAutoReply] [DEBUG] API 失败:`, response.message || response.msg);
+      
+      // 检测是否是登录过期
+      const errorMsg = response.message || response.msg || '';
+      if (errorMsg.includes('登录') || errorMsg.includes('失效') || errorMsg.includes('LOGIN')) {
+        console.log('[AiAutoReply] ⚠️ 检测到登录状态失效，尝试从 CookieCloud 同步 cookies...');
+        try {
+          const { syncCookieCloud } = await import('./cookiecloud-sync.mjs');
+          const syncResult = await syncCookieCloud();
+          if (syncResult.success) {
+            console.log('[AiAutoReply] ✅ Cookie 同步成功，请重新启动服务');
+          } else {
+            console.log('[AiAutoReply] ❌ Cookie 同步失败:', syncResult.reason);
+          }
+        } catch (syncErr) {
+          console.log('[AiAutoReply] ❌ 同步异常:', syncErr.message);
+        }
+      }
+      
       return [];
     }
     

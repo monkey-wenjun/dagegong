@@ -1,0 +1,12 @@
+[Unit]
+Description=Dagegong CookieCloud Sync Timer
+
+[Timer]
+# 每小时同步一次 cookies
+OnCalendar=hourly
+# 开机后1分钟也同步一次
+OnBootSec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
