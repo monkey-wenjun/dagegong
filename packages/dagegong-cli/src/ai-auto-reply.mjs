@@ -140,27 +140,32 @@ export function saveConfig(config) {
 
 /**
  * 读取已回复消息记录
+ * 返回 { repliedIds: Set, repliedBossIds: Set }
  */
 function loadRepliedMessages() {
   try {
     if (fs.existsSync(REPLIED_MESSAGES_FILE)) {
       const content = fs.readFileSync(REPLIED_MESSAGES_FILE, 'utf8');
       const data = JSON.parse(content);
-      return new Set(data.repliedIds || []);
+      return {
+        repliedIds: new Set(data.repliedIds || []),
+        repliedBossIds: new Set(data.repliedBossIds || [])
+      };
     }
   } catch (err) {
     console.error('[AiAutoReply] 读取已回复记录失败:', err.message);
   }
-  return new Set();
+  return { repliedIds: new Set(), repliedBossIds: new Set() };
 }
 
 /**
  * 保存已回复消息记录
  */
-function saveRepliedMessages(repliedIds) {
+function saveRepliedMessages(repliedIds, repliedBossIds) {
   try {
     fs.writeFileSync(REPLIED_MESSAGES_FILE, JSON.stringify({ 
       repliedIds: Array.from(repliedIds),
+      repliedBossIds: Array.from(repliedBossIds),
       updatedAt: new Date().toISOString()
     }, null, 2), 'utf8');
   } catch (err) {
@@ -577,8 +582,13 @@ ${historyText || '（无历史对话）'}
 
 /**
  * 处理单个对话
+ * @param {Object} page - Puppeteer page
+ * @param {Object} friend - 好友信息
+ * @param {Set} repliedIds - 已回复消息ID集合
+ * @param {Set} repliedBossIds - 已回复BOSS ID集合
+ * @param {Object} config - 配置
  */
-async function processSingleChat(page, friend, repliedIds, config) {
+async function processSingleChat(page, friend, repliedIds, repliedBossIds, config) {
   // 【关键】重新获取聊天记录，确保判断准确
   const messages = await getChatHistory(
     page,
@@ -612,6 +622,13 @@ async function processSingleChat(page, friend, repliedIds, config) {
   
   if (processingMessageIds.has(messageId)) {
     return { success: false, reason: 'processing' };
+  }
+  
+  // 【关键】检查该BOSS是否已经回复过（每个BOSS只回复一次）
+  const bossId = friend.encryptBossId || friend.encryptFriendId;
+  if (repliedBossIds.has(bossId)) {
+    console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: ❌ 跳过 - 该BOSS已回复过`);
+    return { success: false, reason: 'boss_already_replied' };
   }
   
   // 【关键】严格检查：最后消息必须来自 BOSS（不是我发的）
@@ -730,7 +747,8 @@ async function processSingleChat(page, friend, repliedIds, config) {
       
       if (sent) {
         repliedIds.add(messageId);
-        saveRepliedMessages(repliedIds);
+        repliedBossIds.add(bossId);
+        saveRepliedMessages(repliedIds, repliedBossIds);
         console.log(`[AiAutoReply] ✓ 婉拒回复成功`);
         return { success: true, reply: rejectReply, isReject: true };
       }
@@ -786,7 +804,8 @@ BOSS 说："${lastText}"
     
     if (sent) {
       repliedIds.add(messageId);
-      saveRepliedMessages(repliedIds);
+      repliedBossIds.add(bossId);
+      saveRepliedMessages(repliedIds, repliedBossIds);
       console.log(`[AiAutoReply] ✓ 回复成功: ${reply.substring(0, 50)}...`);
       logInfo('AI 自动回复成功', {
         bossName: friend.name,
@@ -810,7 +829,7 @@ BOSS 说："${lastText}"
 async function checkAndReply(page, config) {
   console.log('\n[AiAutoReply] ====== 开始检查未读消息 ======');
   
-  const repliedIds = loadRepliedMessages();
+  const { repliedIds, repliedBossIds } = loadRepliedMessages();
   const friendList = await getChatFriendList(page);
   
   if (friendList.length === 0) {
@@ -930,7 +949,7 @@ async function checkAndReply(page, config) {
   
   // 处理所有需要回复的对话
   for (const friend of needReplyList) {
-    const result = await processSingleChat(page, friend, repliedIds, config);
+    const result = await processSingleChat(page, friend, repliedIds, repliedBossIds, config);
     results.push({ friend: friend.name, ...result });
     
     // 每个对话之间稍作延迟
