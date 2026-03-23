@@ -1,0 +1,11 @@
+[Unit]
+Description=Dagegong Job Apply Timer
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

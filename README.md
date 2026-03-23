@@ -87,6 +87,15 @@ BOSS 已读不回？自动提醒功能帮你把握机会：
 - **主题切换** - 支持亮色/暗色/自动三种主题模式
 - **详细日志** - 完整的 API 请求/响应日志，便于排查问题
 
+### 🖥️ CLI 命令行工具
+适合服务器部署的命令行版本：
+
+- **无头模式运行** - 不需要 GUI，适合服务器挂机
+- **AI 守护进程** - 独立于投递流程的 AI 回复服务，投递崩溃后自动恢复
+- **每日统计报告** - 每天 21:00 自动发送飞书汇总
+- **Systemd 集成** - 支持 systemd 服务管理，实现开机自启
+- **一键启停** - 简单的命令行控制，支持启动、停止、状态查询
+
 ## 🚀 快速开始
 
 ### 下载安装
@@ -96,6 +105,186 @@ BOSS 已读不回？自动提醒功能帮你把握机会：
 - **Windows**: `dagegong-ui_x.x.x_x64_setup.exe`
 - **macOS**: `dagegong-ui_x.x.x.dmg`
 - **Linux**: `dagegong-ui_x.x.x.AppImage`
+
+---
+
+## 💻 CLI 命令行工具
+
+除了桌面端应用外，本项目还提供了 CLI 工具，支持在服务器无头模式运行，适合长期挂机自动投递。
+
+### 安装 CLI
+
+```bash
+# 进入 CLI 目录
+cd packages/dagegong-cli
+
+# 安装依赖
+pnpm install
+
+# 初始化配置
+node bin/cli.mjs init
+```
+
+### CLI 主要命令
+
+```bash
+# 查看帮助
+node bin/cli.mjs --help
+
+# 运行投递任务（默认使用配置文件中的每日限额）
+node bin/cli.mjs run --headless
+
+# 运行投递（指定数量）
+node bin/cli.mjs run --limit 10 --headless
+
+# 查看今日统计
+node bin/cli.mjs today
+
+# 测试飞书通知
+node bin/cli.mjs test-notify
+```
+
+### AI 自动回复守护进程
+
+CLI 版本支持独立的 AI 守护进程，投递浏览器崩溃后 AI 服务仍然继续运行：
+
+```bash
+# 启动 AI 守护进程
+node bin/cli.mjs ai-daemon --start
+
+# 查看状态
+node bin/cli.mjs ai-daemon --status
+
+# 停止 AI 守护进程
+node bin/cli.mjs ai-daemon --stop
+```
+
+### 自动发送简历配置
+
+```bash
+# 查看状态
+node bin/cli.mjs resume
+
+# 启用自动发简历
+node bin/cli.mjs resume --enable
+
+# 启用并指定标签筛选
+node bin/cli.mjs resume --enable --label 1 --label-name "已投递"
+
+# 禁用
+node bin/cli.mjs resume --disable
+```
+
+### AI 自动回复配置
+
+```bash
+# 配置 Dify API
+node bin/cli.mjs ai-reply --enable
+node bin/cli.mjs ai-reply --url http://192.168.1.29/v1/chat-messages --key your-api-key
+
+# 测试 AI API
+node bin/cli.mjs test-ai
+```
+
+---
+
+## 🖥️ 服务器部署（Systemd）
+
+推荐使用 systemd 管理服务，实现开机自启和自动重启：
+
+### 1. 创建服务文件
+
+创建 `/etc/systemd/system/dagegong-ai-daemon.service`：
+
+```ini
+[Unit]
+Description=Dagegong AI Auto-Reply Daemon
+After=network-online.target
+
+[Service]
+Type=simple
+User=wenjun
+Group=wenjun
+WorkingDirectory=/home/wenjun/dagegong-app/packages/dagegong-cli
+Environment="NVM_DIR=/home/wenjun/.nvm"
+Environment="NODE_VERSION=22"
+Environment="PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome"
+ExecStart=/usr/bin/env bash -c "source /home/wenjun/.nvm/nvm.sh && nvm use 22 && exec node src/ai-auto-reply-daemon.mjs --daemon"
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/wenjun/.dagegong-cli/logs/ai-daemon-systemd.log
+StandardError=append:/home/wenjun/.dagegong-cli/logs/ai-daemon-systemd.log
+
+[Install]
+WantedBy=multi-user.target
+```
+
+创建 `/etc/systemd/system/dagegong-apply.timer`：
+
+```ini
+[Unit]
+Description=Dagegong Job Apply Timer
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+创建 `/etc/systemd/system/dagegong-apply.service`：
+
+```ini
+[Unit]
+Description=Dagegong Job Apply Service
+
+[Service]
+Type=oneshot
+User=wenjun
+Group=wenjun
+WorkingDirectory=/home/wenjun/dagegong-app/packages/dagegong-cli
+Environment="NVM_DIR=/home/wenjun/.nvm"
+Environment="NODE_VERSION=22"
+Environment="PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome"
+ExecStart=/usr/bin/env bash -c "source /home/wenjun/.nvm/nvm.sh && nvm use 22 && (pgrep -f 'cli.mjs run' > /dev/null || node bin/cli.mjs run --headless)"
+StandardOutput=append:/home/wenjun/.dagegong-cli/logs/apply-service.log
+StandardError=append:/home/wenjun/.dagegong-cli/logs/apply-service.log
+```
+
+### 2. 启动服务
+
+```bash
+# 重新加载 systemd
+sudo systemctl daemon-reload
+
+# 启用开机自启
+sudo systemctl enable dagegong-ai-daemon.service
+sudo systemctl enable dagegong-apply.timer
+
+# 启动服务
+sudo systemctl start dagegong-ai-daemon.service
+sudo systemctl start dagegong-apply.timer
+```
+
+### 3. 管理命令
+
+```bash
+# 查看状态
+sudo systemctl status dagegong-ai-daemon
+sudo systemctl status dagegong-apply.timer
+
+# 查看日志
+sudo journalctl -u dagegong-ai-daemon -f
+tail -f ~/.dagegong-cli/logs/ai-daemon-systemd.log
+tail -f ~/.dagegong-cli/logs/apply-service.log
+
+# 重启服务
+sudo systemctl restart dagegong-ai-daemon
+```
+
+---
 
 ### 开发环境
 
@@ -123,6 +312,13 @@ pnpm run build:linux  # Linux
 dagegong/
 ├── packages/
 │   ├── ui/                              # Electron 桌面应用
+│   ├── dagegong-cli/                    # 命令行工具 (CLI)
+│   │   ├── bin/cli.mjs                  # CLI 入口
+│   │   ├── src/job-runner.mjs           # 投递任务运行器
+│   │   ├── src/ai-auto-reply.mjs        # AI 自动回复
+│   │   ├── src/ai-auto-reply-daemon.mjs # AI 守护进程
+│   │   ├── src/daily-report.mjs         # 每日统计报告
+│   │   └── src/config-exporter.mjs      # 配置管理
 │   ├── geek-auto-start-chat-with-boss/  # 核心自动聊天逻辑
 │   ├── run-core-of-geek-auto-start-chat-with-boss/  # 守护进程
 │   ├── sqlite-plugin/                   # SQLite 数据库插件
@@ -131,6 +327,9 @@ dagegong/
 │   ├── dingtalk-plugin/                 # 钉钉通知插件
 │   └── launch-bosszhipin-login-page-with-preload-extension/  # 登录扩展
 ├── .github/workflows/                   # CI/CD 工作流
+├── scripts/                             # 部署脚本
+│   ├── dagegong-ai-daemon.service       # Systemd 服务配置
+│   └── install-systemd-services.sh      # 自动安装脚本
 └── README.md
 ```
 

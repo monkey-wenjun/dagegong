@@ -1,0 +1,22 @@
+[Unit]
+Description=Dagegong AI Auto-Reply Daemon
+After=network-online.target
+
+[Service]
+Type=simple
+User=wenjun
+Group=wenjun
+WorkingDirectory=/home/wenjun/dagegong-app/packages/dagegong-cli
+Environment=NVM_DIR=/home/wenjun/.nvm
+Environment=NODE_VERSION=22
+Environment=DAGEGONG_RUNTIME_DIR=/home/wenjun/.dagegong-cli
+Environment=DAGEGONG_BROWSER_HEADLESS=1
+Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
+ExecStart=/usr/bin/env bash -c "source /home/wenjun/.nvm/nvm.sh && nvm use 22 && exec node src/ai-auto-reply-daemon.mjs --daemon"
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/wenjun/.dagegong-cli/logs/ai-daemon-systemd.log
+StandardError=append:/home/wenjun/.dagegong-cli/logs/ai-daemon-systemd.log
+
+[Install]
+WantedBy=multi-user.target

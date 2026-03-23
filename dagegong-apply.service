@@ -1,0 +1,14 @@
+[Unit]
+Description=Dagegong Job Apply Service
+
+[Service]
+Type=oneshot
+User=wenjun
+Group=wenjun
+WorkingDirectory=/home/wenjun/dagegong-app/packages/dagegong-cli
+Environment=NVM_DIR=/home/wenjun/.nvm
+Environment=NODE_VERSION=22
+Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
+ExecStart=/usr/bin/env bash -c "source /home/wenjun/.nvm/nvm.sh && nvm use 22 && (pgrep -f 'cli.mjs run' > /dev/null || node bin/cli.mjs run --headless)"
+StandardOutput=append:/home/wenjun/.dagegong-cli/logs/apply-service.log
+StandardError=append:/home/wenjun/.dagegong-cli/logs/apply-service.log
