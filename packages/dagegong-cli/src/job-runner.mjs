@@ -159,8 +159,23 @@ function createFeishuPlugin(webhookUrl) {
           // 检测Cookie过期
           if (errorInfo.includes('LOGIN_STATUS_INVALID') || errorInfo.includes('登录')) {
             console.error('   🔑 检测到登录状态无效，Cookie 可能已过期');
-            console.error('   💡 请运行: dagegong-cli login --force');
             logCookie('expired', { error: errorInfo });
+            
+            // 尝试从 CookieCloud 同步 cookies
+            console.log('   🔐 正在尝试从 CookieCloud 同步 cookies...');
+            try {
+              const { syncCookieCloud } = await import('./cookiecloud-sync.mjs');
+              const syncResult = await syncCookieCloud();
+              if (syncResult.success) {
+                console.log('   ✅ Cookie 同步成功，请重新运行投递任务');
+              } else {
+                console.error('   ❌ Cookie 同步失败:', syncResult.reason);
+                console.error('   💡 请手动运行: dagegong-cli login --force');
+              }
+            } catch (syncErr) {
+              console.error('   ❌ 同步异常:', syncErr.message);
+              console.error('   💡 请手动运行: dagegong-cli login --force');
+            }
           }
         } else if (errorInfo && errorInfo.message) {
           logError('投递过程发生错误', { error: errorInfo.message });
@@ -315,7 +330,15 @@ function createHooks(config = {}) {
         console.error('   💡 提示: 操作超时，可能是网络问题或页面加载缓慢');
       }
       if (message.includes('LOGIN_STATUS_INVALID')) {
-        console.error('   💡 提示: Cookie 已过期，请运行: dagegong-cli login');
+        console.error('   💡 提示: Cookie 已过期，正在尝试从 CookieCloud 同步...');
+        // 异步尝试同步，不阻塞主流程
+        import('./cookiecloud-sync.mjs').then(({ syncCookieCloud }) => {
+          syncCookieCloud().then(result => {
+            if (result.success) {
+              console.log('   ✅ CookieCloud 同步成功，请重新运行');
+            }
+          }).catch(() => {});
+        }).catch(() => {});
       }
     }
   };
@@ -340,6 +363,27 @@ export async function runJobSearch(options = {}) {
   const config = readCliConfig();
   if (!config) {
     throw new Error('未找到 CLI 配置，请先运行: dagegong-cli init');
+  }
+  
+  // 尝试从 CookieCloud 同步 cookies（投递前预检）
+  console.log('🔐 检查 cookies 状态...');
+  try {
+    const { syncCookieCloud, checkCookies } = await import('./cookiecloud-sync.mjs');
+    const cookieStatus = checkCookies();
+    
+    if (!cookieStatus.valid) {
+      console.log(`⚠️ Cookies 无效 (${cookieStatus.reason})，尝试从 CookieCloud 同步...`);
+      const syncResult = await syncCookieCloud();
+      if (syncResult.success) {
+        console.log(`✅ 成功同步 ${syncResult.count} 个 cookies`);
+      } else {
+        console.warn(`⚠️ CookieCloud 同步失败: ${syncResult.reason}`);
+      }
+    } else {
+      console.log(`✅ Cookies 有效 (${cookieStatus.valid}/${cookieStatus.total})`);
+    }
+  } catch (err) {
+    console.warn('⚠️ Cookie 检查失败:', err.message);
   }
   
   const eff = config.effective;
