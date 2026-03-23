@@ -93,7 +93,14 @@ const defaultConfig = {
   apiKey: '',           // Dify API Key
   enableSummary: false, // 是否启用对话总结
   summaryPrompt: defaultSummaryPrompt,
-  checkInterval: DEFAULT_CHECK_INTERVAL
+  checkInterval: DEFAULT_CHECK_INTERVAL,
+  // CookieCloud 配置（用于 cookies 失效时自动同步）
+  cookieCloud: {
+    enabled: false,     // 是否启用 CookieCloud 同步
+    server: 'https://cookies.awen.me',
+    uuid: '',
+    password: ''
+  }
 };
 
 // 跟踪正在处理的消息ID
@@ -188,6 +195,47 @@ const GEEK_FRIEND_LIST_API = (labelId = 1) => `https://www.zhipin.com/wapi/zprel
 
 // 使用 labelId=1 只获取有新消息的好友
 const HISTORY_MSG_API = 'https://www.zhipin.com/wapi/zpchat/geek/historyMsg';
+const USER_INFO_API = 'https://www.zhipin.com/wapi/zpuser/userinfo';
+
+// 缓存当前用户ID
+let cachedCurrentUserId = null;
+
+/**
+ * 获取当前登录用户ID
+ */
+async function getCurrentUserId(page) {
+  // 如果已有缓存，直接返回
+  if (cachedCurrentUserId) {
+    return cachedCurrentUserId;
+  }
+  
+  try {
+    const response = await page.evaluate(async (url) => {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json, text/plain, */*',
+          'x-requested-with': 'XMLHttpRequest'
+        },
+        credentials: 'include'
+      });
+      return res.json();
+    }, USER_INFO_API);
+    
+    if (response.code === 0) {
+      const userId = response.zpData?.userId || response.zpData?.uid;
+      if (userId) {
+        cachedCurrentUserId = String(userId);
+        console.log(`[AiAutoReply] [DEBUG] 获取到当前用户ID: ${cachedCurrentUserId}`);
+        return cachedCurrentUserId;
+      }
+    }
+    console.log(`[AiAutoReply] [DEBUG] 获取用户信息失败:`, response.message || response.msg);
+  } catch (err) {
+    console.log(`[AiAutoReply] [DEBUG] 获取用户信息异常:`, err.message);
+  }
+  return null;
+}
 
 /**
  * 获取聊天好友列表
@@ -270,13 +318,6 @@ async function getChatFriendList(page) {
       unreadCount: f.unreadCount || 1
     }));
     
-    if (friendList.length > 0) {
-      console.log('[AiAutoReply] [DEBUG] 好友列表(原始):');
-      friendList.forEach((f, i) => {
-        console.log(`[AiAutoReply] [DEBUG] [${i + 1}] ${f.name} | unread:${f.unreadCount} | ${f.lastText?.substring(0, 30)}...`);
-      });
-    }
-    
     console.log('[AiAutoReply] [DEBUG] ========== 好友列表获取完成 ==========');
     return friendList;
   } catch (err) {
@@ -344,14 +385,11 @@ async function getChatHistory(page, encryptBossId, encryptJobId, securityId, fri
           
           // 打印完整消息列表用于调试
           if (messages.length > 0) {
-            console.log('[AiAutoReply] [DEBUG] 完整消息列表(按API返回顺序):');
+            console.log('[AiAutoReply] [DEBUG] 消息列表:');
             messages.forEach((m, i) => {
               const text = m.body?.text || m.pushText || '[无文本]';
-              // 打印消息对象的所有字段名和值
-              console.log(`[AiAutoReply] [DEBUG] [${i}] 字段: ${Object.keys(m).join(',')}`);
-              console.log(`[AiAutoReply] [DEBUG]       from=${JSON.stringify(m.from)}, to=${JSON.stringify(m.to)}`);
-              console.log(`[AiAutoReply] [DEBUG]       received=${m.received}, pushText=${m.pushText?.substring(0,20)}`);
-              console.log(`[AiAutoReply] [DEBUG]       内容: ${text.substring(0, 40)}...`);
+              const sender = m.from?.name || '未知';
+              console.log(`[AiAutoReply] [DEBUG] [${i}] ${sender} | received=${m.received} | ${text.substring(0, 50)}...`);
             });
           }
           
@@ -577,17 +615,28 @@ async function processSingleChat(page, friend, repliedIds, config) {
   }
   
   // 【关键】严格检查：最后消息必须来自 BOSS（不是我发的）
-  // API返回的是from.uid而不是from.userId
+  // 双重验证：received 字段 + from.uid 对比当前用户ID
   const fromUid = lastMessage.from?.uid;
-  const currentUserId = config.currentUserId;
+  const received = lastMessage.received;
+  const isReceived = received === true || received === 'true' || received === 1;
+  
+  // 获取当前用户ID（用于双重验证）
+  const currentUserId = config.currentUserId || await getCurrentUserId(page);
   const isFromMe = fromUid && currentUserId && String(fromUid) === String(currentUserId);
   
-  console.log(`[AiAutoReply] [DEBUG] 检查消息: from.uid=${fromUid}, currentUser=${currentUserId}, isFromMe=${isFromMe}`);
+  console.log(`[AiAutoReply] [DEBUG] 检查消息: from.uid=${fromUid}, currentUserId=${currentUserId}, received=${received}`);
+  console.log(`[AiAutoReply] [DEBUG] isReceived=${isReceived}, isFromMe=${isFromMe}`);
   console.log(`[AiAutoReply] [DEBUG] 消息内容: ${lastMessage.body?.text?.substring(0, 50)}...`);
-  console.log(`[AiAutoReply] [DEBUG] received=${lastMessage.received} (类型: ${typeof lastMessage.received})`);
   
+  // 如果 from.uid 等于当前用户ID，说明这是自己发的消息，跳过
   if (isFromMe) {
-    console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: ❌ 跳过 - 这是我自己发的消息`);
+    console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: ❌ 跳过 - 消息发送者是自己(from.uid=${fromUid})`);
+    return { success: false, reason: 'last_is_self' };
+  }
+  
+  // 如果 received 明确为 false，也跳过
+  if (received === false || received === 'false' || received === 0) {
+    console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: ❌ 跳过 - received=${received} 表示是自己发的`);
     return { success: false, reason: 'last_is_self' };
   }
   
@@ -604,10 +653,12 @@ async function processSingleChat(page, friend, repliedIds, config) {
   // 【新增】过滤无意义的消息（图片、表情、简单回应）
   const meaninglessPatterns = [
     /^\s*$/,                              // 空消息
+    /^\[无文本\]$/,                       // [无文本]
     /^嗯+$/,                              // 嗯、嗯嗯
     /^[哦喔哦好]+[嗯呢吧]*$/,             // 哦、喔、好、好呢、好吧、嗯呢
     /^[OKok]+[👌]*$/,                     // OK、ok
-    /^[👌🙏👍✅💪🔥]+$/,                  // 纯表情符号
+    /^[👌🙏👍✅💪🔥🤝✋👋🙋]+[\s\d]*$/, // 纯表情符号（含握手、举手等）
+    /^\[[握手玫瑰抱拳咖啡OK鲜花恭喜]+\]$/, // [握手]、[玫瑰]、[抱拳]等表情标记
     /^收到$/,                             // 收到
     /^行+$/,                              // 行
     /^(好的|知道|了解|明白)了?$/,         // 好的、知道了、了解了、明白了
@@ -812,10 +863,24 @@ async function checkAndReply(page, config) {
     console.log(`[AiAutoReply] [DEBUG] 最后消息 received=${lastMessage.received} (类型: ${typeof lastMessage.received})`);
     console.log(`[AiAutoReply] [DEBUG] 最后消息内容: ${lastMessage.body?.text?.substring(0, 50)}...`);
     
-    // 严格检查：received 必须是布尔值 true 或字符串 "true"
-    const isReceived = lastMessage.received === true || lastMessage.received === 'true' || lastMessage.received === 1;
+    // 【关键】双重验证：received 字段 + from.uid 对比当前用户ID
+    const received = lastMessage.received;
+    const fromUid = lastMessage.from?.uid;
+    const isReceived = received === true || received === 'true' || received === 1;
+    
+    // 获取当前用户ID进行验证
+    const currentUserId = config.currentUserId || await getCurrentUserId(page);
+    const isFromMe = fromUid && currentUserId && String(fromUid) === String(currentUserId);
+    
+    console.log(`[AiAutoReply] [DEBUG] 验证: from.uid=${fromUid}, currentUserId=${currentUserId}, isFromMe=${isFromMe}`);
+    
+    if (isFromMe) {
+      console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: 消息发送者是自己，跳过`);
+      continue;
+    }
+    
     if (!isReceived) {
-      console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: 最后消息是自己发的(received=${lastMessage.received})，不需要回复`);
+      console.log(`[AiAutoReply] [DEBUG] ${friend.name || '未知'}: 最后消息是自己发的(received=${received})，跳过`);
       continue;
     }
     

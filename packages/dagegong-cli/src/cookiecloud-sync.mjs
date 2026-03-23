@@ -8,12 +8,59 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-const COOKIECLOUD_SERVER = process.env.COOKIECLOUD_SERVER || 'https://cookies.awen.me';
-const COOKIECLOUD_UUID = process.env.COOKIECLOUD_UUID || 'wpjGXrHmovKLCP5Ui7CG7Q';
-const COOKIECLOUD_PASSWORD = process.env.COOKIECLOUD_PASSWORD || '8pBygX61coZpVjd4L3cV1q';
-
-const STORAGE_DIR = path.join(os.homedir(), '.dagegong-cli', 'storage');
+const CLI_RUNTIME_DIR = path.join(os.homedir(), '.dagegong-cli');
+const STORAGE_DIR = path.join(CLI_RUNTIME_DIR, 'storage');
 const COOKIE_FILE = path.join(STORAGE_DIR, 'boss-cookies.json');
+const AI_REPLY_CONFIG_FILE = path.join(CLI_RUNTIME_DIR, 'config', 'ai-auto-reply.json');
+
+// 默认 CookieCloud 配置
+const defaultCookieCloudConfig = {
+  enabled: false,
+  server: 'https://cookies.awen.me',
+  uuid: '',
+  password: ''
+};
+
+/**
+ * 读取 CookieCloud 配置
+ */
+function getCookieCloudConfig() {
+  try {
+    if (fs.existsSync(AI_REPLY_CONFIG_FILE)) {
+      const content = fs.readFileSync(AI_REPLY_CONFIG_FILE, 'utf8');
+      const config = JSON.parse(content);
+      return { ...defaultCookieCloudConfig, ...(config.cookieCloud || {}) };
+    }
+  } catch (err) {
+    console.error('[CookieCloud] 读取配置失败:', err.message);
+  }
+  return defaultCookieCloudConfig;
+}
+
+/**
+ * 保存 CookieCloud 配置
+ */
+function saveCookieCloudConfig(cookieCloudConfig) {
+  try {
+    let config = {};
+    if (fs.existsSync(AI_REPLY_CONFIG_FILE)) {
+      const content = fs.readFileSync(AI_REPLY_CONFIG_FILE, 'utf8');
+      config = JSON.parse(content);
+    }
+    config.cookieCloud = { ...(config.cookieCloud || {}), ...cookieCloudConfig };
+    
+    const configDir = path.dirname(AI_REPLY_CONFIG_FILE);
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+    
+    fs.writeFileSync(AI_REPLY_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+    return true;
+  } catch (err) {
+    console.error('[CookieCloud] 保存配置失败:', err.message);
+    return false;
+  }
+}
 
 /**
  * 解密 CookieCloud 数据 (legacy 模式)
@@ -45,11 +92,19 @@ function decryptLegacy(encrypted, password) {
 
 /**
  * 从 CookieCloud 获取 cookies
+ * @param {Object} config - CookieCloud 配置
  * @returns {Promise<Object>}
  */
-async function fetchFromCookieCloud() {
+async function fetchFromCookieCloud(config) {
+  const { server, uuid, password } = config;
+  
+  if (!uuid || !password) {
+    console.error('[CookieCloud] 配置不完整，缺少 UUID 或密码');
+    return null;
+  }
+  
   try {
-    const url = `${COOKIECLOUD_SERVER}/get/${COOKIECLOUD_UUID}?password=${encodeURIComponent(COOKIECLOUD_PASSWORD)}`;
+    const url = `${server}/get/${uuid}?password=${encodeURIComponent(password)}`;
     console.log('[CookieCloud] 正在从服务器获取 cookies...');
     
     const response = await fetch(url, {
@@ -68,7 +123,7 @@ async function fetchFromCookieCloud() {
     // 如果是加密数据，需要解密
     if (data.encrypted) {
       console.log('[CookieCloud] 检测到加密数据，正在解密...');
-      return decryptLegacy(data.encrypted, COOKIECLOUD_PASSWORD);
+      return decryptLegacy(data.encrypted, password, uuid);
     }
     
     return data;
