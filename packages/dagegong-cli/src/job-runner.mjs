@@ -365,8 +365,16 @@ export async function runJobSearch(options = {}) {
   process.env.DAGEGONG_BROWSER_HEADLESS = headless ? '1' : '0';
   process.env.DAGEGONG_RUNTIME_DIR = CLI_RUNTIME_DIR;  // 使用 CLI 配置目录
   
-  // 禁用自动发送简历（避免干扰投递流程）
-  process.env.DAGEGONG_AUTO_SEND_RESUME_ENABLED = '0';
+  // 自动发送简历配置（从配置文件读取）
+  const autoSendResumeEnabled = eff.autoSendResumeEnabled || false;
+  process.env.DAGEGONG_AUTO_SEND_RESUME_ENABLED = autoSendResumeEnabled ? '1' : '0';
+  
+  // 如果启用了标签筛选，也设置相关环境变量
+  if (autoSendResumeEnabled && eff.autoSendResumeUseLabelFilter) {
+    process.env.DAGEGONG_AUTO_SEND_RESUME_USE_LABEL_FILTER = '1';
+    process.env.DAGEGONG_AUTO_SEND_RESUME_LABEL_ID = String(eff.autoSendResumeLabelId || 0);
+    process.env.DAGEGONG_AUTO_SEND_RESUME_LABEL_NAME = eff.autoSendResumeLabelName || '全部';
+  }
   
   // 设置每日投递上限
   process.env.DAGEGONG_DAILY_CHAT_LIMIT = String(limit);
@@ -391,6 +399,10 @@ export async function runJobSearch(options = {}) {
   console.log(`  - 屏蔽公司正则: ${eff.blockCompanyNameRegExpStr || '(未设置)'}`);
   console.log(`  - 全局屏蔽公司正则: ${eff.globalBlockCompanyNameRegExpStr || '(未设置)'}`);
   console.log(`  - 匹配逻辑: ${eff.jobDetailRegExpMatchLogic === 1 ? 'ALL (全部匹配)' : 'SOME (任一匹配)'}`);
+  console.log(`  - 自动发简历: ${autoSendResumeEnabled ? '已启用' : '未启用'}`);
+  if (autoSendResumeEnabled && eff.autoSendResumeUseLabelFilter) {
+    console.log(`    标签筛选: ${eff.autoSendResumeLabelName || '全部'} (ID: ${eff.autoSendResumeLabelId || 0})`);
+  }
   console.log(`  - 工作目录: ${process.env.DAGEGONG_RUNTIME_DIR}`);
   console.log('');
   

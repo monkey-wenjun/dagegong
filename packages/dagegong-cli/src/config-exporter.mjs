@@ -357,10 +357,9 @@ export async function migrateUiConfig() {
       fs.mkdirSync(geekConfigDir, { recursive: true });
     }
     
-    // 禁用自动发送简历（CLI 模式下不需要）
+    // 保留自动发送简历配置（从 bossConfig 传入）
     const bossConfigForGeek = {
-      ...bossConfig,
-      autoSendResumeEnabled: false
+      ...bossConfig
     };
     const filesToWrite = [
       { name: 'boss.json', content: bossConfigForGeek },
@@ -408,6 +407,44 @@ export function readCliConfig() {
     return null;
   }
   return readJson(configFile);
+}
+
+/**
+ * 保存 CLI 配置
+ */
+export function saveCliConfig(config) {
+  const configFile = path.join(CLI_RUNTIME_DIR, 'config.json');
+  ensureDir(path.dirname(configFile));
+  writeJson(configFile, config);
+  
+  // 同步更新 boss.json
+  try {
+    const geekConfigDir = path.join(CLI_RUNTIME_DIR, 'config');
+    const bossConfigFile = path.join(geekConfigDir, 'boss.json');
+    
+    if (fs.existsSync(bossConfigFile)) {
+      const bossConfig = readJson(bossConfigFile, {});
+      const eff = config.effective || {};
+      
+      // 更新相关配置
+      if (eff.autoSendResumeEnabled !== undefined) {
+        bossConfig.autoSendResumeEnabled = eff.autoSendResumeEnabled;
+      }
+      if (eff.autoSendResumeUseLabelFilter !== undefined) {
+        bossConfig.autoSendResumeUseLabelFilter = eff.autoSendResumeUseLabelFilter;
+      }
+      if (eff.autoSendResumeLabelId !== undefined) {
+        bossConfig.autoSendResumeLabelId = eff.autoSendResumeLabelId;
+      }
+      if (eff.autoSendResumeLabelName !== undefined) {
+        bossConfig.autoSendResumeLabelName = eff.autoSendResumeLabelName;
+      }
+      
+      writeJson(bossConfigFile, bossConfig);
+    }
+  } catch (err) {
+    console.warn('同步 boss.json 失败:', err.message);
+  }
 }
 
 /**

@@ -513,6 +513,62 @@ program
     }
   });
 
+// 自动发送简历配置
+program
+  .command('resume')
+  .description('配置自动发送简历')
+  .option('-e, --enable', '启用自动发送简历')
+  .option('-d, --disable', '禁用自动发送简历')
+  .option('--label <id>', '使用标签筛选，指定标签ID')
+  .option('--label-name <name>', '标签名称', '全部')
+  .action(async (options) => {
+    const { readCliConfig, saveCliConfig } = await import('../src/config-exporter.mjs');
+    
+    const config = readCliConfig();
+    if (!config) {
+      console.error(chalk.red('❌ 未找到配置'));
+      process.exit(1);
+    }
+    
+    const eff = config.effective || {};
+    const updates = {};
+    
+    if (options.enable) {
+      updates.autoSendResumeEnabled = true;
+      console.log(chalk.green('✅ 已启用自动发送简历'));
+    }
+    
+    if (options.disable) {
+      updates.autoSendResumeEnabled = false;
+      console.log(chalk.gray('❌ 已禁用自动发送简历'));
+    }
+    
+    if (options.label !== undefined) {
+      updates.autoSendResumeUseLabelFilter = true;
+      updates.autoSendResumeLabelId = parseInt(options.label, 10);
+      updates.autoSendResumeLabelName = options.labelName;
+      console.log(chalk.cyan(`🏷️ 标签筛选: ${options.labelName} (ID: ${options.label})`));
+    }
+    
+    // 更新配置
+    if (Object.keys(updates).length > 0) {
+      config.effective = { ...eff, ...updates };
+      saveCliConfig(config);
+      console.log(chalk.green('\n✅ 配置已保存'));
+    } else {
+      // 显示当前状态
+      console.log(chalk.cyan('\n📋 自动发送简历配置\n'));
+      console.log(`状态: ${eff.autoSendResumeEnabled ? chalk.green('已启用') : chalk.gray('未启用')}`);
+      if (eff.autoSendResumeEnabled && eff.autoSendResumeUseLabelFilter) {
+        console.log(`标签筛选: ${eff.autoSendResumeLabelName || '全部'} (ID: ${eff.autoSendResumeLabelId || 0})`);
+      }
+      console.log(chalk.gray('\n用法:'));
+      console.log('  dagegong-cli resume --enable          启用');
+      console.log('  dagegong-cli resume --disable         禁用');
+      console.log('  dagegong-cli resume --enable --label 1 --label-name "已投递"');
+    }
+  });
+
 // 今日统计
 program
   .command('today')
