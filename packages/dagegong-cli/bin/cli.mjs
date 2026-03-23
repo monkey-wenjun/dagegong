@@ -6,15 +6,33 @@
  * 使用 UI 导出的完整配置（含 API 密钥）
  */
 
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import os from 'node:os';
+
+// ========== 第一步：必须在任何其他导入之前设置环境变量 ==========
+const CLI_RUNTIME_DIR = path.join(os.homedir(), '.dagegong-cli');
+process.env.DAGEGONG_RUNTIME_DIR = CLI_RUNTIME_DIR;
+
+// 确保目录存在
+import fs from 'node:fs';
+if (!fs.existsSync(CLI_RUNTIME_DIR)) {
+  fs.mkdirSync(CLI_RUNTIME_DIR, { recursive: true });
+}
+const CLI_CONFIG_DIR = path.join(CLI_RUNTIME_DIR, 'config');
+if (!fs.existsSync(CLI_CONFIG_DIR)) {
+  fs.mkdirSync(CLI_CONFIG_DIR, { recursive: true });
+}
+
+// ========== 第二步：现在可以安全地导入其他模块 ==========
 import { program } from 'commander';
 import chalk from 'chalk';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { 
   migrateUiConfig, 
   readCliConfig, 
   checkNeedMigration,
-  CLI_RUNTIME_DIR 
+  CLI_RUNTIME_DIR as RUNTIME_DIR
 } from '../src/config-exporter.mjs';
 import { sendFeishuNotification } from '../src/feishu-notifier.mjs';
 import { getTodayStatsSummary, showStats } from '../src/stats.mjs';
@@ -38,7 +56,7 @@ program
     console.log(chalk.cyan('\n📝 初始化配置\n'));
     
     try {
-      const configFile = migrateUiConfig();
+      const configFile = await migrateUiConfig();
       console.log(chalk.green(`\n✅ 配置已保存到: ${configFile}`));
       
       const config = readCliConfig();
@@ -100,56 +118,80 @@ program
       console.log(`${hasAI ? chalk.green('✅') : chalk.yellow('⚠️')} AI 配置: ${hasAI ? llm.model : '未配置'}`);
       if (hasAI) {
         console.log(chalk.gray(`   API: ${llm.providerCompleteApiUrl}`));
-        console.log(chalk.gray(`   密钥: ${llm.providerApiSecret.substring(0, 15)}...`));
       }
       
-      // 检查飞书
-      const hasFeishu = !!eff.dailyStatsWebhookUrl;
-      console.log(`${hasFeishu ? chalk.green('✅') : chalk.yellow('⚠️')} 飞书通知: ${hasFeishu ? '已配置' : '未配置'}`);
+      // 检查飞书配置
+      const hasWebhook = eff.dailyStatsWebhookUrl;
+      console.log(`${hasWebhook ? chalk.green('✅') : chalk.yellow('⚠️')} 飞书通知: ${hasWebhook ? '已配置' : '未配置'}`);
       
       // 职位筛选配置
-      console.log(chalk.cyan('\n📊 职位筛选配置:'));
+      console.log(`\n${chalk.cyan('📊 职位筛选配置:')}`);
       console.log(`  职位关键词: ${eff.expectJobNameRegExpStr || '(未设置)'}`);
       console.log(`  职位类型: ${eff.expectJobTypeRegExpStr || '(未设置)'}`);
-      console.log(`  目标公司: ${(eff.expectCompanies || []).length} 个`);
+      console.log(`  目标公司数: ${eff.expectCompanies?.length || 0} 个`);
       console.log(`  期望城市: ${(eff.expectCityList || []).join(', ') || '(未设置)'}`);
       console.log(`  薪资范围: ${eff.expectSalaryLow || '?'} - ${eff.expectSalaryHigh || '?'} k`);
-      console.log(`  屏蔽公司: ${(eff.blockCompanyNameRegExpStr || '').substring(0, 50)}...`);
       
       // 功能开关
-      console.log(chalk.cyan('\n⚙️ 功能开关:'));
-      console.log(`  打招呼模式: ${['BOSS 默认', '自定义消息', 'AI 生成'][eff.greetingMessageMode || 0]}`);
+      console.log(`\n${chalk.cyan('⚙️ 功能开关:')}`);
+      console.log(`  打招呼模式: ${['BOSS 默认', '自定义消息', 'AI 生成'][eff.greetingMessageMode]}`);
       console.log(`  自动发送简历: ${eff.autoSendResumeEnabled ? '开启' : '关闭'}`);
       console.log(`  摸鱼模式: ${eff.isSageTimeEnabled ? '开启' : '关闭'}`);
       console.log(`  已读不回复聊: ${eff.autoReminder ? '开启' : '关闭'}`);
       
-      console.log('');
-    } else {
-      const config = readCliConfig();
-      if (!config) {
-        console.log(chalk.yellow('未找到配置，请先运行: dagegong-cli init'));
-        return;
+      // CLI 配置
+      const cliCfg = eff.cliConfig || {};
+      console.log(`\n${chalk.cyan('📋 CLI 配置:')}`);
+      console.log(`  每日投递上限: ${cliCfg.dailyLimit || 150} 个`);
+      console.log(`  随机延迟: ${cliCfg.randomDelayMin || 60}-${cliCfg.randomDelayMax || 180} 秒`);
+      
+      // AI 自动回复配置（从独立配置文件读取）
+      const aiModule = await import('../src/ai-auto-reply.mjs');
+      const aiCfg = aiModule.default?.getConfig ? aiModule.default.getConfig() : { enabled: false };
+      console.log(`\n${chalk.cyan('🤖 AI 自动回复配置:')}`);
+      console.log(`  状态: ${aiCfg.enabled ? chalk.green('已启用') : chalk.gray('未启用')}`);
+      if (aiCfg.apiUrl) {
+        console.log(`  API: ${aiCfg.apiUrl}`);
+        console.log(`  API Key: ${aiCfg.apiKey ? aiCfg.apiKey.substring(0, 15) + '...' : chalk.yellow('(未设置)')}`);
+        console.log(`  检查间隔: ${(aiCfg.checkInterval || 120000) / 1000} 秒`);
+      } else {
+        console.log(`  ${chalk.gray('API 未配置')}`);
       }
-      console.log(JSON.stringify(config.effective, null, 2));
+      
+      console.log('');
     }
   });
 
-// 运行投递任务
+// 启动自动投递
 program
   .command('run')
   .description('启动自动投递（复用 UI 配置和 API 密钥）')
-  .option('-l, --limit <number>', '投递数量限制（0=无限制）', '0')
-  .option('--headless', '使用无头模式', true)
-  .option('--no-headless', '显示浏览器界面')
-  .option('--feishu <webhook>', '指定飞书 webhook（覆盖配置）')
-  .option('--dry-run', '只显示配置，不实际运行')
+  .option('-l, --limit <number>', '限制投递数量', '0')
+  .option('--no-headless', '显示浏览器界面（调试用）')
+  .option('--dry-run', '试运行（不实际投递）')
   .action(async (options) => {
+    const limit = parseInt(options.limit);
+    
+    if (options.dryRun) {
+      console.log(chalk.cyan('\n🧪 试运行模式\n'));
+      const result = await dryRun();
+      console.log('配置预览:', JSON.stringify(result, null, 2));
+      return;
+    }
+    
     console.log(chalk.cyan('\n🔥 启动自动投递\n'));
     
-    // 检查配置
-    if (checkNeedMigration()) {
+    // 检查是否需要迁移配置
+    const needMigration = checkNeedMigration();
+    if (needMigration) {
       console.log(chalk.yellow('⚠️ 配置需要更新，正在迁移...'));
-      migrateUiConfig();
+      try {
+        await migrateUiConfig();
+        console.log(chalk.green('✅ 配置迁移完成\n'));
+      } catch (err) {
+        console.error(chalk.red('❌ 配置迁移失败:'), err.message);
+        process.exit(1);
+      }
     }
     
     const config = readCliConfig();
@@ -158,49 +200,39 @@ program
       process.exit(1);
     }
     
-    const eff = config.effective;
+    const eff = config?.effective;
     
-    // 检查 Cookie
-    if (!eff.cookies || eff.cookies.length === 0) {
-      console.error(chalk.red('❌ 未找到 Cookie，请先使用 UI 应用登录'));
-      process.exit(1);
-    }
+    console.log('📋 当前配置:\n');
+    console.log(`  Cookie: ${eff?.cookies?.length || 0} 条`);
+    console.log(`  职位关键词: ${eff?.expectJobNameRegExpStr || '(未设置)'}`);
+    console.log(`  目标公司: ${eff?.expectCompanies?.length || 0} 个`);
+    console.log(`  期望城市: ${(eff?.expectCityList || []).join(', ')}`);
+    console.log(`  薪资范围: ${eff?.expectSalaryLow || '?'} - ${eff?.expectSalaryHigh || '?'} k`);
+    console.log(`  打招呼模式: ${['BOSS 默认', '自定义消息', 'AI 生成'][eff?.greetingMessageMode]}`);
+    console.log(`  AI 模型: ${eff?.llmConfig?.[0]?.model || '未配置'}`);
     
-    // 显示配置摘要
-    console.log(chalk.cyan('📋 当前配置:\n'));
-    console.log(`  Cookie: ${eff.cookies.length} 条`);
-    console.log(`  职位关键词: ${eff.expectJobNameRegExpStr || eff.expectJobTypeRegExpStr || '未设置'}`);
-    console.log(`  目标公司: ${(eff.expectCompanies || []).length} 个`);
-    console.log(`  期望城市: ${(eff.expectCityList || []).join(', ') || '未设置'}`);
-    console.log(`  薪资范围: ${eff.expectSalaryLow || '?'} - ${eff.expectSalaryHigh || '?'} k`);
-    console.log(`  打招呼模式: ${['BOSS 默认', '自定义消息', 'AI 生成'][eff.greetingMessageMode || 0]}`);
-    
-    if (eff.llmConfig?.[0]?.providerApiSecret) {
-      console.log(`  AI 模型: ${eff.llmConfig[0].model}`);
-    }
-    
-    if (options.dryRun) {
-      console.log(chalk.yellow('\n⏹️  干运行模式，不实际执行\n'));
-      const dryRunResult = await dryRun();
-      console.log('干运行结果:', JSON.stringify(dryRunResult, null, 2));
-      return;
-    }
-    
-    console.log('');
-    
-    // 实际运行投递
     try {
       const result = await runJobSearch({
-        limit: parseInt(options.limit) || 0,
+        limit,
         headless: options.headless,
-        feishuWebhook: options.feishu,
-        onProgress: (progress) => {
-          // 可以在这里添加实时进度显示
+        onProgress: ({ type, data }) => {
+          if (type === 'success') {
+            console.log(`✅ 投递成功: ${data.jobName} @ ${data.brandName}`);
+          }
         }
       });
       
-      console.log(chalk.green('\n✅ 投递完成'));
-      console.log(`成功投递: ${result.successCount} 个职位`);
+      if (result.success) {
+        console.log(chalk.green('\n✅ 投递完成'));
+        console.log(`成功投递: ${result.successCount} 个职位`);
+        
+        if (result.jobDetails.length > 0) {
+          console.log(chalk.gray('\n投递详情:'));
+          result.jobDetails.forEach((job, index) => {
+            console.log(`  ${index + 1}. ${job.jobName} @ ${job.company} ${job.status === 'success' ? '✅' : '❌'}`);
+          });
+        }
+      }
       
     } catch (err) {
       console.error(chalk.red('\n❌ 投递失败:'), err.message);
@@ -357,6 +389,66 @@ program
       console.log(`\n总计: ${totalApplies} 次投递`);
     }
     console.log('');
+  });
+
+// AI 自动回复配置
+program
+  .command('ai-reply')
+  .description('配置 AI 自动回复（使用 Dify API）')
+  .option('-e, --enable', '启用 AI 自动回复')
+  .option('-d, --disable', '禁用 AI 自动回复')
+  .option('--url <url>', '设置 Dify API URL (如: http://192.168.1.29/v1/chat-messages)')
+  .option('--key <key>', '设置 Dify API Key')
+  .option('--interval <seconds>', '设置检查间隔（秒）', '120')
+  .action(async (options) => {
+    const aiAutoReplyModule = await import('../src/ai-auto-reply.mjs');
+    const { saveConfig, getConfig } = aiAutoReplyModule.default || aiAutoReplyModule;
+    
+    const currentConfig = getConfig();
+    
+    // 更新配置
+    const updates = {};
+    if (options.enable) updates.enabled = true;
+    if (options.disable) updates.enabled = false;
+    if (options.url) updates.apiUrl = options.url;
+    if (options.key) updates.apiKey = options.key;
+    if (options.interval) updates.checkInterval = parseInt(options.interval) * 1000;
+    
+    // 保存配置
+    const saved = saveConfig(updates);
+    
+    if (!saved) {
+      console.error(chalk.red('❌ 配置保存失败'));
+      process.exit(1);
+    }
+    
+    // 读取最新配置
+    const newConfig = getConfig();
+    
+    console.log(chalk.cyan('\n🤖 AI 自动回复配置\n'));
+    console.log(`状态: ${newConfig.enabled ? chalk.green('已启用') : chalk.gray('未启用')}`);
+    
+    if (newConfig.apiUrl) {
+      console.log(`API URL: ${newConfig.apiUrl}`);
+      console.log(`API Key: ${newConfig.apiKey ? newConfig.apiKey.substring(0, 15) + '...' : chalk.yellow('(未设置)')}`);
+      console.log(`检查间隔: ${(newConfig.checkInterval || 120000) / 1000} 秒`);
+    } else {
+      console.log(chalk.yellow('\n⚠️ API URL 未设置'));
+      console.log(chalk.gray('请运行: dagegong-cli ai-reply --url <url> --key <key>'));
+    }
+    
+    console.log(chalk.green('\n✅ 配置已保存到 ai-auto-reply.json'));
+    console.log(chalk.gray('运行 dagegong-cli run 时将自动启动 AI 自动回复服务'));
+  });
+
+// AI 自动回复单次检查（调试用）
+program
+  .command('ai-check')
+  .description('单次检查未读消息并回复（调试用）')
+  .action(async () => {
+    console.log(chalk.cyan('\n🤖 单次检查未读消息\n'));
+    console.log(chalk.yellow('注意: 此命令需要在投递过程中运行，或配合 --no-headless 使用'));
+    console.log(chalk.gray('建议使用: dagegong-cli run --limit 1 --no-headless\n'));
   });
 
 program.parse();

@@ -5,11 +5,61 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import chalk from 'chalk';
 import { SyncHook, AsyncSeriesHook } from 'tapable';
 import { readCliConfig, CLI_RUNTIME_DIR } from './config-exporter.mjs';
 import { sendFeishuNotification } from './feishu-notifier.mjs';
 import { logApply, logApplyStats, logError, logInfo, logCookie } from './logger.mjs';
+import { startAiAutoReply } from './ai-auto-reply.mjs';
 import fs from 'node:fs';
+import os from 'node:os';
+
+/**
+ * 更新投递统计文件
+ * @param {boolean} success - 是否成功
+ * @param {Object} jobInfo - 职位信息
+ */
+function updateStatsFile(success, jobInfo) {
+  const today = new Date().toISOString().split('T')[0];
+  const statsFile = path.join(os.homedir(), '.dagegong-cli', `stats-${today}.json`);
+  
+  let stats = { date: today, applications: [{ total: 0, success: 0, failed: 0, skipped: 0, details: [] }] };
+  
+  if (fs.existsSync(statsFile)) {
+    try {
+      stats = JSON.parse(fs.readFileSync(statsFile, 'utf-8'));
+    } catch (e) {
+      // 文件损坏，使用默认值
+    }
+  }
+  
+  const app = stats.applications[0];
+  app.total++;
+  if (success) {
+    app.success++;
+  } else {
+    app.failed++;
+  }
+  
+  app.details.push({
+    jobName: jobInfo.jobName || 'Unknown',
+    company: jobInfo.brandName || jobInfo.company || 'Unknown',
+    salary: jobInfo.salaryDesc || jobInfo.salary || '',
+    city: jobInfo.cityName || jobInfo.city || '',
+    status: success ? 'success' : 'failed',
+    time: new Date().toISOString()
+  });
+  
+  fs.writeFileSync(statsFile, JSON.stringify(stats, null, 2), 'utf-8');
+}
+
+/**
+ * 睡眠延迟函数
+ * @param {number} ms - 毫秒
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,44 +86,62 @@ function createFeishuPlugin(webhookUrl) {
   let totalCount = 0;
   let jobDetails = [];
   
+  // 辅助函数：安全获取职位信息
+  const getJobInfo = (data) => {
+    const jobInfo = data?.jobInfo || data || {};
+    return {
+      jobName: jobInfo.jobName || data?.jobName || '未知职位',
+      brandName: data?.brandName || jobInfo.brandName || '未知公司',
+      salaryDesc: jobInfo.salaryDesc || data?.salaryDesc || '',
+      cityName: jobInfo.cityName || data?.cityName || '',
+      areaDistrict: jobInfo.areaDistrict || data?.areaDistrict || '',
+      jobType: jobInfo.jobType || data?.jobType || ''
+    };
+  };
+  
   return {
     apply(hooks) {
       // 投递即将开始时
-      hooks.newChatWillStartup.tapAsync('FeishuStart', async (positionInfo) => {
+      hooks.newChatWillStartup.tapPromise('FeishuStart', async (positionInfo) => {
         totalCount++;
-        console.log(`\n📨 [准备投递 #${totalCount}] ${positionInfo.jobName || '未知职位'} @ ${positionInfo.brandName || '未知公司'}`);
-        if (positionInfo.salaryDesc) {
-          console.log(`   💰 薪资: ${positionInfo.salaryDesc}`);
+        const info = getJobInfo(positionInfo);
+        console.log(`\n📨 [准备投递 #${totalCount}] ${info.jobName} @ ${info.brandName}`);
+        if (info.salaryDesc) {
+          console.log(`   💰 薪资: ${info.salaryDesc}`);
         }
       });
       
       // 投递成功时
-      hooks.newChatStartup.tapAsync('FeishuSuccess', async (positionInfo, context) => {
+      hooks.newChatStartup.tapPromise('FeishuSuccess', async (positionInfo, context) => {
         successCount++;
+        const info = getJobInfo(positionInfo);
         jobDetails.push({
-          jobName: positionInfo.jobName,
-          company: positionInfo.brandName,
-          salary: positionInfo.salaryDesc,
+          jobName: info.jobName,
+          company: info.brandName,
+          salary: info.salaryDesc,
           status: 'success',
           time: new Date().toISOString()
         });
         
-        console.log(`\n✅ [投递成功] ${successCount}. ${positionInfo.jobName} @ ${positionInfo.brandName}`);
-        console.log(`   💰 薪资: ${positionInfo.salaryDesc || '未知'}`);
-        console.log(`   📍 地点: ${positionInfo.cityName || '未知'} ${positionInfo.areaDistrict || ''}`);
-        if (positionInfo.jobType) {
-          console.log(`   🏷️ 类型: ${positionInfo.jobType}`);
+        console.log(`\n✅ [投递成功] ${successCount}. ${info.jobName} @ ${info.brandName}`);
+        console.log(`   💰 薪资: ${info.salaryDesc || '未知'}`);
+        console.log(`   📍 地点: ${info.cityName} ${info.areaDistrict}`);
+        if (info.jobType) {
+          console.log(`   🏷️ 类型: ${info.jobType}`);
         }
         
         // 记录投递日志
-        logApply(true, positionInfo);
+        logApply(true, info);
+        
+        // 更新统计文件
+        updateStatsFile(true, info);
         
         // 每5个成功投递发送一次进度通知
         if (successCount % 5 === 0) {
           try {
             await sendFeishuNotification(webhookUrl, {
               title: '📧 Dagegong 投递进度',
-              content: `已成功投递 ${successCount} 个职位\n最新: ${positionInfo.jobName} @ ${positionInfo.brandName}`
+              content: `已成功投递 ${successCount} 个职位\n最新: ${info.jobName} @ ${info.brandName}`
             });
           } catch (err) {
             console.warn('飞书通知发送失败:', err.message);
@@ -111,8 +179,9 @@ function createFeishuPlugin(webhookUrl) {
 
 /**
  * 创建 hooks 对象（兼容 mainLoop 的要求）
+ * @param {Object} config - 配置对象
  */
-function createHooks() {
+function createHooks(config = {}) {
   const hooks = {
     daemonInitialized: new AsyncSeriesHook(),
     puppeteerLaunched: new SyncHook(['browser']),
@@ -133,8 +202,45 @@ function createHooks() {
     jobMarkedAsNotSuit: new AsyncSeriesHook(['jobInfo', 'options'])
   };
   
+  // AI 自动回复服务引用
+  let aiAutoReplyService = null;
+  
+  // 在用户信息显示后启动 AI 自动回复服务（此时页面已稳定）
+  hooks.userInfoResponse.tapPromise('AiAutoReplyStart', async (userInfo) => {
+    if (userInfo?.code !== 0) {
+      console.log('[AiAutoReply] 用户未登录，跳过启动');
+      return;
+    }
+    
+    const { getConfig, startAiAutoReply } = await import('./ai-auto-reply.mjs');
+    const aiConfig = getConfig();
+    
+    if (aiConfig?.enabled) {
+      console.log('[AiAutoReply] 用户已登录，启动 AI 自动回复服务...');
+      console.log('[AiAutoReply] 配置状态:', {
+        enabled: aiConfig.enabled,
+        apiUrl: aiConfig.apiUrl,
+        hasApiKey: !!aiConfig.apiKey,
+        checkInterval: aiConfig.checkInterval
+      });
+      
+      try {
+        aiAutoReplyService = await startAiAutoReply({
+          interval: aiConfig.checkInterval || 120000
+        });
+        if (aiAutoReplyService) {
+          console.log('🤖 AI 自动回复服务已启动');
+        }
+      } catch (err) {
+        console.error('[AiAutoReply] 启动失败:', err.message);
+      }
+    } else {
+      console.log('[AiAutoReply] AI 自动回复未启用，跳过启动');
+    }
+  });
+  
   // 添加关键节点日志
-  hooks.userInfoResponse.tapAsync('Logger', async (userInfo) => {
+  hooks.userInfoResponse.tapPromise('Logger', async (userInfo) => {
     if (userInfo && userInfo.code === 0) {
       console.log('[2/5] ✅ 用户信息获取成功');
     } else {
@@ -142,22 +248,26 @@ function createHooks() {
     }
   });
   
-  hooks.jobMarkedAsNotSuit.tapAsync('Logger', async (jobInfo, options) => {
-    console.log(`\n🚫 [跳过职位] ${jobInfo.jobName || '未知职位'} @ ${jobInfo.brandName || '未知公司'}`);
+  hooks.jobMarkedAsNotSuit.tapPromise('Logger', async (jobInfo, options) => {
+    // 兼容不同的字段结构
+    const info = jobInfo?.jobInfo || jobInfo || {};
+    const jobName = info.jobName || '未知职位';
+    const brandName = jobInfo?.brandName || info.brandName || '未知公司';
+    console.log(`\n🚫 [跳过职位] ${jobName} @ ${brandName}`);
     if (options && options.reason) {
       console.log(`   原因: ${options.reason}`);
     }
   });
   
-  hooks.encounterEmptyRecommendJobList.tapAsync('Logger', async () => {
+  hooks.encounterEmptyRecommendJobList.tapPromise('Logger', async () => {
     console.log('\n⏳ [等待] 当前推荐列表为空，等待加载更多...');
   });
   
-  hooks.sageTimeEnter.tapAsync('Logger', async () => {
+  hooks.sageTimeEnter.tapPromise('Logger', async () => {
     console.log('\n😴 [摸鱼模式] 进入休息状态，暂停投递...');
   });
   
-  hooks.sageTimeExit.tapAsync('Logger', async () => {
+  hooks.sageTimeExit.tapPromise('Logger', async () => {
     console.log('\n☕ [摸鱼模式] 休息结束，恢复投递...');
   });
   
@@ -212,7 +322,7 @@ function createHooks() {
  * @returns {Promise<Object>} - 运行结果
  */
 export async function runJobSearch(options = {}) {
-  const { 
+  let { 
     limit = 0, 
     headless = true,
     feishuWebhook = null,
@@ -227,6 +337,18 @@ export async function runJobSearch(options = {}) {
   
   const eff = config.effective;
   
+  // 获取 CLI 配置（每日上限和随机延迟）
+  const cliConfig = eff.cliConfig || {};
+  const dailyLimit = cliConfig.dailyLimit || 150;
+  const randomDelayMin = cliConfig.randomDelayMin || 60;   // 默认最小 60 秒
+  const randomDelayMax = cliConfig.randomDelayMax || 180;  // 默认最大 180 秒（3分钟）
+  
+  // 如果命令行没有指定 limit，使用配置文件中的 dailyLimit
+  if (limit === 0) {
+    limit = dailyLimit;
+    console.log(`📋 使用配置文件中的每日上限: ${limit} 个`);
+  }
+  
   // 检查核心模块
   if (!mainLoop) {
     throw new Error('geek-auto-start-chat-with-boss 模块未加载，无法运行投递');
@@ -239,9 +361,8 @@ export async function runJobSearch(options = {}) {
   // 禁用自动发送简历（避免干扰投递流程）
   process.env.DAGEGONG_AUTO_SEND_RESUME_ENABLED = '0';
   
-  if (limit > 0) {
-    process.env.DAGEGONG_DAILY_CHAT_LIMIT = String(limit);
-  }
+  // 设置每日投递上限
+  process.env.DAGEGONG_DAILY_CHAT_LIMIT = String(limit);
   
   // 设置 Chrome 路径
   if (eff.chromeExecutablePath) {
@@ -252,7 +373,8 @@ export async function runJobSearch(options = {}) {
   console.log('\n🚀 启动自动投递...\n');
   console.log(`配置信息:`);
   console.log(`  - 无头模式: ${headless ? '是' : '否'}`);
-  console.log(`  - 投递限制: ${limit > 0 ? limit : '无限制'}`);
+  console.log(`  - 投递限制: ${limit} 个/天`);
+  console.log(`  - 随机延迟: ${randomDelayMin}-${randomDelayMax} 秒`);
   console.log(`  - 飞书通知: ${feishuWebhook || eff.dailyStatsWebhookUrl ? '已启用' : '未启用'}`);
   console.log(`  - 期望城市: ${(eff.expectCityList || []).join(', ')}`);
   console.log(`  - 薪资范围: ${eff.expectSalaryLow || '?'} - ${eff.expectSalaryHigh || '?'} k`);
@@ -265,29 +387,44 @@ export async function runJobSearch(options = {}) {
   console.log(`  - 工作目录: ${process.env.DAGEGONG_RUNTIME_DIR}`);
   console.log('');
   
-  // 创建 hooks
-  const hooks = createHooks();
+  // 创建 hooks，传入配置以启用 AI 自动回复
+  const hooks = createHooks(eff);
   
   // 添加进度回调
   if (onProgress) {
-    hooks.newChatStartup.tapAsync('Progress', async (positionInfo) => {
+    hooks.newChatStartup.tapPromise('Progress', async (positionInfo) => {
       onProgress({ type: 'success', data: positionInfo });
     });
   }
   
-  // 添加投递计数器（用于限制数量）
+  // 添加投递计数器（用于限制数量）和随机延迟
   let successCount = 0;
-  if (limit > 0) {
-    hooks.newChatStartup.tapAsync('LimitCounter', async (positionInfo) => {
-      successCount++;
-      console.log(`📊 进度: ${successCount}/${limit}`);
-      if (successCount >= limit) {
-        console.log(chalk.yellow(`\n✋ 已达到限制数量 ${limit}`));
-        // 设置标记让主循环知道要停止
-        process.env.DAGEGONG_SHOULD_STOP = '1';
-      }
-    });
-  }
+  hooks.newChatStartup.tapPromise('LimitCounter', async (positionInfo) => {
+    successCount++;
+    console.log(`📊 进度: ${successCount}/${limit}`);
+    
+    // 如果达到限制，停止投递
+    if (successCount >= limit) {
+      console.log(chalk.yellow(`\n✋ 已达到限制数量 ${limit}`));
+      // 设置标记让主循环知道要停止
+      process.env.DAGEGONG_SHOULD_STOP = '1';
+      return;
+    }
+    
+    // 随机延迟（避免频繁操作被封号）
+    const delaySeconds = Math.floor(Math.random() * (randomDelayMax - randomDelayMin + 1) + randomDelayMin);
+    const delayMs = delaySeconds * 1000;
+    const delayMinutes = Math.floor(delaySeconds / 60);
+    const remainingSeconds = delaySeconds % 60;
+    
+    if (delayMinutes > 0) {
+      console.log(chalk.gray(`⏳ 等待 ${delayMinutes} 分 ${remainingSeconds} 秒后继续...`));
+    } else {
+      console.log(chalk.gray(`⏳ 等待 ${remainingSeconds} 秒后继续...`));
+    }
+    
+    await sleep(delayMs);
+  });
   
   // 添加飞书通知插件
   const webhook = feishuWebhook || eff.dailyStatsWebhookUrl;
@@ -364,22 +501,33 @@ export async function runJobSearch(options = {}) {
     result.error = err.message;
     console.error('\n❌ 投递过程出错:', err.message);
     
-    // 发送错误通知
+    // 异常时也要记录已成功投递的数量
+    result.successCount = successCount;
+    result.totalCount = successCount; // 简化处理，假设都成功
+    
+    // 发送错误通知（包含已成功数量）
     if (webhook) {
       try {
         await sendFeishuNotification(webhook, {
           title: '⚠️ Dagegong 投递异常',
-          content: `错误信息: ${err.message}\n已成功投递: ${result.successCount} 个职位`
+          content: `错误信息: ${err.message}\n已成功投递: ${successCount} 个职位`
         });
       } catch (e) {
         // 忽略通知错误
       }
     }
     
-    throw err;
+    // 不抛出异常，让流程正常结束以保存统计
+    // throw err;
   } finally {
+    // 确保统计被正确记录
+    if (result.successCount === 0 && successCount > 0) {
+      result.successCount = successCount;
+      result.totalCount = successCount;
+    }
+    
     // 记录投递统计
-    logApplyStats(result.totalCount, result.successCount, result.totalCount - result.successCount);
+    logApplyStats(result.totalCount || successCount, result.successCount || successCount, (result.totalCount || successCount) - (result.successCount || successCount));
     
     // 关闭浏览器
     try {

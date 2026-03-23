@@ -1067,9 +1067,14 @@ async function toRecommendPage (hooks) {
     throw new Error("LOGIN_STATUS_INVALID")
   } else {
     console.log('[DEBUG] toRecommendPage: Login status valid')
-    await storeStorage(page).catch(() => void 0)
+    console.log('[DEBUG] Storing cookies and localStorage...')
+    await storeStorage(page).catch((err) => {
+      console.log('[DEBUG] storeStorage error (ignored):', err.message)
+    })
+    console.log('[DEBUG] Storage done, building job source list...')
   }
 
+  console.log('[DEBUG] normalizedJobSource:', normalizedJobSource.map(s => s.type))
   const computedSourceList = []
   for (const source of normalizedJobSource) {
     switch (source.type) {
@@ -1096,7 +1101,22 @@ async function toRecommendPage (hooks) {
         continue
       }
       case 'expect': {
-        await page.waitForSelector(USER_SET_EXPECT_JOB_ENTRIES_SELECTOR)
+        console.log('[DEBUG] 等待职位来源选择器:', USER_SET_EXPECT_JOB_ENTRIES_SELECTOR)
+        try {
+          await page.waitForSelector(USER_SET_EXPECT_JOB_ENTRIES_SELECTOR, { timeout: 10000 })
+          console.log('[DEBUG] 职位来源选择器加载成功')
+        } catch (waitErr) {
+          console.error('[ERROR] 职位来源选择器加载失败:', waitErr.message)
+          console.error('[ERROR] 选择器:', USER_SET_EXPECT_JOB_ENTRIES_SELECTOR)
+          console.error('[ERROR] 当前URL:', page.url())
+          // 截图诊断
+          try {
+            const debugPath = 'C:\\Users\\hswei\\.dagegong-cli\\debug-expect.png'
+            await page.screenshot({ path: debugPath, fullPage: true })
+            console.log('[DEBUG] 已保存调试截图:', debugPath)
+          } catch {}
+          throw waitErr
+        }
         const allExpectJobEntryHandles = await page.$$(USER_SET_EXPECT_JOB_ENTRIES_SELECTOR)
         allExpectJobEntryHandles.forEach((it, index) => {
           computedSourceList.push({
@@ -1193,16 +1213,41 @@ async function toRecommendPage (hooks) {
       findInCurrentFilterCondition: while(true) {
         await sleepWithRandomDelay(2500)
 
-        await Promise.all([
-          Promise.race([
-            page.waitForSelector(USER_SET_EXPECT_JOB_ENTRIES_SELECTOR),
-            page.waitForSelector(RECOMMEND_JOB_ENTRY_SELECTOR),
-          ]),
-          Promise.race([
-            page.waitForSelector(".job-list-container .rec-job-list"),
-            page.waitForSelector(".recommend-result-job .job-empty-wrapper")
+        // 等待职位列表加载（带超时和诊断）
+        console.log('[DEBUG] 等待职位列表加载...')
+        console.log('[DEBUG] 尝试选择器:', USER_SET_EXPECT_JOB_ENTRIES_SELECTOR, '或', RECOMMEND_JOB_ENTRY_SELECTOR)
+        console.log('[DEBUG] 尝试职位列表选择器:', ".job-list-container .rec-job-list")
+        
+        try {
+          await Promise.all([
+            Promise.race([
+              page.waitForSelector(USER_SET_EXPECT_JOB_ENTRIES_SELECTOR, { timeout: 10000 }),
+              page.waitForSelector(RECOMMEND_JOB_ENTRY_SELECTOR, { timeout: 10000 }),
+            ]).catch(err => {
+              console.warn('[WARN] 职位来源标签选择器超时:', err.message)
+              console.warn('[WARN] 请检查选择器是否过期:', USER_SET_EXPECT_JOB_ENTRIES_SELECTOR)
+              throw err
+            }),
+            Promise.race([
+              page.waitForSelector(".job-list-container .rec-job-list", { timeout: 10000 }),
+              page.waitForSelector(".recommend-result-job .job-empty-wrapper", { timeout: 10000 })
+            ]).catch(err => {
+              console.warn('[WARN] 职位列表选择器超时:', err.message)
+              console.warn('[WARN] 请检查选择器是否过期: .job-list-container .rec-job-list')
+              throw err
+            })
           ])
-        ])
+          console.log('[DEBUG] 职位列表加载成功')
+        } catch (waitErr) {
+          console.error('[ERROR] 等待职位列表失败:', waitErr.message)
+          // 截图诊断
+          try {
+            const debugPath = 'C:\\Users\\hswei\\.dagegong-cli\\debug-page.png'
+            await page.screenshot({ path: debugPath, fullPage: true })
+            console.log('[DEBUG] 已保存调试截图:', debugPath)
+          } catch {}
+          throw waitErr
+        }
         // await page.click(USER_SET_EXPECT_JOB_ENTRIES_SELECTOR)
         await sleep(3000)
         let onPageCurrentSourceIndex = -1

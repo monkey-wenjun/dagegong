@@ -8,12 +8,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+
+// 设置 CLI 运行时目录（必须在导入 geek 模块之前）
+export const CLI_RUNTIME_DIR = path.join(os.homedir(), '.dagegong-cli');
+process.env.DAGEGONG_RUNTIME_DIR = CLI_RUNTIME_DIR;
+
 import { writeStorageFile, writeConfigFile } from '@dagegong/geek-auto-start-chat-with-boss/runtime-file-utils.mjs';
 
 const UI_RUNTIME_DIR = path.join(os.homedir(), '.dagegong');
 const UI_CONFIG_DIR = path.join(UI_RUNTIME_DIR, 'config');
 const UI_STORAGE_DIR = path.join(UI_RUNTIME_DIR, 'storage');
-export const CLI_RUNTIME_DIR = path.join(os.homedir(), '.dagegong-cli');
 
 /**
  * 确保目录存在
@@ -271,6 +275,16 @@ export async function migrateUiConfig() {
       }
     })(),
     
+    // CLI 投递配置
+    cliConfig: {
+      dailyLimit: 150,           // 每日投递上限
+      randomDelayMin: 60,        // 随机延迟最小值（秒）
+      randomDelayMax: 180        // 随机延迟最大值（秒）
+    },
+    
+    // 注意：AI 自动回复配置存储在独立的 ai-auto-reply.json 文件中
+    // 不与主配置合并，以便与 UI 版本保持一致
+    
     // 启动配置
     browserConfig: {
       headless: true,  // 默认无头模式
@@ -337,18 +351,38 @@ export async function migrateUiConfig() {
   
   // 11. 同时保存到 geek 模块的 config 目录（供 mainLoop 读取）
   try {
+    // 确保 config 目录存在
+    const geekConfigDir = path.join(CLI_RUNTIME_DIR, 'config');
+    if (!fs.existsSync(geekConfigDir)) {
+      fs.mkdirSync(geekConfigDir, { recursive: true });
+    }
+    
     // 禁用自动发送简历（CLI 模式下不需要）
     const bossConfigForGeek = {
       ...bossConfig,
       autoSendResumeEnabled: false
     };
-    await writeConfigFile('boss.json', bossConfigForGeek, { isSync: true });
-    await writeConfigFile('common-job-condition-config.json', commonConfig, { isSync: true });
-    await writeConfigFile('llm.json', llmConfig, { isSync: true });
-    await writeConfigFile('target-company-list.json', targetCompanyList, { isSync: true });
+    const filesToWrite = [
+      { name: 'boss.json', content: bossConfigForGeek },
+      { name: 'common-job-condition-config.json', content: commonConfig },
+      { name: 'llm.json', content: llmConfig },
+      { name: 'target-company-list.json', content: targetCompanyList }
+    ];
+    
+    for (const { name, content } of filesToWrite) {
+      try {
+        const filePath = path.join(geekConfigDir, name);
+        fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+        console.log(`   ✅ ${name} 已同步`);
+      } catch (writeErr) {
+        console.error(`   ❌ ${name} 同步失败:`, writeErr.message);
+      }
+    }
+    
     console.log('✅ 配置已同步到 geek 模块');
   } catch (err) {
     console.warn('⚠️ 同步配置到 geek 模块失败:', err.message);
+    console.warn('   错误详情:', err.stack);
   }
   
   console.log('✅ 配置迁移完成！');
